@@ -1,4 +1,4 @@
-# LLM 调用层 & Prompt 管理设计
+# LLM 调用层 & Prompt 管理设计（v2 动态 Agent 版）
 
 ## 一、Provider 架构
 
@@ -83,7 +83,6 @@ type AnthropicProvider struct {
 ### 1.3 Provider 注册表
 
 ```go
-// 运行时根据配置自动创建 Provider 实例
 type ProviderRegistry struct {
     providers map[string]LLMProvider
 }
@@ -96,7 +95,7 @@ func (r *ProviderRegistry) Get(name string) (LLMProvider, error) {
     return p, nil
 }
 
-// 根据配置初始化
+// 根据配置初始化（系统级 Provider）
 func NewProviderRegistry(cfg *config.Config) *ProviderRegistry {
     registry := &ProviderRegistry{providers: make(map[string]LLMProvider)}
     
@@ -113,7 +112,7 @@ func NewProviderRegistry(cfg *config.Config) *ProviderRegistry {
 }
 ```
 
-### 1.4 配置格式
+### 1.4 配置格式（系统级 Provider）
 
 ```yaml
 llm:
@@ -137,7 +136,7 @@ llm:
 
     ollama:
       base_url: "http://localhost:11434/v1"
-      api_key: "ollama"  # ollama 不需要 key，但字段必须填
+      api_key: "ollama"
 
     # ---------- Anthropic 独立 ----------
     claude:
@@ -146,32 +145,18 @@ llm:
 
 ### 1.5 Agent 绑定 Provider + Model
 
+每个 Agent 在创建时选择 Provider 和 Model，存储在 SQLite `agents` 表中。
+
 ```yaml
+# 配置文件中的默认值（创建 Agent 时的默认选项）
 agents:
-  analyze:
-    provider: "deepseek"
-    model: "deepseek-chat"
-    max_tokens: 4096
-    temperature: 0.3
-
-  dev:
-    provider: "claude"
-    model: "claude-sonnet-4-20250514"
-    max_tokens: 8192
-    temperature: 0.2
-
-  bugfix:
-    provider: "deepseek"
-    model: "deepseek-chat"
-    max_tokens: 8192
-    temperature: 0.1
-
-  review:
-    provider: "deepseek"
-    model: "deepseek-chat"
-    max_tokens: 4096
-    temperature: 0.2
+  default_provider: "deepseek"
+  default_model: "deepseek-chat"
+  default_max_tokens: 4096
+  default_temperature: 0.3
 ```
+
+**运行时**：Agent 执行任务时，从 `agents` 表读取自己的 Provider/Model 配置，调用对应 LLM。
 
 ## 二、Prompt 两层管理
 
@@ -180,39 +165,43 @@ agents:
 ### 2.1 优先级
 
 ```
-DB（Web UI 修改后持久化）
+DB（Web UI 修改后持久化，或 Agent 创建时写入）
   ↓ 覆盖
 config.yaml（预置默认值，随版本更新）
 ```
 
 系统启动时：
-1. 从 config.yaml 加载所有 Agent 的 prompt 作为基线
-2. 查询 DB，如果有覆盖记录则替换
-3. 运行时使用的 prompt = DB 有值 ? DB : config.yaml
+1. 从 config.yaml 加载默认 Prompt 模板作为基线
+2. 查询 DB `agents` 表，每个 Agent 有自己的 system_prompt 和 user_template
+3. 运行时使用的 prompt = Agent DB 记录中的 prompt
 
 ### 2.2 Prompt 结构
 
+每个 Agent 在 `agents` 表中自带 Prompt：
+
 ```go
-type AgentPrompt struct {
-    AgentName    string `json:"agent_name" yaml:"agent_name"`
-    SystemPrompt string `json:"system_prompt" yaml:"system_prompt"`
-    UserTemplate string `json:"user_template" yaml:"user_template"`
+type Agent struct {
+    // ... 其他字段
+    SystemPrompt string `json:"system_prompt"`  // 系统提示词
+    UserTemplate string `json:"user_template"`  // 用户消息模板（Go template）
 }
 ```
 
 - `SystemPrompt`：系统提示词，定义 Agent 角色和行为规范
 - `UserTemplate`：用户消息模板，Go template 语法，变量来自 Issue/PR 数据
 
-### 2.3 配置文件中的 Prompt（基线）
+### 2.3 配置文件中的默认 Prompt 模板
 
 ```yaml
 agents:
-  analyze:
-    provider: "deepseek"
-    model: "deepseek-chat"
-    max_tokens: 4096
-    temperature: 0.3
-    prompt:
+  default_provider: "deepseek"
+  default_model: "deepseek-chat"
+  default_max_tokens: 4096
+  default_temperature: 0.3
+
+  # 预置 Prompt 模板（创建 Agent 时的默认值）
+  templates:
+    analyze:
       system_prompt: |
         你是一个需求分析专家。你的任务是分析用户提交的 Issue，评估需求的完整性和可行性。
         
@@ -236,12 +225,7 @@ agents:
         
         请输出结构化的需求分析报告。
 
-  dev:
-    provider: "claude"
-    model: "claude-sonnet-4-20250514"
-    max_tokens: 8192
-    temperature: 0.2
-    prompt:
+    dev:
       system_prompt: |
         你是一个高级研发工程师。根据需求分析报告，编写高质量的代码实现。
         
@@ -265,12 +249,7 @@ agents:
         
         请创建分支 "{{.BranchName}}"，实现代码并提交 PR。
 
-  bugfix:
-    provider: "deepseek"
-    model: "deepseek-chat"
-    max_tokens: 8192
-    temperature: 0.1
-    prompt:
+    bugfix:
       system_prompt: |
         你是一个 Bug 修复专家。分析 Bug 描述，定位问题根因，编写修复代码。
         
@@ -289,12 +268,7 @@ agents:
         
         请定位问题、编写修复代码并提交 PR。
 
-  review:
-    provider: "deepseek"
-    model: "deepseek-chat"
-    max_tokens: 4096
-    temperature: 0.2
-    prompt:
+    review:
       system_prompt: |
         你是一个资深代码审查专家。审查 PR 的代码变更，输出结构化报告。
         
@@ -323,60 +297,72 @@ agents:
         ` + "```" + `
         
         请输出结构化审查报告。
+
+    interaction:
+      system_prompt: |
+        你是一个 AI 研发助手。用户通过 @Mention 与你互动，请基于 Issue/PR 的上下文回答问题。
+        
+        规范：
+        - 回答简洁、专业
+        - 如果涉及代码修改，说明修改内容和原因
+        - 如果不确定，坦诚说明
+      user_template: |
+        用户在 {{.Location}} 中 @了你：
+        
+        ## 上下文
+        - Issue/PR: #{{.Issue.Number}} {{.Issue.Title}}
+        
+        ## 用户消息
+        {{.Comment.Body}}
+        
+        请回复用户。
 ```
 
-### 2.4 DB 存储结构
+### 2.4 Prompt 更新流程
+
+```
+Web UI 修改 Prompt
+  ↓
+PUT /api/prompts/:agent_id
+  ↓
+写入 DB（agents 表更新 system_prompt + user_template）
+  ↓
+同时写入 prompt_history 表（记录版本）
+  ↓
+运行时立即生效（下次 Agent 任务使用新 Prompt）
+```
+
+### 2.5 DB 存储结构
 
 ```sql
-CREATE TABLE agent_prompts (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    agent_name  TEXT NOT NULL UNIQUE,           -- analyze / dev / bugfix / review
-    system_prompt TEXT NOT NULL,
-    user_template TEXT NOT NULL,
-    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_by  TEXT DEFAULT 'system'           -- system / admin
+-- Agent 表（已包含 Prompt 字段）
+CREATE TABLE agents (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    gitea_username  TEXT NOT NULL UNIQUE,
+    gitea_token     TEXT NOT NULL,
+    provider        TEXT NOT NULL DEFAULT 'deepseek',
+    model           TEXT NOT NULL DEFAULT 'deepseek-chat',
+    max_tokens      INTEGER DEFAULT 4096,
+    temperature     REAL DEFAULT 0.3,
+    system_prompt   TEXT NOT NULL,           -- Agent 自己的 System Prompt
+    user_template   TEXT NOT NULL,           -- Agent 自己的 User Template
+    status          TEXT DEFAULT 'active',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Prompt 历史版本
 CREATE TABLE prompt_history (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    agent_name  TEXT NOT NULL,
+    agent_id    INTEGER NOT NULL,
     system_prompt TEXT NOT NULL,
     user_template TEXT NOT NULL,
     version     INTEGER NOT NULL,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_by  TEXT DEFAULT 'admin'
+    created_by  TEXT DEFAULT 'admin',
+    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 );
-```
-
-- `agent_prompts`：当前生效的 prompt（每 agent 一条）
-- `prompt_history`：历史版本，方便回溯和回滚
-
-### 2.5 启动加载流程
-
-```go
-func LoadPrompts(cfg *config.Config, db *sql.DB) map[string]*AgentPrompt {
-    prompts := make(map[string]*AgentPrompt)
-
-    // 第一层：从配置文件加载基线
-    for name, agentCfg := range cfg.Agents {
-        prompts[name] = &AgentPrompt{
-            AgentName:    name,
-            SystemPrompt: agentCfg.Prompt.SystemPrompt,
-            UserTemplate: agentCfg.Prompt.UserTemplate,
-        }
-    }
-
-    // 第二层：DB 覆盖（如果存在）
-    rows, _ := db.Query("SELECT agent_name, system_prompt, user_template FROM agent_prompts")
-    defer rows.Close()
-    for rows.Next() {
-        var p AgentPrompt
-        rows.Scan(&p.AgentName, &p.SystemPrompt, &p.UserTemplate)
-        prompts[p.AgentName] = &p  // DB 覆盖配置文件
-    }
-
-    return prompts
-}
 ```
 
 ### 2.6 Web UI Prompt 编辑
@@ -385,21 +371,20 @@ API：
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/prompts` | 获取所有 Agent 的当前 prompt |
-| GET | `/api/prompts/:agent` | 获取单个 Agent 的 prompt |
-| PUT | `/api/prompts/:agent` | 更新 prompt（写 DB + 记历史） |
-| POST | `/api/prompts/:agent/reset` | 重置为配置文件默认值（删 DB 记录） |
-| GET | `/api/prompts/:agent/history` | 查看历史版本 |
-| POST | `/api/prompts/:agent/preview` | 预览渲染效果（传入模板变量） |
+| GET | `/api/prompts/:agent_id` | 获取 Agent 的当前 prompt |
+| PUT | `/api/prompts/:agent_id` | 更新 prompt（写 DB + 记历史） |
+| POST | `/api/prompts/:agent_id/reset` | 重置为模板默认值（从 config.yaml 读取） |
+| GET | `/api/prompts/:agent_id/history` | 查看历史版本 |
+| POST | `/api/prompts/:agent_id/preview` | 预览渲染效果（传入模板变量） |
 
 Web UI 页面：
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Agent: [研发 Agent ▼]                    [重置为默认] [保存]  │
+│ Agent: [前端研发 Agent ▼]                [重置为默认] [保存]  │
 │                                                              │
 │ ┌─ System Prompt ──────────────────────────────────────────┐ │
-│ │ 你是一个高级研发工程师。根据需求分析报告，编写高质量...    │ │
+│ │ 你是一个高级前端研发工程师。根据需求分析报告，编写高质量...│ │
 │ │                                                          │ │
 │ │ [编辑模式] 字数: 256                                      │ │
 │ └──────────────────────────────────────────────────────────┘ │
@@ -419,14 +404,15 @@ Web UI 页面：
 
 ## 三、模型切换策略
 
-不同 Agent 可以用不同模型，按需选择：
+不同 Agent 可以用不同模型，创建 Agent 时选择，运行时可随时在 Web UI 修改：
 
-| Agent | 推荐模型 | 理由 |
-|-------|---------|------|
+| Agent 类型 | 推荐模型 | 理由 |
+|-----------|---------|------|
 | 需求分析 | DeepSeek Chat | 分析任务，性价比高 |
 | 研发 | Claude Sonnet | 代码生成质量最佳 |
 | Bug 修复 | DeepSeek Chat / Claude | 定位+修复，看复杂度 |
 | PR 审查 | DeepSeek Chat | 审查任务，不需要最强模型 |
 | 测试 | DeepSeek Chat | 生成测试用例 |
+| @Mention 互动 | DeepSeek Chat | 回答问题，不需要最强模型 |
 
-切换只需改配置文件中的 `provider` + `model`，重启生效。
+切换只需在 Web UI 修改 Agent 的 Provider + Model，**立即生效**，无需重启。

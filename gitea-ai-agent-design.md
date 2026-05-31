@@ -1,4 +1,4 @@
-# Gitea + AI Agent 研发流程提效方案
+# Gitea + AI Agent 研发流程提效方案（v2 细化版）
 
 ## 一、核心理念
 
@@ -40,7 +40,8 @@
 - 监听 Gitea Webhook 事件（`issues`, `pull_request`, `issue_comment`, `push`）
 - 事件过滤：只处理与 AI Agent 相关的事件（通过 Label 或 Assignee 区分）
 - 事件队列：异步处理，避免阻塞 Gitea 响应
-- 签名验证：验证 Webhook 签名确保安全性
+- 签名验证：HMAC-SHA256 验证（`X-Gitea-Signature` 头部）
+- 幂等去重：基于 `X-Gitea-Delivery` 唯一 ID 去重，防止 Webhook 重试导致重复执行
 
 ### 3.2 Agent Dispatcher
 
@@ -54,9 +55,70 @@
 - 处理 API 限流和重试
 - 记录 Agent 操作日志
 
-## 四、Agent 角色定义
+## 四、Gitea 账号与权限
 
-### 4.1 需求分析 Agent
+### 4.1 专用 AI Agent 账号
+
+创建专用的 `ai-agent` Gitea 账号，不复用管理员账号。
+
+**Token 权限最小化**：
+- `write:issue` — 评论 Issue、打标签
+- `write:repository` — 创建分支、推送代码、创建 PR
+- `read:repository` — 读取仓库内容
+
+**不授予**：`admin`、`write:user`、`write:organization` 等无关权限。
+
+### 4.2 Phase 2 扩展
+
+> **TODO (Phase 2)**：支持多 Agent 账号（不同 Agent 用不同 Gitea 账号，便于区分操作来源）。
+
+## 五、Agent 执行环境
+
+### 5.1 工作目录管理
+
+每次任务在 Gateway 服务器本地临时目录 clone 仓库：
+
+```
+/tmp/gateway-work/{task-id}/
+├── repo/          # clone 的仓库
+└── artifacts/     # Agent 产出物（日志、中间文件）
+```
+
+**流程**：
+1. 创建临时目录 `/tmp/gateway-work/{task-id}/`
+2. `git clone https://{token}@gitea.example.com/{owner}/{repo}.git`
+3. Agent 执行操作（写代码、运行测试等）
+4. 推送分支 + 创建 PR
+5. 任务完成后删除临时目录
+
+**认证方式**：HTTPS + Gitea Token（URL 中嵌入 token，如 `https://ai-agent:{token}@gitea.example.com/...`）
+
+**清理策略**：
+- 任务成功 → 立即删除
+- 任务失败 → 保留 24 小时（便于排查），然后定时清理
+- 磁盘空间不足 → 强制清理最早的临时目录
+
+### 5.2 沙箱隔离
+
+> **TODO (Phase 2)**：Agent 代码执行改为 Docker 容器隔离，防止恶意代码影响 Gateway 服务器。
+>
+> 方案：每个任务启动一个临时容器，挂载 clone 的仓库，Agent 在容器内执行。任务结束后销毁容器。
+
+### 5.3 大 Diff 处理
+
+当 PR Diff 超过 LLM Token 限制时的降级策略：
+
+- **阈值**：Diff 超过 8000 Token（约 32KB）
+- **降级方案**：
+  1. 只传变更文件列表 + 每个文件的前 50 行
+  2. 或分文件审查，每次只审查一个文件，最后汇总
+- **优先级**：新增/修改文件 > 删除文件；`.go`/`.py`/`.js` 等代码文件 > 配置文件 > 文档
+
+> **TODO (Phase 2)**：支持语义化 Diff（基于 AST 解析，只传变更的函数/类，而非整行 Diff）。
+
+## 六、Agent 角色定义
+
+### 6.1 需求分析 Agent
 
 **触发条件**：Issue 被打上 `agent:analyze` 标签
 
@@ -88,7 +150,7 @@
 *由 AI 需求分析 Agent 自动生成*
 ```
 
-### 4.2 研发 Agent
+### 6.2 研发 Agent
 
 **触发条件**：Issue 被打上 `agent:dev` 标签，且已被 Assign
 
@@ -99,14 +161,15 @@
 - 在 PR 描述中说明实现思路
 
 **工作流程**：
-1. 拉取最新代码
+1. 临时目录 clone 仓库
 2. 创建 `feat/issue-{number}-{short-desc}` 分支
 3. 实现代码
 4. 提交并推送
 5. 创建 PR，关联 Issue
 6. 在 Issue 评论中通知已提交 PR
+7. 清理临时目录
 
-### 4.3 Bug 修复 Agent
+### 6.3 Bug 修复 Agent
 
 **触发条件**：Issue 被打上 `agent:bugfix` 标签，且 Label 为 `bug`
 
@@ -116,9 +179,11 @@
 - 生成修复代码
 - 创建修复 PR，附带修复说明
 
-### 4.4 PR 审查 Agent
+### 6.4 PR 审查 Agent
 
-**触发条件**：PR 被创建或更新，且关联的 Issue 有 `agent:dev` 或 `agent:bugfix` 标签
+**触发条件**（二选一）：
+- **方式 A**：PR 关联的 Issue 有 `agent:dev` 或 `agent:bugfix` 标签 → 自动触发
+- **方式 B**：仓库打上 `agent:auto-review` 标签 → 所有 PR 自动触发审查（Phase 2）
 
 **职责**：
 - 审查代码变更（逻辑、安全、性能、风格）
@@ -153,7 +218,9 @@
 *由 AI PR 审查 Agent 自动生成，请人工复核后合并*
 ```
 
-### 4.5 测试 Agent
+> **TODO (Phase 2)**：仓库级 `agent:auto-review` 标签，所有 PR 自动触发审查，无需 Issue 关联。
+
+### 6.5 测试 Agent
 
 **触发条件**：PR 被打上 `agent:test` 标签
 
@@ -162,9 +229,9 @@
 - 运行测试并报告结果
 - 检查测试覆盖率
 
-## 五、事件流转设计
+## 七、事件流转设计
 
-### 5.1 完整流转（需求→开发→审查→合并）
+### 7.1 完整流转（需求→开发→审查→合并）
 
 ```
 1. PM/研发 创建 Issue
@@ -178,8 +245,9 @@
    └─ 确认无误后，打标签 `agent:dev`，Assign 给研发 Agent
 
 4. 研发 Agent 开始工作
-   └─ 拉代码 → 创建分支 → 实现 → 提交 PR
+   └─ clone 仓库 → 创建分支 → 实现 → 推送 → 创建 PR
    └─ PR 关联 Issue，打标签 `agent:dev:done`
+   └─ 清理临时目录
 
 5. PR 审查 Agent 自动触发
    └─ 审查代码 → 输出报告 → 打标签 `reviewed-by-agent`
@@ -190,7 +258,7 @@
    └─ 不通过 → 评论修改意见，打标签 `agent:dev` 重新触发研发 Agent
 ```
 
-### 5.2 Bug 修复流转
+### 7.2 Bug 修复流转
 
 ```
 1. 测试/用户 创建 Issue（Label: `bug`）
@@ -206,7 +274,7 @@
 4. 研发人员审核合并
 ```
 
-## 六、Label 规范
+## 八、Label 规范
 
 | Label | 含义 | 触发动作 |
 |-------|------|----------|
@@ -219,85 +287,150 @@
 | `agent:dev:done` | 研发完成 | 研发 Agent 完成后自动添加 |
 | `reviewed-by-agent` | 已审查 | PR 审查 Agent 完成后自动添加 |
 | `human:review-needed` | 需人工审核 | Agent 完成后通知人工 |
+| `agent:auto-review` | 仓库级自动审查 | Phase 2：所有 PR 自动触发审查 |
 
-## 七、技术选型
+## 九、Webhook 配置方式
 
-### 7.1 Webhook Gateway
+### 9.1 Phase 1：仓库级 Webhook（手动配置）
 
-- **语言**：Go / Node.js / Python
-- **框架**：轻量 HTTP 框架（Gin / Express / FastAPI）
-- **部署**：Docker 容器，与 Gitea 同网络
+每个仓库单独在 Gitea 设置中添加 Webhook：
+1. 进入仓库 → 设置 → Webhooks → 添加 Webhook → Gitea
+2. 目标 URL：`http://your-server:8080/webhook/gitea`
+3. 密钥：配置中的 Webhook 密钥
+4. 选择事件：Issues、Pull Request、Issue Comment
+5. 激活
 
-### 7.2 Agent 实现
+### 9.2 Phase 2：API 自动注册
 
-- **LLM**：Claude / GPT-4 / 本地模型（通过 API 调用）
-- **代码操作**：Git CLI + Gitea API
-- **工具链**：
-  - 代码分析：AST 解析、Lint 工具
-  - 测试生成：基于代码结构生成测试用例
-  - 代码搜索：grep / ripgrep / 语义搜索
+Gateway 启动时或新仓库创建时，通过 Gitea API 自动注册 Webhook：
 
-### 7.3 配置示例
+```go
+// POST /api/v1/repos/{owner}/{repo}/hooks
+{
+    "type": "gitea",
+    "active": true,
+    "config": {
+        "url": "http://gateway:8080/webhook/gitea",
+        "content_type": "json",
+        "secret": "your-webhook-secret"
+    },
+    "events": ["issues", "issue_comment", "pull_request", "push"]
+}
+```
+
+> **TODO (Phase 2)**：Gateway 监听 Gitea 系统事件，新仓库创建时自动注册 Webhook。
+
+### 9.3 Phase 2：系统级 Webhook
+
+> **TODO**：支持 Gitea 系统级 Webhook（管理员 → 系统设置 → Webhooks），一个 Gateway 服务所有仓库，无需逐个配置。
+
+## 十、通知机制
+
+### 10.1 Phase 1：Gitea 评论通知
+
+Agent 完成任务后，通过 Gitea Issue/PR 评论通知相关人员。评论中 @ 相关人员触发 Gitea 邮件通知。
+
+### 10.2 Phase 2：IM 通知
+
+> **TODO (Phase 2)**：支持额外的 IM 通知渠道（可配置）。
+>
+> ```yaml
+> notify:
+>   channels:
+>     - type: "dingtalk"
+>       webhook: "https://oapi.dingtalk.com/robot/send?access_token=..."
+>     - type: "feishu"
+>       webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/..."
+>     - type: "wechat_work"
+>       webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
+>     - type: "email"
+>       smtp: "smtp.example.com:587"
+>       from: "agent@example.com"
+> ```
+>
+> 触发条件：Agent 任务成功/失败时，向配置的渠道推送通知。
+
+## 十一、技术选型
+
+### 11.1 Webhook Gateway
+
+- **语言**：Go 1.22+
+- **前端**：Vue 3 + Element Plus（`go:embed` 打包）
+- **存储**：SQLite（配置 + 任务队列 + 操作日志 + 幂等去重）
+- **部署**：单二进制，零依赖
+
+### 11.2 Agent 实现
+
+- **LLM**：通过可配置的 Provider 调用（OpenAI 兼容 / Anthropic）
+- **代码操作**：Git CLI（HTTPS + Token 认证）
+- **Gitea API**：Go SDK（`gitea.com/gitea/go-sdk`）
+
+### 11.3 配置示例
 
 ```yaml
-# config.yaml
+server:
+  host: "0.0.0.0"
+  port: 8080
+
 gitea:
   url: "https://git.example.com"
   token: "${GITEA_TOKEN}"
   webhook_secret: "${WEBHOOK_SECRET}"
+  agent_username: "ai-agent"  # 专用 Agent 账号
 
-agents:
-  analyze:
-    model: "claude-sonnet-4-20250514"
-    max_tokens: 4096
-    temperature: 0.3
-
-  dev:
-    model: "claude-sonnet-4-20250514"
-    max_tokens: 8192
-    temperature: 0.2
-    branch_prefix: "feat/"
-    auto_pr: true
-
-  bugfix:
-    model: "claude-sonnet-4-20250514"
-    max_tokens: 8192
-    temperature: 0.1
-    branch_prefix: "fix/"
-
-  review:
-    model: "claude-sonnet-4-20250514"
-    max_tokens: 4096
-    temperature: 0.2
-    auto_notify: true
+workspace:
+  base_dir: "/tmp/gateway-work"
+  cleanup_after: "24h"        # 失败任务保留时间
+  max_disk_usage: "10GB"      # 临时目录最大磁盘占用
 
 dispatcher:
   max_concurrent: 3
-  retry_count: 2
-  timeout: 300  # seconds
+  retry_count: 1              # 超时后自动重试次数
+  timeout: 300                # 单任务超时（秒）
+  queue_size: 100
+
+database:
+  path: "./data/gateway.db"
+
+logging:
+  level: "info"
+  path: "./data/logs"
+
+# Phase 2: IM 通知
+# notify:
+#   channels:
+#     - type: "dingtalk"
+#       webhook: "..."
 ```
 
-## 八、安全考虑
+## 十二、安全考虑
 
-1. **Webhook 签名验证**：所有 Webhook 请求必须验证 HMAC 签名
-2. **API Token 权限最小化**：Agent 使用的 Gitea Token 只授予必要权限
-3. **分支保护**：Agent 不能直接推送到 main/master，必须通过 PR
-4. **人工审核必须**：Agent 的所有代码变更必须经过人工审核才能合并
-5. **操作审计**：所有 Agent 操作记录到审计日志
-6. **回滚机制**：Agent 操作可一键回滚（Revert PR）
+1. **Webhook 签名验证**：HMAC-SHA256 验证 `X-Gitea-Signature`
+2. **幂等去重**：基于 `X-Gitea-Delivery` 去重，防止重试导致重复执行
+3. **API Token 权限最小化**：只授予 `write:issue` + `write:repository`
+4. **分支保护**：Agent 不能直接推送到 main/master，必须通过 PR
+5. **人工审核必须**：Agent 的所有代码变更必须经过人工审核才能合并
+6. **操作审计**：所有 Agent 操作记录到 SQLite 审计日志
+7. **回滚机制**：Agent 操作可一键回滚（Revert PR）
+8. **临时目录清理**：任务完成后删除，失败任务 24h 后自动清理
 
-## 九、实施路径
+> **TODO (Phase 2)**：Docker 沙箱隔离 Agent 执行环境。
+
+## 十三、实施路径
 
 ### Phase 1：基础框架（2周）
-- [ ] 搭建 Webhook Gateway
-- [ ] 实现 Agent Dispatcher
-- [ ] 实现 Gitea API 回写层
-- [ ] 基础配置管理
+- [ ] 搭建 Webhook Gateway（Go 单二进制）
+- [ ] 实现 Agent Dispatcher + 任务队列
+- [ ] 实现 Gitea API 回写层（Go SDK）
+- [ ] 基础配置管理（config.yaml + SQLite）
+- [ ] 幂等去重（`X-Gitea-Delivery`）
+- [ ] 临时目录管理 + 自动清理
 
 ### Phase 2：核心 Agent（3周）
 - [ ] 需求分析 Agent
-- [ ] PR 审查 Agent
+- [ ] PR 审查 Agent（支持大 Diff 降级）
 - [ ] 基础测试覆盖
+- [ ] Web UI 可视化配置
 
 ### Phase 3：研发 Agent（3周）
 - [ ] 研发 Agent（代码生成 + PR 创建）
@@ -309,8 +442,15 @@ dispatcher:
 - [ ] Prompt 优化
 - [ ] 测试 Agent
 - [ ] 多语言/框架支持
+- [ ] API 自动注册 Webhook
+- [ ] 系统级 Webhook 支持
+- [ ] IM 通知（钉钉/飞书/企微/邮件）
+- [ ] Docker 沙箱隔离
+- [ ] 语义化 Diff（AST 解析）
+- [ ] 多 Agent 账号支持
+- [ ] 仓库级 `agent:auto-review` 标签
 
-## 十、预期收益
+## 十四、预期收益
 
 | 指标 | 当前 | 预期 | 提效 |
 |------|------|------|------|
@@ -319,7 +459,7 @@ dispatcher:
 | Bug 定位时间 | 1-2h | 5-10min | 80%+ |
 | 重复代码编写 | 人工 | Agent | 60%+ |
 
-## 十一、与现有工具对比
+## 十五、与现有工具对比
 
 | 方案 | 优势 | 劣势 |
 |------|------|------|

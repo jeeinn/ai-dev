@@ -13,6 +13,7 @@ import (
 
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/store"
+	"gitea-agent-gateway/internal/webhook"
 )
 
 func main() {
@@ -48,7 +49,13 @@ func main() {
 		fmt.Fprintf(w, `{"status":"ok","version":"0.1.0"}`)
 	})
 
-	// TODO: register webhook handler
+	// Webhook handler
+	webhookHandler := webhook.NewHandler(&cfg.Gitea, db.DB, func(evt *webhook.WebhookEvent) {
+		log.Printf("[INFO] Received event: %s/%s repo=%s", evt.Event, evt.Action, evt.Repo.FullName)
+		// TODO: dispatch to agent dispatcher
+	})
+	mux.Handle("POST /webhook/gitea", webhookHandler)
+
 	// TODO: register API routes
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

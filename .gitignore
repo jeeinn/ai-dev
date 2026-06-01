@@ -1,1 +1,12 @@
+# Binary
 gateway.exe
+
+# Local config (contains tokens)
+config.yaml
+
+# Database and runtime data
+data/
+workspace/
+
+# Logs
+*.log

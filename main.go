@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"gitea-agent-gateway/internal/agents"
+	"gitea-agent-gateway/internal/api"
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
@@ -56,7 +58,10 @@ func main() {
 	})
 	mux.Handle("POST /webhook/gitea", webhookHandler)
 
-	// TODO: register API routes
+	// Management API
+	manager := agents.NewManager(db, &cfg.Gitea)
+	apiHandler := api.NewHandler(db, manager)
+	apiHandler.RegisterRoutes(mux)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{

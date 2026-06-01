@@ -47,7 +47,7 @@ func main() {
 	llmRegistry := llm.NewRegistry(&cfg.LLM)
 
 	// Initialize dispatcher (Router + TaskQueue + Executor)
-	d := dispatcher.NewDispatcher(db, &cfg.Gitea, &cfg.Dispatcher, llmRegistry)
+	d := dispatcher.NewDispatcher(db, &cfg.Gitea, &cfg.Dispatcher, llmRegistry, &cfg.Agents)
 
 	// Start dispatcher (loads pending tasks and starts workers)
 	if err := d.Start(); err != nil {
@@ -70,7 +70,7 @@ func main() {
 
 	// Management API
 	manager := agents.NewManager(db, &cfg.Gitea)
-	apiHandler := api.NewHandler(db, manager)
+	apiHandler := api.NewHandler(db, manager, cfg)
 	apiHandler.RegisterRoutes(mux)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

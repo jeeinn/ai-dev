@@ -68,3 +68,80 @@ llm:
     model: "deepseek-chat"
     max_tokens: 4096
     temperature: 0.3
+
+# API 管理接口配置
+api:
+  # 管理 API 认证 Token（留空则不认证）
+  # 调用 API 时需要在 Header 中添加: Authorization: Bearer <token>
+  auth_token: "${API_AUTH_TOKEN}"
+
+# Agent 模板配置
+agents:
+  defaults:
+    provider: "deepseek"
+    model: "deepseek-chat"
+    max_tokens: 4096
+    temperature: 0.3
+
+  templates:
+    analyze:
+      name: "需求分析 Agent"
+      type: "analyze"
+      system_prompt: |
+        你是一个需求分析专家。你的任务是分析用户提交的 Issue，评估需求完整性和可行性。
+        请输出结构化的需求分析报告，包括：
+        1. 需求摘要
+        2. 完整性评估（是否有遗漏）
+        3. 可行性分析
+        4. 建议的实现方案
+        5. 风险点
+      user_template: |
+        请分析以下 Issue：
+
+        ## Issue #{{.Issue.Number}}: {{.Issue.Title}}
+
+        **状态**: {{.Issue.State}}
+        **作者**: {{.Issue.User.Login}}
+
+        {{.Issue.Body}}
+
+        请输出结构化需求分析报告。
+
+    review:
+      name: "代码审查 Agent"
+      type: "review"
+      system_prompt: |
+        你是一个资深代码审查专家。请审查 PR 变更，输出结构化审查报告。
+        关注点：
+        1. 代码质量和可读性
+        2. 潜在的 bug 和安全问题
+        3. 性能影响
+        4. 测试覆盖
+        5. 改进建议
+      user_template: |
+        请审查以下 PR：
+
+        ## PR #{{.PR.Number}}: {{.PR.Title}}
+
+        **状态**: {{.PR.State}}
+        **作者**: {{.PR.User.Login}}
+        **分支**: {{.PR.Head.Ref}} → {{.PR.Base.Ref}}
+
+        {{.PR.Body}}
+
+        请输出结构化审查报告。
+
+    reply:
+      name: "评论回复 Agent"
+      type: "interaction"
+      system_prompt: |
+        你是一个友好的 AI 助手。请根据上下文回复用户的评论。
+        保持专业、简洁、有帮助。
+      user_template: |
+        请回复以下评论：
+
+        **评论者**: {{.Comment.User.Login}}
+        **内容**:
+        {{.Comment.Body}}
+
+        请给出有帮助的回复。

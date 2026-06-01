@@ -15,11 +15,12 @@ import (
 // Dispatcher orchestrates the event processing pipeline:
 // WebhookEvent → Router.Match → TaskQueue.Enqueue → Executor.execute
 type Dispatcher struct {
-	router   *Router
-	queue    *TaskQueue
-	executor *Executor
-	db       *store.DB
-	giteaCfg *config.GiteaConfig
+	router    *Router
+	queue     *TaskQueue
+	executor  *Executor
+	db        *store.DB
+	giteaCfg  *config.GiteaConfig
+	agentsCfg *config.AgentsConfig
 }
 
 // NewDispatcher creates a new Dispatcher with all components wired together.
@@ -28,6 +29,7 @@ func NewDispatcher(
 	giteaCfg *config.GiteaConfig,
 	dispatcherCfg *config.DispatcherConfig,
 	llmRegistry *llm.Registry,
+	agentsCfg *config.AgentsConfig,
 ) *Dispatcher {
 	router := NewRouter(db)
 	queue := NewTaskQueue(db, dispatcherCfg.QueueSize)
@@ -40,11 +42,12 @@ func NewDispatcher(
 	)
 
 	d := &Dispatcher{
-		router:   router,
-		queue:    queue,
-		executor: executor,
-		db:       db,
-		giteaCfg: giteaCfg,
+		router:    router,
+		queue:     queue,
+		executor:  executor,
+		db:        db,
+		giteaCfg:  giteaCfg,
+		agentsCfg: agentsCfg,
 	}
 
 	// Wire up Gitea client factory for result writeback
@@ -85,11 +88,11 @@ func (d *Dispatcher) HandleEvent(evt *webhook.WebhookEvent) bool {
 	log.Printf("[INFO] Matched agent %q (id=%d) via route %d",
 		match.Agent.Name, match.Agent.ID, match.Route.ID)
 
-	// Build task context from event
-	taskContext := d.buildTaskContext(evt, match.Agent)
-
 	// Determine task type based on event
 	taskType := determineTaskType(evt)
+
+	// Build task context from event (uses templates if configured)
+	taskContext := d.buildTaskContext(evt, match.Agent, taskType)
 
 	// Get issue number for the task
 	issueID := 0
@@ -123,7 +126,39 @@ func (d *Dispatcher) HandleEvent(evt *webhook.WebhookEvent) bool {
 }
 
 // buildTaskContext constructs the context string for the task from the event.
-func (d *Dispatcher) buildTaskContext(evt *webhook.WebhookEvent, agent *store.Agent) string {
+// If the agent has a user_template, it renders it with the event data.
+// Otherwise, it falls back to the default context builder.
+func (d *Dispatcher) buildTaskContext(evt *webhook.WebhookEvent, agent *store.Agent, taskType string) string {
+	// Try to use agent's user_template first
+	if agent.UserTemplate != "" {
+		rendered, err := RenderTemplate(agent.UserTemplate, BuildTemplateData(evt))
+		if err != nil {
+			log.Printf("[WARN] Failed to render user_template: %v, using default", err)
+		} else if rendered != "" {
+			return rendered
+		}
+	}
+
+	// Try to use template from config based on task type
+	if d.agentsCfg != nil {
+		if tmpl, ok := d.agentsCfg.Templates[taskType]; ok && tmpl.UserTemplate != "" {
+			data := BuildTemplateData(evt)
+			data.Task = &TaskData{TaskType: taskType}
+			rendered, err := RenderTemplate(tmpl.UserTemplate, data)
+			if err != nil {
+				log.Printf("[WARN] Failed to render config template: %v, using default", err)
+			} else if rendered != "" {
+				return rendered
+			}
+		}
+	}
+
+	// Fallback to default context builder
+	return d.buildDefaultContext(evt)
+}
+
+// buildDefaultContext builds the default context string without templates.
+func (d *Dispatcher) buildDefaultContext(evt *webhook.WebhookEvent) string {
 	var sb strings.Builder
 
 	// Add repository info

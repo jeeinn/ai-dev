@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"gitea-agent-gateway/internal/agents"
+	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/store"
 )
 
@@ -13,27 +14,35 @@ import (
 type Handler struct {
 	db      *store.DB
 	manager *agents.Manager
+	auth    *AuthMiddleware
+	cfg     *config.Config
 }
 
 // NewHandler creates a new API handler.
-func NewHandler(db *store.DB, manager *agents.Manager) *Handler {
-	return &Handler{db: db, manager: manager}
+func NewHandler(db *store.DB, manager *agents.Manager, cfg *config.Config) *Handler {
+	return &Handler{
+		db:      db,
+		manager: manager,
+		auth:    NewAuthMiddleware(cfg.API.AuthToken),
+		cfg:     cfg,
+	}
 }
 
 // RegisterRoutes registers all API routes on the given mux.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/agents", h.listAgents)
-	mux.HandleFunc("POST /api/agents", h.createAgent)
-	mux.HandleFunc("GET /api/agents/{id}", h.getAgent)
-	mux.HandleFunc("PUT /api/agents/{id}", h.updateAgent)
-	mux.HandleFunc("DELETE /api/agents/{id}", h.deleteAgent)
-	mux.HandleFunc("GET /api/tasks", h.listTasks)
-	mux.HandleFunc("GET /api/tasks/{id}", h.getTask)
-	mux.HandleFunc("GET /api/routes", h.listRoutes)
-	mux.HandleFunc("POST /api/routes", h.createRoute)
-	mux.HandleFunc("DELETE /api/routes/{id}", h.deleteRoute)
-	mux.HandleFunc("GET /api/logs", h.listLogs)
-	mux.HandleFunc("GET /api/stats", h.getStats)
+	mux.HandleFunc("GET /api/agents", h.auth.Wrap(h.listAgents))
+	mux.HandleFunc("POST /api/agents", h.auth.Wrap(h.createAgent))
+	mux.HandleFunc("GET /api/agents/{id}", h.auth.Wrap(h.getAgent))
+	mux.HandleFunc("PUT /api/agents/{id}", h.auth.Wrap(h.updateAgent))
+	mux.HandleFunc("DELETE /api/agents/{id}", h.auth.Wrap(h.deleteAgent))
+	mux.HandleFunc("GET /api/tasks", h.auth.Wrap(h.listTasks))
+	mux.HandleFunc("GET /api/tasks/{id}", h.auth.Wrap(h.getTask))
+	mux.HandleFunc("GET /api/routes", h.auth.Wrap(h.listRoutes))
+	mux.HandleFunc("POST /api/routes", h.auth.Wrap(h.createRoute))
+	mux.HandleFunc("DELETE /api/routes/{id}", h.auth.Wrap(h.deleteRoute))
+	mux.HandleFunc("GET /api/logs", h.auth.Wrap(h.listLogs))
+	mux.HandleFunc("GET /api/stats", h.auth.Wrap(h.getStats))
+	mux.HandleFunc("GET /api/templates", h.auth.Wrap(h.listTemplates))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
@@ -50,6 +59,37 @@ func parseID(r *http.Request, name string) (int64, error) {
 	return strconv.ParseInt(r.PathValue(name), 10, 64)
 }
 
+// AgentDTO is the API response for agents, hiding sensitive fields.
+type AgentDTO struct {
+	ID           int64   `json:"id"`
+	Name         string  `json:"name"`
+	GiteaUsername string  `json:"gitea_username"`
+	AvatarURL    string  `json:"avatar_url"`
+	Provider     string  `json:"provider"`
+	Model        string  `json:"model"`
+	MaxTokens    int     `json:"max_tokens"`
+	Temperature  float64 `json:"temperature"`
+	SystemPrompt string  `json:"system_prompt"`
+	UserTemplate string  `json:"user_template"`
+	Status       string  `json:"status"`
+}
+
+func toAgentDTO(a *store.Agent) AgentDTO {
+	return AgentDTO{
+		ID:           a.ID,
+		Name:         a.Name,
+		GiteaUsername: a.GiteaUsername,
+		AvatarURL:    a.AvatarURL,
+		Provider:     a.Provider,
+		Model:        a.Model,
+		MaxTokens:    a.MaxTokens,
+		Temperature:  a.Temperature,
+		SystemPrompt: a.SystemPrompt,
+		UserTemplate: a.UserTemplate,
+		Status:       a.Status,
+	}
+}
+
 // --- Agent endpoints ---
 
 func (h *Handler) listAgents(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +98,11 @@ func (h *Handler) listAgents(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
-	writeJSON(w, 200, agents)
+	dtos := make([]AgentDTO, len(agents))
+	for i, a := range agents {
+		dtos[i] = toAgentDTO(a)
+	}
+	writeJSON(w, 200, dtos)
 }
 
 func (h *Handler) createAgent(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +116,7 @@ func (h *Handler) createAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
-	writeJSON(w, 201, agent)
+	writeJSON(w, 201, toAgentDTO(agent))
 }
 
 func (h *Handler) getAgent(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +130,7 @@ func (h *Handler) getAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "agent not found")
 		return
 	}
-	writeJSON(w, 200, agent)
+	writeJSON(w, 200, toAgentDTO(agent))
 }
 
 func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
@@ -233,4 +277,10 @@ func (h *Handler) getStats(w http.ResponseWriter, r *http.Request) {
 		"total_tasks":  len(tasks),
 	}
 	writeJSON(w, 200, stats)
+}
+
+// --- Templates endpoint ---
+
+func (h *Handler) listTemplates(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, h.cfg.Agents.Templates)
 }

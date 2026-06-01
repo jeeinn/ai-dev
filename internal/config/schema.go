@@ -9,6 +9,8 @@ type Config struct {
 	Database   DatabaseConfig   `yaml:"database"`
 	Logging    LoggingConfig    `yaml:"logging"`
 	LLM        LLMConfig        `yaml:"llm"`
+	API        APIConfig        `yaml:"api"`
+	Agents     AgentsConfig     `yaml:"agents"`
 }
 
 type ServerConfig struct {
@@ -59,4 +61,24 @@ type AgentDefaultsConfig struct {
 	Model       string  `yaml:"model"`
 	MaxTokens   int     `yaml:"max_tokens"`
 	Temperature float64 `yaml:"temperature"`
+}
+
+// APIConfig contains API server configuration.
+type APIConfig struct {
+	AuthToken string `yaml:"auth_token"`
+}
+
+// AgentsConfig contains agent templates and defaults.
+type AgentsConfig struct {
+	Defaults  AgentDefaultsConfig           `yaml:"defaults"`
+	Templates map[string]AgentTemplateConfig `yaml:"templates"`
+}
+
+// AgentTemplateConfig is a template for creating agents.
+type AgentTemplateConfig struct {
+	Name         string   `yaml:"name"`
+	Type         string   `yaml:"type"`
+	SystemPrompt string   `yaml:"system_prompt"`
+	UserTemplate string   `yaml:"user_template"`
+	Permissions  []string `yaml:"permissions"`
 }

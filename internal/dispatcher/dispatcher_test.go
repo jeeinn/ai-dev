@@ -122,7 +122,8 @@ func TestDispatcherHandleEvent(t *testing.T) {
 	// Register mock provider
 	llmRegistry.Register("mock", &mockLLMProvider{})
 
-	d := NewDispatcher(db, giteaCfg, dispatcherCfg, llmRegistry)
+	agentsCfg := &config.AgentsConfig{}
+	d := NewDispatcher(db, giteaCfg, dispatcherCfg, llmRegistry, agentsCfg)
 
 	// Create test event
 	evt := &webhook.WebhookEvent{
@@ -190,7 +191,7 @@ func TestDispatcherDuplicateDelivery(t *testing.T) {
 		QueueSize:     10,
 	}
 
-	d := NewDispatcher(db, giteaCfg, dispatcherCfg, nil)
+	d := NewDispatcher(db, giteaCfg, dispatcherCfg, nil, nil)
 
 	evt := &webhook.WebhookEvent{
 		DeliveryID: "test-delivery-dup",
@@ -223,6 +224,9 @@ func TestTaskQueuePersistence(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
+	// Create an agent first (foreign key constraint)
+	agent := createTestAgent(t, db)
+
 	queue := NewTaskQueue(db, 10)
 
 	// Enqueue a task
@@ -230,7 +234,7 @@ func TestTaskQueuePersistence(t *testing.T) {
 		Event:    "issues",
 		Repo:     "test/repo",
 		IssueID:  1,
-		AgentID:  1,
+		AgentID:  agent.ID,
 		TaskType: "test",
 		Context:  "test context",
 		Status:   "pending",

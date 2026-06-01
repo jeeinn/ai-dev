@@ -3,6 +3,8 @@ package gitea
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 )
 
 // CreatePRRequest is the payload for creating a pull request.
@@ -57,4 +59,79 @@ func (c *Client) PRGet(owner, repo string, prID int) (map[string]interface{}, er
 		return nil, fmt.Errorf("unmarshal PR: %w", err)
 	}
 	return pr, nil
+}
+
+// PRDiff returns the diff of a pull request.
+func (c *Client) PRDiff(owner, repo string, prID int) (string, error) {
+	// Gitea API returns diff as text/plain
+	req, err := http.NewRequest("GET",
+		fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls/%d.diff", c.BaseURL, owner, repo, prID), nil)
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Authorization", "token "+c.Token)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("do request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+	}
+
+	diff, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response: %w", err)
+	}
+
+	return string(diff), nil
+}
+
+// PRFiles returns the list of files changed in a pull request.
+type PRFile struct {
+	Filename    string `json:"filename"`
+	Status      string `json:"status"`
+	Additions   int    `json:"additions"`
+	Deletions   int    `json:"deletions"`
+	Changes     int    `json:"changes"`
+	Patch       string `json:"patch,omitempty"`
+}
+
+func (c *Client) PRFiles(owner, repo string, prID int) ([]PRFile, error) {
+	body, err := c.do("GET", fmt.Sprintf("/repos/%s/%s/pulls/%d/files", owner, repo, prID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("PR files: %w", err)
+	}
+
+	var files []PRFile
+	if err := json.Unmarshal(body, &files); err != nil {
+		return nil, fmt.Errorf("unmarshal PR files: %w", err)
+	}
+	return files, nil
+}
+
+// IssueComment represents a comment on an issue or PR.
+type IssueComment struct {
+	ID      int    `json:"id"`
+	Body    string `json:"body"`
+	User    User   `json:"user"`
+	Created string `json:"created_at"`
+	Updated string `json:"updated_at"`
+}
+
+// IssueComments returns the comments on an issue or PR.
+func (c *Client) IssueComments(owner, repo string, issueID int) ([]IssueComment, error) {
+	body, err := c.do("GET", fmt.Sprintf("/repos/%s/%s/issues/%d/comments", owner, repo, issueID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("issue comments: %w", err)
+	}
+
+	var comments []IssueComment
+	if err := json.Unmarshal(body, &comments); err != nil {
+		return nil, fmt.Errorf("unmarshal comments: %w", err)
+	}
+	return comments, nil
 }

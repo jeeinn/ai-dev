@@ -125,3 +125,19 @@ func (db *DB) ListTasks(limit, offset int) ([]*Task, error) {
 	}
 	return tasks, nil
 }
+
+// ResetStaleRunningTasks resets tasks that have been in "running" state too long.
+// Returns the number of tasks reset.
+func (db *DB) ResetStaleRunningTasks(threshold time.Duration) (int, error) {
+	cutoff := time.Now().Add(-threshold)
+	result, err := db.Exec(`UPDATE tasks SET status='pending', started_at=NULL
+		WHERE status='running' AND started_at < ?`, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("reset stale tasks: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("rows affected: %w", err)
+	}
+	return int(count), nil
+}

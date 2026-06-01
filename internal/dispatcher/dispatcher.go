@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
@@ -56,7 +57,7 @@ func NewDispatcher(
 	return d
 }
 
-// Start initializes the executor workers and loads pending tasks.
+// Start initializes the executor workers, loads pending tasks, and starts the queue scanner.
 func (d *Dispatcher) Start() error {
 	// Load pending tasks from DB before starting workers
 	if err := d.queue.LoadPending(); err != nil {
@@ -65,6 +66,9 @@ func (d *Dispatcher) Start() error {
 
 	// Start executor workers
 	d.executor.Start(d.queue)
+
+	// Start queue scanner (scan every 60s, reset stale tasks after 10min)
+	d.queue.StartScanner(60*time.Second, 10*time.Minute)
 
 	log.Printf("[INFO] Dispatcher started")
 	return nil

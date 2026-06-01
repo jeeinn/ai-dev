@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"gitea-agent-gateway/internal/agents"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
@@ -26,6 +27,7 @@ type Executor struct {
 	sem           chan struct{}
 	retryCount    int
 	giteaFactory  GiteaClientFactory
+	runnerFactory *agents.RunnerFactory
 }
 
 // NewExecutor creates a new Executor.
@@ -43,6 +45,7 @@ func NewExecutor(maxConcurrent, timeout, retryCount int, llmRegistry *llm.Regist
 // SetGiteaClientFactory sets the factory for creating Gitea clients.
 func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory) {
 	e.giteaFactory = factory
+	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory)
 }
 
 // Start begins the executor workers.
@@ -114,31 +117,17 @@ func (e *Executor) runTask(ctx context.Context, task *store.Task) error {
 		return fmt.Errorf("load agent: %w", err)
 	}
 
-	// Get LLM provider
-	provider, err := e.llmRegistry.Get(agent.Provider)
+	// Get the appropriate runner for this task type
+	runner := e.runnerFactory.GetRunner(task.TaskType)
+
+	// Execute the task
+	result, err := runner.Run(ctx, task, agent)
 	if err != nil {
-		return fmt.Errorf("get provider: %w", err)
+		return fmt.Errorf("runner execution: %w", err)
 	}
 
-	// Build messages from template
-	messages := []llm.Message{
-		{Role: "system", Content: agent.SystemPrompt},
-		{Role: "user", Content: task.Context},
-	}
-
-	// Call LLM
-	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
-		Model:       agent.Model,
-		Messages:    messages,
-		MaxTokens:   agent.MaxTokens,
-		Temperature: agent.Temperature,
-	})
-	if err != nil {
-		return fmt.Errorf("LLM call: %w", err)
-	}
-
-	task.Result = resp.Content
-	log.Printf("[INFO] Task %d LLM response: %d tokens used", task.ID, resp.Usage.TotalTokens)
+	task.Result = result.Content
+	log.Printf("[INFO] Task %d completed, action=%s", task.ID, result.Action)
 	return nil
 }
 

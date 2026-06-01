@@ -12,7 +12,8 @@ import (
 
 // EventCallback is called when a webhook event is parsed and matched.
 // It receives the parsed event for further processing (e.g., enqueue to dispatcher).
-type EventCallback func(evt *WebhookEvent)
+// Returns true if the event was successfully processed (task enqueued), false otherwise.
+type EventCallback func(evt *WebhookEvent) bool
 
 // Handler processes incoming Gitea webhook requests.
 type Handler struct {
@@ -79,12 +80,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mark as processed
-	h.dedup.MarkProcessed(deliveryID)
-
 	// Dispatch event (async via callback)
+	// MarkProcessed is called only after successful enqueue to avoid losing deliveries.
 	if h.callback != nil {
-		go h.callback(evt)
+		go func() {
+			if h.callback(evt) {
+				h.dedup.MarkProcessed(deliveryID)
+			} else {
+				log.Printf("[WARN] Event processing failed for delivery %s, not marking as processed", deliveryID)
+			}
+		}()
 	}
 
 	// Respond immediately

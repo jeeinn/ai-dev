@@ -4,11 +4,18 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
+	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
 )
+
+// GiteaClientFactory creates Gitea clients for result writeback.
+type GiteaClientFactory interface {
+	GetGiteaClient(token string) *gitea.Client
+}
 
 // Executor runs agent tasks from the queue with concurrency control.
 type Executor struct {
@@ -18,6 +25,7 @@ type Executor struct {
 	db            *store.DB
 	sem           chan struct{}
 	retryCount    int
+	giteaFactory  GiteaClientFactory
 }
 
 // NewExecutor creates a new Executor.
@@ -30,6 +38,11 @@ func NewExecutor(maxConcurrent, timeout, retryCount int, llmRegistry *llm.Regist
 		sem:           make(chan struct{}, maxConcurrent),
 		retryCount:    retryCount,
 	}
+}
+
+// SetGiteaClientFactory sets the factory for creating Gitea clients.
+func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory) {
+	e.giteaFactory = factory
 }
 
 // Start begins the executor workers.
@@ -86,6 +99,11 @@ func (e *Executor) execute(task *store.Task) {
 		task.Status = "success"
 		e.db.UpdateTaskStatus(task.ID, "success", task.Result, "")
 		log.Printf("[INFO] Task %d completed successfully", task.ID)
+
+		// Write back result to Gitea
+		if writeErr := e.writeBackToGitea(task); writeErr != nil {
+			log.Printf("[ERROR] Task %d writeback failed: %v", task.ID, writeErr)
+		}
 	}
 }
 
@@ -122,4 +140,61 @@ func (e *Executor) runTask(ctx context.Context, task *store.Task) error {
 	task.Result = resp.Content
 	log.Printf("[INFO] Task %d LLM response: %d tokens used", task.ID, resp.Usage.TotalTokens)
 	return nil
+}
+
+// writeBackToGitea posts the LLM result as a comment on the Gitea issue/PR.
+func (e *Executor) writeBackToGitea(task *store.Task) error {
+	if e.giteaFactory == nil {
+		log.Printf("[DEBUG] No Gitea factory configured, skipping writeback for task %d", task.ID)
+		return nil
+	}
+
+	if task.Result == "" {
+		log.Printf("[DEBUG] No result to write back for task %d", task.ID)
+		return nil
+	}
+
+	if task.IssueID == 0 {
+		log.Printf("[DEBUG] No issue ID for task %d, skipping writeback", task.ID)
+		return nil
+	}
+
+	// Load agent to get its Gitea token
+	agent, err := e.db.GetAgent(task.AgentID)
+	if err != nil {
+		return fmt.Errorf("load agent for writeback: %w", err)
+	}
+
+	// Create Gitea client with agent's token
+	client := e.giteaFactory.GetGiteaClient(agent.GiteaToken)
+
+	// Parse repo owner/name
+	parts := strings.SplitN(task.Repo, "/", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid repo format: %s", task.Repo)
+	}
+	owner, repo := parts[0], parts[1]
+
+	// Format the comment body
+	commentBody := formatComment(task)
+
+	// Post comment
+	if err := client.IssueComment(owner, repo, task.IssueID, commentBody); err != nil {
+		return fmt.Errorf("post comment: %w", err)
+	}
+
+	log.Printf("[INFO] Task %d result written back to %s#%d", task.ID, task.Repo, task.IssueID)
+	return nil
+}
+
+// formatComment formats the LLM result as a Gitea comment.
+func formatComment(task *store.Task) string {
+	var sb strings.Builder
+
+	sb.WriteString("🤖 **AI Agent Response**\n\n")
+	sb.WriteString(task.Result)
+	sb.WriteString("\n\n---\n")
+	sb.WriteString(fmt.Sprintf("*Task ID: %d | Agent: %d | Type: %s*", task.ID, task.AgentID, task.TaskType))
+
+	return sb.String()
 }

@@ -37,3 +37,11 @@ func (r *Registry) Get(name string) (Provider, error) {
 	}
 	return p, nil
 }
+
+// Register adds a provider to the registry (useful for testing).
+func (r *Registry) Register(name string, provider Provider) {
+	if r.providers == nil {
+		r.providers = make(map[string]Provider)
+	}
+	r.providers[name] = provider
+}

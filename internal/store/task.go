@@ -26,6 +26,17 @@ type Task struct {
 
 // CreateTask inserts a new task.
 func (db *DB) CreateTask(t *Task) error {
+	// Check for duplicate delivery_id to prevent duplicate tasks
+	if t.DeliveryID != "" {
+		exists, err := db.deliveryExists(t.DeliveryID)
+		if err != nil {
+			return fmt.Errorf("check delivery: %w", err)
+		}
+		if exists {
+			return fmt.Errorf("task with delivery_id %s already exists", t.DeliveryID)
+		}
+	}
+
 	result, err := db.Exec(`INSERT INTO tasks (event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.Event, t.Repo, t.IssueID, t.AgentID, t.TaskType, t.Context, t.Status, t.Priority, t.DeliveryID)
@@ -35,6 +46,16 @@ func (db *DB) CreateTask(t *Task) error {
 	id, _ := result.LastInsertId()
 	t.ID = id
 	return nil
+}
+
+// deliveryExists checks if a task with the given delivery_id already exists.
+func (db *DB) deliveryExists(deliveryID string) (bool, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE delivery_id = ?`, deliveryID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // UpdateTaskStatus updates a task's status, result, and error.

@@ -14,6 +14,8 @@ import (
 	"gitea-agent-gateway/internal/agents"
 	"gitea-agent-gateway/internal/api"
 	"gitea-agent-gateway/internal/config"
+	"gitea-agent-gateway/internal/dispatcher"
+	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
 )
@@ -41,6 +43,17 @@ func main() {
 		log.Fatalf("[FATAL] Failed to create workspace dir: %v", err)
 	}
 
+	// Initialize LLM registry
+	llmRegistry := llm.NewRegistry(&cfg.LLM)
+
+	// Initialize dispatcher (Router + TaskQueue + Executor)
+	d := dispatcher.NewDispatcher(db, &cfg.Gitea, &cfg.Dispatcher, llmRegistry)
+
+	// Start dispatcher (loads pending tasks and starts workers)
+	if err := d.Start(); err != nil {
+		log.Fatalf("[FATAL] Failed to start dispatcher: %v", err)
+	}
+
 	// Build HTTP server
 	mux := http.NewServeMux()
 
@@ -51,11 +64,8 @@ func main() {
 		fmt.Fprintf(w, `{"status":"ok","version":"0.1.0"}`)
 	})
 
-	// Webhook handler
-	webhookHandler := webhook.NewHandler(&cfg.Gitea, db.DB, func(evt *webhook.WebhookEvent) {
-		log.Printf("[INFO] Received event: %s/%s repo=%s", evt.Event, evt.Action, evt.Repo.FullName)
-		// TODO: dispatch to agent dispatcher
-	})
+	// Webhook handler - wired to dispatcher
+	webhookHandler := webhook.NewHandler(&cfg.Gitea, db.DB, d.HandleEvent)
 	mux.Handle("POST /webhook/gitea", webhookHandler)
 
 	// Management API

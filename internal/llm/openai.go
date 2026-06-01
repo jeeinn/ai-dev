@@ -40,7 +40,8 @@ type openaiRequest struct {
 type openaiResponse struct {
 	Choices []struct {
 		Message struct {
-			Content string `json:"content"`
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content,omitempty"`
 		} `json:"message"`
 	} `json:"choices"`
 	Usage struct {
@@ -103,8 +104,14 @@ func (p *OpenAICompatibleProvider) ChatCompletion(ctx context.Context, req *Chat
 		return nil, fmt.Errorf("no choices in response")
 	}
 
+	// Handle reasoning models (e.g., deepseek-r1) that return content in reasoning_content
+	content := resp.Choices[0].Message.Content
+	if content == "" && resp.Choices[0].Message.ReasoningContent != "" {
+		content = resp.Choices[0].Message.ReasoningContent
+	}
+
 	return &ChatResponse{
-		Content: resp.Choices[0].Message.Content,
+		Content: content,
 		Usage: Usage{
 			PromptTokens:     resp.Usage.PromptTokens,
 			CompletionTokens: resp.Usage.CompletionTokens,

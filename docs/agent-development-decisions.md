@@ -401,51 +401,137 @@ Agent DB 自定义配置
 
 ## 八、建议开发优先级
 
-### P0：先打通最小闭环
+### P0：先打通最小闭环 ✅ 已完成
 
-- [ ] 初始化 LLM Registry、Router、Queue、Executor。
-- [ ] Webhook callback 接入 Router 和 Queue。
-- [ ] 成功入队后再标记 delivery 已处理。
-- [ ] 实现 `AnalyzeRunner` 或 `ReviewRunner`，先完成只读型 Agent。
-- [ ] LLM 结果回写到 Gitea Issue/PR 评论。
+- [x] 初始化 LLM Registry、Router、Queue、Executor。
+- [x] Webhook callback 接入 Router 和 Queue。
+- [x] 成功入队后再标记 delivery 已处理。
+- [x] 实现 `AnalyzeRunner`，先完成只读型 Agent。
+- [x] LLM 结果回写到 Gitea Issue/PR 评论。
+- [x] API 认证（Bearer Token）。
+- [x] API 隐藏 Agent Token（使用 DTO）。
+- [x] 配置化模板（agents.templates）。
+- [x] 推理模型支持（reasoning_content）。
 
-### P1：安全与可靠性
+### P1：只读型 Agent 完善
 
-- [ ] 管理 API 认证。
-- [ ] API 隐藏 Agent Token。
-- [ ] 修复 Task 状态更新时间。
-- [ ] 队列 pending task 扫描。
-- [ ] Gitea API 参数 URL escape。
-- [ ] Agent 创建失败回滚。
+- [ ] 获取 PR Diff 的 Gitea API。
+- [ ] 获取 Issue/PR 评论历史的 API。
+- [ ] 实现 ReviewRunner（PR 审查 → 评论）。
+- [ ] 实现 InteractionRunner（@Mention 回复）。
+- [ ] 上下文拼装逻辑（加载评论历史、Diff 等）。
+- [ ] 修复 Task 状态更新时间（started_at/finished_at）。
+- [ ] 队列 pending task 后台扫描。
+- [ ] stale running task 恢复机制。
 
-### P2：写入型 Agent
+### P2：写入型 Agent（简化沙箱方案）
 
-- [ ] Workspace 管理。
-- [ ] Git clone / branch / commit / push 封装。
-- [ ] Shell 命令沙箱执行。
-- [ ] PR 创建与评论回写。
-- [ ] Dev Agent / Bugfix Agent 实现。
+**设计原则**：不使用 Docker，采用轻量级"软隔离"方案。
 
-### P3：Prompt 与 Web UI
+#### 2.1 Git 操作封装
 
-- [ ] 配置模板落地。
-- [ ] Prompt API 和历史版本。
-- [ ] Web UI 创建 Agent 时选择模板、模型、权限。
-- [ ] Web UI 展示任务状态、日志、PR 链接。
+- [ ] `git clone --depth 1`（浅克隆，节省空间）。
+- [ ] `git checkout -b ai/task-{id}`（创建任务分支）。
+- [ ] `git add / commit / push`（提交到任务分支）。
+- [ ] 创建 PR（必须人工 review 后才能合并）。
+- [ ] 安全限制：不允许 push 到默认分支，只能 push 到 `ai/*` 分支。
 
-### P4：正式化部署与测试
+#### 2.2 命令执行器
 
-- [ ] README。
-- [ ] Dockerfile。
-- [ ] 单元测试。
-- [ ] Webhook 到评论回写的端到端测试。
-- [ ] Docker 沙箱正式启用。
+- [ ] 命令白名单：`git`, `go`, `python`, `node`, `npm`, `make`, `cargo` 等。
+- [ ] 命令黑名单：`rm -rf /`, `curl *`, `wget *`, `nc *` 等。
+- [ ] 超时控制：单命令 5 分钟，总任务 30 分钟。
+- [ ] 输出限制：stdout/stderr 各 1MB。
+- [ ] 工作目录限制：只能在 `workspace/{task_id}/` 内操作。
+
+#### 2.3 工作目录管理
+
+- [ ] 每个任务独立目录：`workspace/{task_id}/repo/`。
+- [ ] 任务完成后清理（成功立即清理，失败保留 24h）。
+- [ ] 磁盘使用监控和限制。
+
+#### 2.4 命令审计日志
+
+- [ ] 记录所有执行的命令到 `operation_logs` 表。
+- [ ] 记录命令输出（截断后）。
+- [ ] 记录命令执行时间和结果。
+
+#### 2.5 写入型 Agent 实现
+
+- [ ] DevRunner（读 Issue → 分析 → 写代码 → 提 PR）。
+- [ ] BugfixRunner（读 Bug Issue → 定位 → 修复 → 提 PR）。
+
+### P3：Prompt 管理
+
+- [ ] Prompt 历史版本存储（prompt_history 表 CRUD）。
+- [ ] Prompt 加载优先级：DB > config.yaml > 内置兜底。
+- [ ] Prompt API 和历史版本管理。
+
+### P4：Web UI（可选）
+
+- [ ] Vue 3 + Element Plus 项目初始化。
+- [ ] Dashboard 仪表盘（任务统计、成功率）。
+- [ ] Agent 管理页面（创建/编辑/列表）。
+- [ ] 任务列表页面（查看/取消/重试）。
+- [ ] Prompt 编辑页面。
+- [ ] go:embed 打包前端资源。
+
+### P5：正式化部署与测试
+
+- [ ] README.md 项目说明。
+- [ ] 部署文档。
+- [ ] 集成测试完善。
+- [ ] 性能测试和优化。
 
 ---
 
-## 九、当前结论
+## 九、沙箱方案决策
 
-后续开发应优先避免继续堆 UI 或零散接口，而是先完成一个最小可用 Agent 闭环：
+### 决策结论
+
+**不使用 Docker**，采用轻量级"软隔离"方案。
+
+### 理由
+
+1. **国内部署不便**：Docker 在国内环境部署受限，镜像拉取困难。
+2. **项目负担**：Docker 增加了部署复杂度和维护成本。
+3. **轻量级需求**：当前场景不需要完整的容器隔离。
+4. **可控性**：自实现方案更可控，易于调试和维护。
+
+### 方案详情
+
+```go
+// 轻量级沙箱：目录隔离 + 命令白名单 + 超时控制
+type LightSandbox struct {
+    BaseDir     string            // 基础工作目录
+    TaskID      int64             // 任务 ID
+    Timeout     time.Duration     // 命令超时
+    MaxOutput   int               // 最大输出字节数
+    AllowedCmds map[string]bool   // 允许的命令白名单
+}
+```
+
+### 安全边界
+
+1. **目录隔离**：每个任务独立目录 `workspace/{task_id}/`。
+2. **命令白名单**：只允许已知安全的命令。
+3. **超时控制**：防止单命令阻塞。
+4. **输出限制**：防止日志爆炸。
+5. **分支限制**：只能 push 到 `ai/*` 分支。
+6. **PR 必须人工 review**：不允许自动合并。
+
+### 后续演进
+
+如果未来需要更强的隔离，可以考虑：
+1. **Linux Namespace**：使用 `syscall.Unshare` 实现进程隔离。
+2. **Landlock LSM**：文件系统访问控制（Linux 5.13+）。
+3. **WebAssembly**：使用 wazero（纯 Go）运行 Wasm 沙箱。
+
+---
+
+## 十、当前结论
+
+### 已完成
 
 ```text
 Issue / PR Event
@@ -454,6 +540,28 @@ Issue / PR Event
   -> 执行只读型 Runner
   -> 调用 LLM
   -> 评论回写 Gitea
+  -> API 认证 + 配置化模板
 ```
 
-在该闭环稳定后，再推进写入型 Dev Agent / Bugfix Agent。写入型 Agent 是项目重头戏，但必须建立在沙箱、权限、任务状态、审计日志和 Gitea 回写能力都可靠的基础上。
+### 下一步
+
+```text
+Phase 1: 只读型 Agent 完善
+  ├── PR Review (获取 Diff → LLM 审查 → 评论)
+  ├── @Mention 回复 (加载评论历史 → LLM 回复)
+  └── 队列可靠性 (pending 扫描 + stale 恢复)
+
+Phase 2: 写入型 Agent (简化沙箱)
+  ├── Git 操作封装
+  ├── 命令执行器 (白名单 + 超时 + 输出限制)
+  ├── 工作目录管理
+  ├── 命令审计日志
+  └── DevRunner / BugfixRunner 实现
+```
+
+### 关键原则
+
+1. **架构简单化**：避免过度设计，switch 够用就不上接口。
+2. **可配置化**：Prompt、模型、权限都通过配置管理。
+3. **轻量安全可控**：不依赖 Docker，自实现软隔离。
+4. **渐进式演进**：先只读型，再写入型，逐步增强。

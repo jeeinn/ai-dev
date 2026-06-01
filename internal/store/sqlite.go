@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // DB wraps the SQLite database connection.
@@ -23,10 +23,14 @@ func Open(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("create database directory: %w", err)
 	}
 
-	sqlDB, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_busy_timeout=5000")
+	sqlDB, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_busy_timeout=10000&_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
+
+	// Set connection pool settings for SQLite
+	sqlDB.SetMaxOpenConns(1) // SQLite only supports one writer at a time
+	sqlDB.SetMaxIdleConns(1)
 
 	// Enable foreign keys
 	if _, err := sqlDB.Exec("PRAGMA foreign_keys = ON"); err != nil {

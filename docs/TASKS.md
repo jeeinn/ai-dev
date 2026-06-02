@@ -24,7 +24,7 @@
 - [x] 3.1 gitea/client.go — HTTP 客户端封装（token 认证 + JSON 请求/响应）
 - [x] 3.2 gitea/admin.go — Admin API（创建用户 AdminCreateUser + 生成 Token AdminCreateToken）
 - [x] 3.3 gitea/issue.go — Issue 操作（评论 + 添加/移除标签 + 获取详情）
-- [x] 3.4 gitea/pr.go — PR 操作（创建 PR + 评论 + 获取详情）
+- [x] 3.4 gitea/pr.go — PR 操作（创建 PR + 评论 + 获取详情 + 获取 Diff）
 - [x] 3.5 gitea/repo.go — 仓库操作（获取仓库信息 + 获取文件内容）
 
 ## Phase 4：Agent 管理（模块 4）✅
@@ -37,49 +37,65 @@
 
 ## Phase 5：LLM 调用层（模块 5）✅
 
-- [x] 5.1 llm/provider.go — Provider 接口定义（ChatCompletion）
+- [x] 5.1 llm/provider.go — Provider 接口定义（ChatCompletion + Function Calling）
 - [x] 5.2 llm/openai.go — OpenAI 兼容 Provider（覆盖 DeepSeek/Qwen/Zhipu/Moonshot/Ollama）
 - [x] 5.3 llm/anthropic.go — Anthropic Provider（Claude API，system 单独传）
 - [x] 5.4 llm/registry.go — Provider 注册表（根据配置自动创建 Provider 实例）
 - [x] 5.5 推理模型支持（reasoning_content 字段）
+- [x] 5.6 Function Calling 支持（Tool/ToolCall/Function 类型）
 
 ## Phase 6：Dispatcher + Agent 执行（模块 6）✅
 
 - [x] 6.1 dispatcher/router.go — Label+Assignee 双条件路由（事件/动作/标签/分配人/提及匹配）
-- [x] 6.2 dispatcher/queue.go — 任务队列（内存 channel + SQLite 持久化 + 启动加载 pending 任务）
+- [x] 6.2 dispatcher/queue.go — 任务队列（内存 channel + SQLite 持久化 + 启动加载 pending 任务 + 后台扫描）
 - [x] 6.3 dispatcher/executor.go — Agent 执行器（信号量并发控制 + 超时 + 重试 + LLM 调用）
 - [x] 6.4 store/task.go — 任务记录 CRUD（Create/UpdateStatus/Get/List/ListPending）
 - [x] 6.5 store/log.go — 操作日志（LogOperation + ListOperationLogs）
-- [x] 6.6 dispatcher/dispatcher.go — Dispatcher 组合（Router + TaskQueue + Executor）
+- [x] 6.6 dispatcher/dispatcher.go — Dispatcher 组合（Router + TaskQueue + Executor + Label 任务类型）
 - [x] 6.7 结果回写到 Gitea Issue/PR 评论
+- [x] 6.8 基于 Label 的任务类型判断（ai:solve → solve_issue, ai:fix → fix_bug）
 
-## Phase 7：核心 Agent 实现（模块 7）⬜
+## Phase 7：核心 Agent 实现（模块 7）✅
 
-### 7.1 只读型 Agent（P1 优先级）
+### 7.1 只读型 Agent ✅
 
-- [ ] 7.1.1 gitea/repo.go — 获取 PR Diff API
-- [ ] 7.1.2 gitea/issue.go — 获取 Issue/PR 评论历史 API
-- [ ] 7.1.3 agents/review_runner.go — PR 审查 Runner（获取 Diff → LLM 审查 → 评论报告）
-- [ ] 7.1.4 agents/interaction_runner.go — @Mention 回复 Runner（加载评论上下文 → LLM 回复）
-- [ ] 7.1.5 上下文拼装逻辑（组装 Diff、评论历史、Issue 内容等）
+- [x] 7.1.1 gitea/pr.go — 获取 PR Diff API (PRDiff, PRFiles)
+- [x] 7.1.2 gitea/pr.go — 获取 Issue/PR 评论历史 API (IssueComments)
+- [x] 7.1.3 agents/runners.go — ReviewRunner（获取 Diff → LLM 审查 → 评论报告）
+- [x] 7.1.4 agents/runners.go — InteractionRunner（加载评论上下文 → LLM 回复）
+- [x] 7.1.5 dispatcher/template.go — 上下文拼装逻辑（Go template 渲染）
 
-### 7.2 写入型 Agent（P2 优先级，简化沙箱方案）
+### 7.2 写入型 Agent ✅
 
-- [ ] 7.2.1 sandbox/sandbox.go — 轻量级沙箱（目录隔离 + 命令白名单 + 超时控制）
-- [ ] 7.2.2 sandbox/executor.go — 命令执行器（白名单验证 + 输出捕获 + 资源限制）
-- [ ] 7.2.3 sandbox/git.go — Git 操作封装（clone/branch/commit/push + 分支限制）
-- [ ] 7.2.4 sandbox/workspace.go — 工作目录管理（创建/清理/磁盘监控）
-- [ ] 7.2.5 store/audit.go — 命令审计日志（记录所有执行的命令和输出）
-- [ ] 7.2.6 agents/dev_runner.go — 研发 Runner（读 Issue → 分析 → 写代码 → 提 PR）
-- [ ] 7.2.7 agents/bugfix_runner.go — Bug 修复 Runner（读 Bug Issue → 定位 → 修复 → 提 PR）
+- [x] 7.2.1 sandbox/sandbox.go — 轻量级沙箱（目录隔离 + 命令白名单 + 超时控制 + 输出限制）
+- [x] 7.2.2 sandbox/sandbox.go — 命令执行器（白名单验证 + 输出捕获 + 资源限制）
+- [x] 7.2.3 sandbox/git.go — Git 操作封装（clone/branch/commit/push + 分支限制）
+- [x] 7.2.4 sandbox/sandbox.go — 工作目录管理（创建/清理）
+- [x] 7.2.5 sandbox/audit.go — 命令审计日志（记录所有执行的命令和输出）
+- [x] 7.2.6 agents/runners.go — DevRunner（读 Issue → 分析 → 写代码 → 提 PR）
+- [x] 7.2.7 agents/runners.go — BugfixRunner（读 Bug Issue → 定位 → 修复 → 提 PR）
 
-### 7.3 安全限制
+### 7.3 安全限制 ✅
 
-- [ ] 7.3.1 命令白名单：git, go, python, node, npm, make, cargo 等
-- [ ] 7.3.2 命令黑名单：rm -rf /, curl *, wget *, nc * 等
-- [ ] 7.3.3 分支限制：只能 push 到 `ai/*` 分支，不允许 push 到默认分支
-- [ ] 7.3.4 PR 必须人工 review 后才能合并
-- [ ] 7.3.5 工作目录限制：只能在 `workspace/{task_id}/` 内操作
+- [x] 7.3.1 命令白名单：git, sh, bash, go, python, node, npm, make, cargo 等
+- [x] 7.3.2 命令黑名单：rm, dd, mkfs, shutdown, reboot 等
+- [x] 7.3.3 分支限制：只能 push 到 `ai/*` 分支，不允许 push 到默认分支
+- [x] 7.3.4 分支名验证：ValidateBranchName + GenerateBranchName
+- [x] 7.3.5 工作目录限制：只能在 `workspace/{task_id}/` 内操作
+
+### 7.4 Tool-Use Agent (v0.3.1) ✅
+
+- [x] 7.4.1 agent/tools.go — Tool 定义与注册（ToolDef, ToolRegistry）
+- [x] 7.4.2 agent/tools.go — 6 个基础工具实现
+  - [x] read_file — 读取文件内容
+  - [x] write_file — 写入/创建文件
+  - [x] list_files — 列出目录结构
+  - [x] search_code — 搜索代码内容 (grep)
+  - [x] run_command — 执行命令 (受限)
+  - [x] apply_diff — 应用 Diff 补丁
+- [x] 7.4.3 agent/loop.go — Agent Loop 核心逻辑（多轮对话 + Tool Call 执行）
+- [x] 7.4.4 agent/context.go — 代码库上下文加载（目录结构 + 关键文件 + Token 限制）
+- [x] 7.4.5 agents/runners.go — DevRunner/BugfixRunner 改用 Agent Loop
 
 ## Phase 8：Prompt 管理（模块 8）⬜
 
@@ -107,12 +123,12 @@
 - [x] 10.4 模板优先级：Agent 自定义 > config 模板 > 默认构建器
 - [x] 10.5 模板变量支持：Issue, PR, Comment, Repo, Sender
 
-## Phase 11：队列可靠性（模块 11）⬜
+## Phase 11：队列可靠性（模块 11）✅
 
-- [ ] 11.1 pending task 后台扫描机制（每 60 秒扫描一次）
-- [ ] 11.2 stale running task 恢复（超过 10 分钟重置为 pending）
-- [ ] 11.3 Task 状态更新时间修复（started_at/finished_at）
-- [ ] 11.4 队列满时策略（阻塞等待或 DB 后台扫描）
+- [x] 11.1 dispatcher/queue.go — pending task 后台扫描机制（每 60 秒扫描一次）
+- [x] 11.2 store/task.go — stale running task 恢复（超过 10 分钟重置为 pending）
+- [x] 11.3 store/task.go — Task 状态更新时间修复（started_at/finished_at）
+- [x] 11.4 dispatcher/queue.go — 队列满时策略（DB 后台扫描兜底）
 
 ## Phase 12：前端 Web UI（模块 12）⬜（可选）
 
@@ -124,12 +140,16 @@
 - [ ] 12.6 系统配置页面（Gitea 连接、LLM Provider、路由规则）
 - [ ] 12.7 go:embed 打包前端资源
 
-## Phase 13：集成测试 + 收尾（模块 13）
+## Phase 13：集成测试 + 收尾（模块 13）🔶
 
 - [x] 13.1 config.example.yaml 示例配置
 - [ ] 13.2 README.md 项目说明
 - [ ] 13.3 部署文档
-- [ ] 13.4 端到端测试完善
+- [x] 13.4 端到端测试完善
+  - [x] testify 集成测试框架
+  - [x] 单元测试 (41 tests)
+  - [x] 集成测试 (14 tests)
+  - [x] 端到端测试 (Issue → AI 分析, PR → AI 审查, Issue → Tool-Use Agent)
 - [x] 13.5 编译验证（go build，单二进制）
 - [ ] 13.6 性能测试和优化
 
@@ -145,24 +165,30 @@
 | 模块 4：Agent 管理 | ✅ 完成 | `e89aa9e` |
 | 模块 5：LLM 调用层 | ✅ 完成 | `bc24087` |
 | 模块 6：Dispatcher | ✅ 完成 | `1957a1b` |
-| 模块 7：核心 Agent | ⬜ 未开始 | - |
+| 模块 7：核心 Agent | ✅ 完成 | `5dd518d` |
 | 模块 8：Prompt 管理 | ⬜ 未开始 | - |
 | 模块 9：管理 API | ✅ 完成 | `d4c48fb` |
 | 模块 10：配置化模板 | ✅ 完成 | `2f74746` |
-| 模块 11：队列可靠性 | ⬜ 未开始 | - |
+| 模块 11：队列可靠性 | ✅ 完成 | `b0fefd9` |
 | 模块 12：前端 Web UI | ⬜ 未开始（可选） | - |
 | 模块 13：集成收尾 | 🔶 部分完成 | - |
 
-**总体进度：8/13 模块完成（62%）**
+**总体进度：10/13 模块完成（77%）**
 
 ---
 
-## 推荐开发路径
+## 版本历史
 
-### v0.2：只读型 Agent ✅ 已完成
+### v0.1：项目骨架 ✅
 
 ```
-状态: 已完成 (tag: v0.2)
+基础模块搭建
+```
+
+### v0.2：只读型 Agent ✅
+
+```
+tag: v0.2
 提交: 2d378bd
 
 完成内容:
@@ -171,13 +197,13 @@
 ├── ReviewRunner
 ├── InteractionRunner
 ├── 队列可靠性增强
-└── 集成测试
+└── 集成测试框架 (testify)
 ```
 
-### v0.3：写入型 Agent 基础 ✅ 已完成
+### v0.3：写入型 Agent 基础 ✅
 
 ```
-状态: 已完成 (tag: v0.3)
+tag: v0.3
 提交: b0fefd9
 
 完成内容:
@@ -189,94 +215,22 @@
 └── 集成测试框架 (testify)
 ```
 
-### v0.3.1：Go 原生 Tool-Use Agent（下一步）
+### v0.3.1：Go 原生 Tool-Use Agent ✅
 
 ```
-优先级: P0 (当前)
-预计工作量: 1-2 周
-目标: 实现真正的 AI 代码修改能力
+tag: v0.3.1
+提交: 5dd518d
 
-核心思路:
-  LLM 通过 Function Calling 调用工具来理解和修改代码
-  而不是一次性生成所有代码
-
-架构:
-  Gateway
-    └── Agent Loop
-         ├── 1. 加载代码库上下文 (目录结构 + 关键文件)
-         ├── 2. 发送任务 + 工具定义给 LLM
-         ├── 3. LLM 返回 tool_calls
-         ├── 4. 执行工具 (读文件/写文件/搜索/运行命令)
-         ├── 5. 将结果返回 LLM
-         └── 6. 重复直到 LLM 返回 stop 或达到最大轮次
-
-任务清单:
-├── 1. LLM 层扩展
-│   ├── 1.1 llm/provider.go — 扩展 ChatRequest 支持 Tools 字段
-│   ├── 1.2 llm/provider.go — ChatResponse 支持 ToolCalls 字段
-│   ├── 1.3 llm/openai.go — 实现 Function Calling 请求/响应解析
-│   └── 1.4 llm/anthropic.go — 实现 Anthropic Tool Use 支持
-│
-├── 2. Tool 定义与注册
-│   ├── 2.1 agent/tool.go — Tool 接口定义
-│   ├── 2.2 agent/tool_read_file.go — 读取文件内容
-│   ├── 2.3 agent/tool_write_file.go — 写入/创建文件
-│   ├── 2.4 agent/tool_list_files.go — 列出目录结构
-│   ├── 2.5 agent/tool_search_code.go — 搜索代码内容 (grep)
-│   ├── 2.6 agent/tool_run_command.go — 执行命令 (受限)
-│   └── 2.7 agent/tool_apply_diff.go — 应用 Diff 补丁
-│
-├── 3. Agent Loop 实现
-│   ├── 3.1 agent/loop.go — Agent Loop 核心逻辑
-│   │   ├── 多轮对话管理
-│   │   ├── Tool Call 解析与执行
-│   │   ├── 结果收集与返回
-│   │   └── 终止条件判断 (stop / max_iterations / error)
-│   ├── 3.2 agent/context.go — 代码库上下文加载
-│   │   ├── 目录结构扫描 (tree)
-│   │   ├── 关键文件识别 (go.mod, main.go, README)
-│   │   └── Token 限制下的内容截断
-│   └── 3.3 agent/prompt.go — System Prompt 构建
-│       ├── 角色定义 (高级工程师)
-│       ├── 任务描述模板
-│       ├── 工具使用说明
-│       └── 输出格式要求
-│
-├── 4. Runner 改造
-│   ├── 4.1 agents/dev_runner.go — 改用 Agent Loop
-│   │   ├── 克隆仓库
-│   │   ├── 加载代码上下文
-│   │   ├── 调用 Agent Loop 生成修改
-│   │   ├── 验证修改 (go build / go test)
-│   │   └── 提交并创建 PR
-│   └── 4.2 agents/bugfix_runner.go — 改用 Agent Loop
-│       ├── 克隆仓库
-│       ├── 分析 Bug 描述
-│       ├── 定位问题代码
-│       ├── 调用 Agent Loop 生成修复
-│       ├── 运行测试验证
-│       └── 提交并创建 PR
-│
-├── 5. 验证与测试
-│   ├── 5.1 集成测试 — Issue → Agent Loop → PR
-│   ├── 5.2 端到端测试 — 真实 Gitea 环境
-│   └── 5.3 边界测试 — 错误处理、超时、Token 限制
-│
-└── 6. 文档更新
-    ├── 6.1 更新 TASKS.md
-    ├── 6.2 更新 agent-development-decisions.md
-    └── 6.3 API 文档
-
-关键设计决策:
-├── LLM 支持: DeepSeek / OpenAI 兼容 (Function Calling)
-├── 工具数量: 初始 6 个基础工具
-├── 最大轮次: 20 轮 (防止无限循环)
-├── 上下文窗口: 最多 8K tokens 的代码上下文
-├── 验证策略: 每次修改后运行 go build 验证
-└── 错误处理: 工具执行错误返回给 LLM 自行修复
+完成内容:
+├── LLM Function Calling 支持
+├── 6 个基础工具 (read_file, write_file, list_files, search_code, run_command, apply_diff)
+├── Agent Loop 多轮对话
+├── 代码库上下文加载
+├── DevRunner / BugfixRunner 改造
+└── 端到端测试验证通过
 ```
 
-### v0.4：增强与优化
+### v0.4：增强与优化（下一步）
 
 ```
 优先级: P1
@@ -316,3 +270,4 @@
 3. **轻量安全可控**：不依赖 Docker，自实现软隔离。
 4. **渐进式演进**：先只读型，再写入型，逐步增强。
 5. **安全优先**：命令白名单、分支限制、PR 人工 review。
+6. **工具化思维**：LLM 通过工具与代码库交互，而非一次性生成。

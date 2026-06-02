@@ -36,14 +36,16 @@ type RunnerFactory struct {
 	llmRegistry *llm.Registry
 	giteaFactory GiteaClientFactory
 	sandboxCfg   sandbox.Config
+	db           *store.DB
 }
 
 // NewRunnerFactory creates a new RunnerFactory.
-func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory) *RunnerFactory {
+func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB) *RunnerFactory {
 	return &RunnerFactory{
 		llmRegistry:  llmRegistry,
 		giteaFactory: giteaFactory,
 		sandboxCfg:   sandbox.DefaultConfig(),
+		db:           db,
 	}
 }
 
@@ -57,9 +59,9 @@ func (f *RunnerFactory) GetRunner(taskType string) Runner {
 	case "analyze_issue", "trigger":
 		return NewAnalyzeRunner(f.llmRegistry, f.giteaFactory)
 	case "solve_issue":
-		return NewDevRunner(f.llmRegistry, f.giteaFactory, f.sandboxCfg)
+		return NewDevRunner(f.llmRegistry, f.giteaFactory, f.sandboxCfg, f.db)
 	case "fix_bug":
-		return NewBugfixRunner(f.llmRegistry, f.giteaFactory, f.sandboxCfg)
+		return NewBugfixRunner(f.llmRegistry, f.giteaFactory, f.sandboxCfg, f.db)
 	default:
 		return NewAnalyzeRunner(f.llmRegistry, f.giteaFactory)
 	}
@@ -288,20 +290,22 @@ type DevRunner struct {
 	llmRegistry  *llm.Registry
 	giteaFactory GiteaClientFactory
 	sandboxCfg   sandbox.Config
+	db           *store.DB
 }
 
 // NewDevRunner creates a new DevRunner.
-func NewDevRunner(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, sandboxCfg sandbox.Config) *DevRunner {
+func NewDevRunner(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, sandboxCfg sandbox.Config, db *store.DB) *DevRunner {
 	return &DevRunner{
 		llmRegistry:  llmRegistry,
 		giteaFactory: giteaFactory,
 		sandboxCfg:   sandboxCfg,
+		db:           db,
 	}
 }
 
 // Run executes the development task.
 func (r *DevRunner) Run(ctx context.Context, task *store.Task, agent *store.Agent) (*Result, error) {
-	return runWriteTask(ctx, task, agent, r.llmRegistry, r.giteaFactory, r.sandboxCfg, "dev")
+	return runWriteTask(ctx, task, agent, r.llmRegistry, r.giteaFactory, r.sandboxCfg, "dev", r.db)
 }
 
 // --- BugfixRunner ---
@@ -311,25 +315,27 @@ type BugfixRunner struct {
 	llmRegistry  *llm.Registry
 	giteaFactory GiteaClientFactory
 	sandboxCfg   sandbox.Config
+	db           *store.DB
 }
 
 // NewBugfixRunner creates a new BugfixRunner.
-func NewBugfixRunner(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, sandboxCfg sandbox.Config) *BugfixRunner {
+func NewBugfixRunner(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, sandboxCfg sandbox.Config, db *store.DB) *BugfixRunner {
 	return &BugfixRunner{
 		llmRegistry:  llmRegistry,
 		giteaFactory: giteaFactory,
 		sandboxCfg:   sandboxCfg,
+		db:           db,
 	}
 }
 
 // Run executes the bugfix task.
 func (r *BugfixRunner) Run(ctx context.Context, task *store.Task, agent *store.Agent) (*Result, error) {
-	return runWriteTask(ctx, task, agent, r.llmRegistry, r.giteaFactory, r.sandboxCfg, "bugfix")
+	return runWriteTask(ctx, task, agent, r.llmRegistry, r.giteaFactory, r.sandboxCfg, "bugfix", r.db)
 }
 
 // runWriteTask is the shared implementation for write-type runners.
 func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
-	llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, sandboxCfg sandbox.Config, taskSubType string) (*Result, error) {
+	llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, sandboxCfg sandbox.Config, taskSubType string, db *store.DB) (*Result, error) {
 
 	// Parse repo owner/name
 	parts := strings.SplitN(task.Repo, "/", 2)
@@ -356,7 +362,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	defer sb.Cleanup()
 
 	// Create audit logger
-	audit := sandbox.NewAuditLogger(nil, task.ID, agentCfg.ID)
+	audit := sandbox.NewAuditLogger(db, task.ID, agentCfg.ID)
 
 	// Clone repository
 	git := sandbox.NewGit(sb)

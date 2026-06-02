@@ -206,9 +206,21 @@ func (d *Dispatcher) buildDefaultContext(evt *webhook.WebhookEvent) string {
 }
 
 // determineTaskType returns the task type based on the event.
+// Supports label-based task type override: "ai:solve" → solve_issue, "ai:fix" → fix_bug
 func determineTaskType(evt *webhook.WebhookEvent) string {
 	switch evt.Event {
 	case "issues":
+		// Check for label-based task type override
+		if evt.Issue != nil {
+			for _, label := range evt.Issue.Labels {
+				switch label.Name {
+				case "ai:solve":
+					return "solve_issue"
+				case "ai:fix":
+					return "fix_bug"
+				}
+			}
+		}
 		if evt.Action == "assigned" || evt.Action == "labeled" {
 			return "analyze_issue"
 		}

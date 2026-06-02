@@ -45,7 +45,7 @@ func NewExecutor(maxConcurrent, timeout, retryCount int, llmRegistry *llm.Regist
 // SetGiteaClientFactory sets the factory for creating Gitea clients.
 func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory) {
 	e.giteaFactory = factory
-	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory)
+	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db)
 }
 
 // Start begins the executor workers.

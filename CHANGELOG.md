@@ -10,6 +10,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Phase 14: 沙箱增强任务规划 (TASKS.md)
 
+## [0.5.0] - 2026-06-03
+
+### Added
+- Prompt 历史版本管理 (store/prompt.go)
+  - CreatePromptVersion: 创建新版本
+  - GetPromptVersion: 获取指定版本
+  - GetActivePrompt: 获取活跃版本
+  - ListPromptVersions: 列出所有版本
+  - ActivatePromptVersion: 激活指定版本 (回滚)
+  - DeletePromptVersion: 删除版本
+- Prompt 加载管理 (agents/prompt.go)
+  - 优先级: DB > Agent > Config > Built-in
+  - 6 个内置模板: default, analyze_issue, review_pr, reply_comment, solve_issue, fix_bug
+- Prompt API 端点
+  - GET /api/agents/{id}/prompts: 列出版本
+  - POST /api/agents/{id}/prompts: 创建版本
+  - GET /api/agents/{id}/prompts/active: 获取活跃版本
+  - POST /api/prompts/{id}/activate: 激活版本 (回滚)
+  - DELETE /api/prompts/{id}: 删除版本
+- 数据库迁移: prompt_history 表添加 is_active 和 note 字段
+
 ## [0.4.0] - 2026-06-02
 
 ### Added

@@ -97,11 +97,11 @@
 - [x] 7.4.4 agent/context.go — 代码库上下文加载（目录结构 + 关键文件 + Token 限制）
 - [x] 7.4.5 agents/runners.go — DevRunner/BugfixRunner 改用 Agent Loop
 
-## Phase 8：Prompt 管理（模块 8）⬜
+## Phase 8：Prompt 管理（模块 8）✅
 
-- [ ] 8.1 store/prompt.go — Prompt 历史版本存储（prompt_history 表 CRUD）
-- [ ] 8.2 agents/prompt.go — Prompt 加载（DB > config.yaml > 内置兜底）
-- [ ] 8.3 Prompt API 和历史版本管理
+- [x] 8.1 store/prompt.go — Prompt 历史版本存储（prompt_history 表 CRUD）
+- [x] 8.2 agents/prompt.go — Prompt 加载（DB > agent > config > 内置兜底）
+- [x] 8.3 Prompt API 和历史版本管理（查看/编辑/回滚/删除）
 
 ## Phase 9：管理 API（模块 9）✅
 
@@ -255,7 +255,7 @@
 | 模块 5：LLM 调用层 | ✅ 完成 | `bc24087` |
 | 模块 6：Dispatcher | ✅ 完成 | `1957a1b` |
 | 模块 7：核心 Agent | ✅ 完成 | `5dd518d` |
-| 模块 8：Prompt 管理 | ⬜ 未开始 | - |
+| 模块 8：Prompt 管理 | ✅ 完成 | `3053ae1` |
 | 模块 9：管理 API | ✅ 完成 | `d4c48fb` |
 | 模块 10：配置化模板 | ✅ 完成 | `2f74746` |
 | 模块 11：队列可靠性 | ✅ 完成 | `b0fefd9` |
@@ -263,7 +263,7 @@
 | 模块 13：集成收尾 | 🔶 部分完成 | - |
 | 模块 14：沙箱增强 | ⬜ 未开始 | - |
 
-**总体进度：10/14 模块完成（71%）**
+**总体进度：11/14 模块完成（79%）**
 
 ---
 

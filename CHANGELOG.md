@@ -9,10 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Phase 14: 沙箱增强任务规划 (TASKS.md)
-  - 临时目录模式
-  - 更丰富的上下文工具 (cat, tree, git_log, rg)
-  - 配置化的超时和限制 (SandboxConfig)
-  - Agent 迭代控制配置化 (AgentLoopConfig)
+
+## [0.4.0] - 2026-06-02
+
+### Added
+- SandboxConfig 结构定义
+  - Mode: 工作目录模式 (temp | fixed)
+  - CommandTimeout: 单命令超时
+  - TaskTimeout: 总任务超时
+  - MaxOutput: 最大输出字节数
+  - MaxFileSize: 最大文件大小
+  - CleanupAfter: 失败任务保留时间
+- 临时目录模式 (ModeTemp)
+  - os.MkdirTemp 自动创建临时目录
+  - CleanupWithDelay 延迟清理
+- 更丰富的上下文工具
+  - tree: 目录结构展示
+  - git_log: Git 提交历史
+  - git_blame: 文件修改历史
+- AgentLoopConfig 结构定义
+  - MaxIterations: 最大迭代轮次
+  - MaxTokens: 单次 LLM 调用最大 tokens
+  - Timeout: 单轮超时
+  - TotalTimeout: 总超时
+- NewAgentLoopWithConfig: 从配置创建 AgentLoop
+
+### Changed
+- Sandbox 使用 SandboxConfig 替代旧 Config
+- 路径验证支持大小写不敏感比较 (Windows 兼容)
+
+### Fixed
+- 路径穿越攻击防护
+- 文件大小限制验证
 
 ## [0.3.1] - 2026-06-02
 

@@ -72,6 +72,40 @@ func TestSandboxWriteReadFile(t *testing.T) {
 	assert.Equal(t, "hello world", string(read))
 }
 
+// TestSandboxWriteReadNestedFiles tests writing and reading multiple nested files.
+// This complements TestSandboxWriteReadFile which tests single files.
+func TestSandboxWriteReadNestedFiles(t *testing.T) {
+	cfg := Config{
+		BaseDir:   t.TempDir(),
+		Timeout:   10 * time.Second,
+		MaxOutput: 1024,
+	}
+
+	s := New(cfg, 555)
+	s.Setup()
+	defer s.Cleanup()
+
+	files := map[string]string{
+		"src/main.go":        "package main",
+		"src/utils.go":       "package main",
+		"docs/README.md":     "# Test",
+		"tests/main_test.go": "package main",
+	}
+
+	for path, content := range files {
+		err := s.WriteFile(path, []byte(content))
+		require.NoError(t, err)
+	}
+
+	for path, expected := range files {
+		assert.True(t, s.FileExists(path), "File %s should exist", path)
+
+		content, err := s.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, expected, string(content))
+	}
+}
+
 func TestSandboxWriteFileSubdirectory(t *testing.T) {
 	cfg := Config{
 		BaseDir:   t.TempDir(),
@@ -195,7 +229,7 @@ func TestSandboxExecuteShell(t *testing.T) {
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	assert.NotEmpty(t, cfg.BaseDir, "Default BaseDir should not be empty")
-	assert.NotZero(t, cfg.Timeout, "Default Timeout should not be 0")
-	assert.NotZero(t, cfg.MaxOutput, "Default MaxOutput should not be 0")
+	assert.Equal(t, "./workspace", cfg.BaseDir)
+	assert.Equal(t, 5*time.Minute, cfg.Timeout)
+	assert.Equal(t, 1024*1024, cfg.MaxOutput)
 }

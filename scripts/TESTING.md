@@ -7,8 +7,7 @@ tests/
 ├── integration/              # 集成测试 (需要 TestEnv)
 │   ├── helpers_test.go       # 测试辅助函数 (TestEnv, MockGitea, MockLLM)
 │   ├── webhook_test.go       # Webhook 端到端测试
-│   ├── agent_test.go         # Agent 生命周期测试
-│   └── sandbox_test.go       # 沙箱集成测试 (完整工作流)
+│   └── agent_test.go         # Agent 生命周期测试
 │
 internal/                     # 单元测试 (各包内 _test.go)
 ├── agent/
@@ -27,8 +26,8 @@ internal/                     # 单元测试 (各包内 _test.go)
 ├── llm/
 │   └── provider_test.go      # Provider 接口测试
 ├── sandbox/
-│   ├── sandbox_test.go       # 沙箱基础功能测试
-│   └── git_test.go           # Git 操作 + 分支验证测试
+│   ├── sandbox_test.go       # 沙箱基础功能 + 多文件嵌套测试
+│   └── git_test.go           # Git 操作 + 分支验证 + 完整工作流测试
 └── webhook/
     └── parser_test.go        # 事件解析测试
 ```
@@ -39,13 +38,16 @@ internal/                     # 单元测试 (各包内 _test.go)
 |------|------|------|
 | **单元测试** | 不依赖外部服务，测试单个函数/方法 | `TestSandboxIsAllowed`, `TestValidateBranchName` |
 | **集成测试** | 需要 TestEnv（数据库、HTTP Server、Mock Gitea） | `TestWebhookIssueAssigned`, `TestAgentCRUD` |
+| **多步组合测试** | 包内多步流程，无需 TestEnv | `TestSandboxFullWorkflow`, `TestSandboxWriteReadNestedFiles` |
 
 ### 判断原则
 
 ```
-需要 TestEnv?
+需要 TestEnv? (数据库/HTTP/Mock)
 ├── 是 → 放在 tests/integration/
-└── 否 → 放在 internal/xxx/
+└── 否 ─┬ 单函数/方法 → 放在 internal/xxx/ 对应文件
+        └── 多步组合流程 → 放在 internal/xxx/ 对应文件
+                            (包内可独立运行的跨模块流程，无需 TestEnv)
 ```
 
 ## 运行测试

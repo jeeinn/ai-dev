@@ -33,7 +33,7 @@ func (m *mockGiteaFactory) GetGiteaClient(token string) *gitea.Client {
 }
 
 func TestRunnerFactoryGetRunner(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil)
+	factory := NewRunnerFactory(nil, nil, nil)
 
 	tests := []struct {
 		taskType string

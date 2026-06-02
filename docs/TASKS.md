@@ -159,52 +159,152 @@
 
 ## 推荐开发路径
 
-### 近期目标（v0.2）：只读型 Agent 完善
+### v0.2：只读型 Agent ✅ 已完成
 
 ```
-优先级: P1
-预计工作量: 1-2 周
-目标: 完善只读型 Agent，提升实用性
+状态: 已完成 (tag: v0.2)
+提交: 2d378bd
 
-任务:
-├── 获取 PR Diff API
-├── 获取评论历史 API
-├── 实现 ReviewRunner
-├── 实现 InteractionRunner
+完成内容:
+├── PR Diff API
+├── 评论历史 API
+├── ReviewRunner
+├── InteractionRunner
 ├── 队列可靠性增强
 └── 集成测试
 ```
 
-### 中期目标（v0.3）：写入型 Agent
+### v0.3：写入型 Agent 基础 ✅ 已完成
 
 ```
-优先级: P2
-预计工作量: 2-3 周
-目标: 实现简化沙箱方案，支持代码修改
+状态: 已完成 (tag: v0.3)
+提交: b0fefd9
 
-任务:
-├── 轻量级沙箱实现
-├── Git 操作封装
+完成内容:
+├── 轻量级沙箱 (目录隔离 + 命令白名单 + 超时控制)
+├── Git 操作封装 (clone/branch/commit/push)
 ├── 命令执行器
-├── 工作目录管理
 ├── 命令审计日志
-├── DevRunner 实现
-└── BugfixRunner 实现
+├── DevRunner / BugfixRunner (基础版)
+└── 集成测试框架 (testify)
 ```
 
-### 远期目标（v0.4+）：完善与优化
+### v0.3.1：Go 原生 Tool-Use Agent（下一步）
 
 ```
-优先级: P3+
-预计工作量: 持续迭代
-目标: 完善功能，提升体验
+优先级: P0 (当前)
+预计工作量: 1-2 周
+目标: 实现真正的 AI 代码修改能力
+
+核心思路:
+  LLM 通过 Function Calling 调用工具来理解和修改代码
+  而不是一次性生成所有代码
+
+架构:
+  Gateway
+    └── Agent Loop
+         ├── 1. 加载代码库上下文 (目录结构 + 关键文件)
+         ├── 2. 发送任务 + 工具定义给 LLM
+         ├── 3. LLM 返回 tool_calls
+         ├── 4. 执行工具 (读文件/写文件/搜索/运行命令)
+         ├── 5. 将结果返回 LLM
+         └── 6. 重复直到 LLM 返回 stop 或达到最大轮次
+
+任务清单:
+├── 1. LLM 层扩展
+│   ├── 1.1 llm/provider.go — 扩展 ChatRequest 支持 Tools 字段
+│   ├── 1.2 llm/provider.go — ChatResponse 支持 ToolCalls 字段
+│   ├── 1.3 llm/openai.go — 实现 Function Calling 请求/响应解析
+│   └── 1.4 llm/anthropic.go — 实现 Anthropic Tool Use 支持
+│
+├── 2. Tool 定义与注册
+│   ├── 2.1 agent/tool.go — Tool 接口定义
+│   ├── 2.2 agent/tool_read_file.go — 读取文件内容
+│   ├── 2.3 agent/tool_write_file.go — 写入/创建文件
+│   ├── 2.4 agent/tool_list_files.go — 列出目录结构
+│   ├── 2.5 agent/tool_search_code.go — 搜索代码内容 (grep)
+│   ├── 2.6 agent/tool_run_command.go — 执行命令 (受限)
+│   └── 2.7 agent/tool_apply_diff.go — 应用 Diff 补丁
+│
+├── 3. Agent Loop 实现
+│   ├── 3.1 agent/loop.go — Agent Loop 核心逻辑
+│   │   ├── 多轮对话管理
+│   │   ├── Tool Call 解析与执行
+│   │   ├── 结果收集与返回
+│   │   └── 终止条件判断 (stop / max_iterations / error)
+│   ├── 3.2 agent/context.go — 代码库上下文加载
+│   │   ├── 目录结构扫描 (tree)
+│   │   ├── 关键文件识别 (go.mod, main.go, README)
+│   │   └── Token 限制下的内容截断
+│   └── 3.3 agent/prompt.go — System Prompt 构建
+│       ├── 角色定义 (高级工程师)
+│       ├── 任务描述模板
+│       ├── 工具使用说明
+│       └── 输出格式要求
+│
+├── 4. Runner 改造
+│   ├── 4.1 agents/dev_runner.go — 改用 Agent Loop
+│   │   ├── 克隆仓库
+│   │   ├── 加载代码上下文
+│   │   ├── 调用 Agent Loop 生成修改
+│   │   ├── 验证修改 (go build / go test)
+│   │   └── 提交并创建 PR
+│   └── 4.2 agents/bugfix_runner.go — 改用 Agent Loop
+│       ├── 克隆仓库
+│       ├── 分析 Bug 描述
+│       ├── 定位问题代码
+│       ├── 调用 Agent Loop 生成修复
+│       ├── 运行测试验证
+│       └── 提交并创建 PR
+│
+├── 5. 验证与测试
+│   ├── 5.1 集成测试 — Issue → Agent Loop → PR
+│   ├── 5.2 端到端测试 — 真实 Gitea 环境
+│   └── 5.3 边界测试 — 错误处理、超时、Token 限制
+│
+└── 6. 文档更新
+    ├── 6.1 更新 TASKS.md
+    ├── 6.2 更新 agent-development-decisions.md
+    └── 6.3 API 文档
+
+关键设计决策:
+├── LLM 支持: DeepSeek / OpenAI 兼容 (Function Calling)
+├── 工具数量: 初始 6 个基础工具
+├── 最大轮次: 20 轮 (防止无限循环)
+├── 上下文窗口: 最多 8K tokens 的代码上下文
+├── 验证策略: 每次修改后运行 go build 验证
+└── 错误处理: 工具执行错误返回给 LLM 自行修复
+```
+
+### v0.4：增强与优化
+
+```
+优先级: P1
+预计工作量: 2-3 周
+目标: 增强 Agent 能力，提升可靠性
 
 任务:
-├── Prompt 管理完善
-├── Web UI（可选）
-├── 性能优化
-├── 部署文档
-└── 更多 Agent 类型
+├── 多文件修改支持 (结构化输出解析)
+├── 测试生成与验证
+├── 代码审查集成
+├── Token 使用统计
+├── 执行过程可视化
+└── 可选: 集成 Aider 处理复杂场景
+```
+
+### v0.5+：长期演进
+
+```
+优先级: P2+
+预计工作量: 持续迭代
+
+方向:
+├── 多 Agent 协作
+├── 代码重构能力
+├── 文档自动生成
+├── CI/CD 集成
+├── Web UI
+└── 性能优化
 ```
 
 ---

@@ -529,34 +529,136 @@ type LightSandbox struct {
 
 ---
 
-## 十、当前结论
+## 十、写入型 Agent 实现方案决策（v0.3.1）
+
+### 10.1 问题分析
+
+写入型 Agent 的核心挑战：
+
+```text
+理解代码库结构
+  → 定位需要修改的文件
+  → 生成正确的代码修改
+  → 处理多文件依赖
+  → 验证修改正确性
+  → 迭代修复错误
+```
+
+这本质上就是"AI 编程助手"，复杂度不亚于 opencode / cursor / copilot workspace。
+
+### 10.2 方案调研
+
+| 方案 | 语言 | 集成难度 | 推荐度 |
+|------|------|----------|--------|
+| **Go 原生 Tool-Use** | Go | ⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 集成 Aider | Python | ⭐⭐⭐ | ⭐⭐⭐⭐ |
+| 集成 SWE-agent | Python | ⭐⭐⭐⭐ | ⭐⭐⭐ |
+| 集成 Goose | Rust | ⭐⭐⭐ | ⭐⭐⭐ |
+
+### 10.3 决策结论
+
+**采用 Go 原生 Tool-Use 方案**，渐进式实现。
+
+### 10.4 理由
+
+1. **纯 Go，无外部依赖**：保持项目轻量
+2. **渐进式实现**：先支持简单场景，逐步增强
+3. **完全可控**：不依赖第三方项目的状态
+4. **为后续扩展打基础**：可以后续集成 Aider 处理复杂场景
+
+### 10.5 架构设计
+
+```text
+Gateway
+  └── Agent Loop
+       ├── 1. 加载代码库上下文 (目录结构 + 关键文件)
+       ├── 2. 发送任务 + 工具定义给 LLM
+       ├── 3. LLM 返回 tool_calls
+       ├── 4. 执行工具 (读文件/写文件/搜索/运行命令)
+       ├── 5. 将结果返回 LLM
+       └── 6. 重复直到 LLM 返回 stop 或达到最大轮次
+```
+
+### 10.6 工具定义
+
+| 工具 | 功能 | 参数 |
+|------|------|------|
+| `read_file` | 读取文件内容 | `path` |
+| `write_file` | 写入/创建文件 | `path`, `content` |
+| `list_files` | 列出目录结构 | `dir` |
+| `search_code` | 搜索代码内容 | `pattern`, `dir` |
+| `run_command` | 执行命令 (受限) | `command` |
+| `apply_diff` | 应用 Diff 补丁 | `diff` |
+
+### 10.7 关键参数
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| 最大轮次 | 20 | 防止无限循环 |
+| 上下文窗口 | 8K tokens | 代码上下文限制 |
+| LLM 支持 | DeepSeek / OpenAI | Function Calling 支持 |
+| 验证策略 | go build | 每次修改后验证 |
+| 错误处理 | 返回给 LLM | 工具执行错误由 LLM 自行修复 |
+
+### 10.8 实现计划
+
+```text
+v0.3.1 (1-2 周):
+├── LLM 层扩展 (Function Calling 支持)
+├── Tool 定义与注册 (6 个基础工具)
+├── Agent Loop 实现
+├── Runner 改造 (DevRunner / BugfixRunner)
+├── 集成测试
+└── 文档更新
+
+v0.4 (后续):
+├── 多文件修改支持
+├── 测试生成与验证
+├── 代码审查集成
+└── 可选: 集成 Aider
+```
+
+---
+
+## 十一、当前结论
 
 ### 已完成
 
 ```text
-Issue / PR Event
-  -> 路由到 Agent
-  -> 创建任务
-  -> 执行只读型 Runner
-  -> 调用 LLM
-  -> 评论回写 Gitea
-  -> API 认证 + 配置化模板
+v0.1: 基础设施
+  ├── Webhook 接收 + 去重
+  ├── Gitea API 客户端
+  ├── Agent 管理 + 路由
+  ├── LLM 调用层
+  ├── Dispatcher + Queue + Executor
+  └── 管理 API + 认证
+
+v0.2: 只读型 Agent
+  ├── PR Review Runner
+  ├── Interaction Runner
+  ├── 队列可靠性增强
+  └── 集成测试框架 (testify)
+
+v0.3: 写入型 Agent 基础
+  ├── 轻量级沙箱
+  ├── Git 操作封装
+  ├── 命令执行器
+  ├── 命令审计日志
+  └── DevRunner / BugfixRunner (基础版)
 ```
 
-### 下一步
+### 下一步：v0.3.1 Go 原生 Tool-Use
 
 ```text
-Phase 1: 只读型 Agent 完善
-  ├── PR Review (获取 Diff → LLM 审查 → 评论)
-  ├── @Mention 回复 (加载评论历史 → LLM 回复)
-  └── 队列可靠性 (pending 扫描 + stale 恢复)
+核心目标: 实现真正的 AI 代码修改能力
 
-Phase 2: 写入型 Agent (简化沙箱)
-  ├── Git 操作封装
-  ├── 命令执行器 (白名单 + 超时 + 输出限制)
-  ├── 工作目录管理
-  ├── 命令审计日志
-  └── DevRunner / BugfixRunner 实现
+任务:
+├── LLM Function Calling 支持
+├── 6 个基础工具实现
+├── Agent Loop 核心逻辑
+├── 代码库上下文加载
+├── DevRunner / BugfixRunner 改造
+└── 端到端测试验证
 ```
 
 ### 关键原则
@@ -565,3 +667,4 @@ Phase 2: 写入型 Agent (简化沙箱)
 2. **可配置化**：Prompt、模型、权限都通过配置管理。
 3. **轻量安全可控**：不依赖 Docker，自实现软隔离。
 4. **渐进式演进**：先只读型，再写入型，逐步增强。
+5. **工具化思维**：LLM 通过工具与代码库交互，而非一次性生成。

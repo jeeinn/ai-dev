@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 
+	"gitea-agent-gateway/internal/agent"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/sandbox"
@@ -327,7 +328,7 @@ func (r *BugfixRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 }
 
 // runWriteTask is the shared implementation for write-type runners.
-func runWriteTask(ctx context.Context, task *store.Task, agent *store.Agent,
+func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, sandboxCfg sandbox.Config, taskSubType string) (*Result, error) {
 
 	// Parse repo owner/name
@@ -338,7 +339,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agent *store.Agent,
 	owner, repo := parts[0], parts[1]
 
 	// Get Gitea client
-	client := giteaFactory.GetGiteaClient(agent.GiteaToken)
+	client := giteaFactory.GetGiteaClient(agentCfg.GiteaToken)
 
 	// Get repo info for clone URL
 	repoInfo, err := client.GetRepo(owner, repo)
@@ -355,7 +356,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agent *store.Agent,
 	defer sb.Cleanup()
 
 	// Create audit logger
-	audit := sandbox.NewAuditLogger(nil, task.ID, agent.ID)
+	audit := sandbox.NewAuditLogger(nil, task.ID, agentCfg.ID)
 
 	// Clone repository
 	git := sandbox.NewGit(sb)
@@ -374,44 +375,57 @@ func runWriteTask(ctx context.Context, task *store.Task, agent *store.Agent,
 	}
 
 	// Get LLM provider
-	provider, err := llmRegistry.Get(agent.Provider)
+	provider, err := llmRegistry.Get(agentCfg.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("get provider: %w", err)
 	}
 
-	// Build prompt based on task type
-	var prompt string
-	if taskSubType == "dev" {
-		prompt = buildDevPrompt(task, repo)
-	} else {
-		prompt = buildBugfixPrompt(task, repo)
-	}
-
-	// Call LLM
-	messages := []llm.Message{
-		{Role: "system", Content: agent.SystemPrompt},
-		{Role: "user", Content: prompt},
-	}
-
-	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
-		Model:       agent.Model,
-		Messages:    messages,
-		MaxTokens:   agent.MaxTokens * 2,
-		Temperature: agent.Temperature,
-	})
+	// Load code context
+	codeCtx, err := agent.LoadCodeContext(sb, 8000)
 	if err != nil {
-		return nil, fmt.Errorf("LLM call: %w", err)
+		log.Printf("[WARN] Failed to load code context: %v", err)
 	}
 
-	log.Printf("[INFO] Task %d LLM response: %d tokens used", task.ID, resp.Usage.TotalTokens)
-
-	// Write solution to file
-	fileName := "solution.go"
-	if taskSubType == "bugfix" {
-		fileName = "fix.go"
+	// Build prompt based on task type
+	taskCtx := agent.TaskContext{
+		IssueTitle: task.Event,
+		IssueBody:  task.Context,
+		RepoName:   task.Repo,
+		TaskType:   taskSubType,
 	}
-	if err := sb.WriteFile(fileName, []byte(resp.Content)); err != nil {
-		return nil, fmt.Errorf("write file: %w", err)
+
+	var systemPrompt string
+	if taskSubType == "dev" {
+		systemPrompt = agent.BuildDevPrompt(taskCtx, codeCtx)
+	} else {
+		systemPrompt = agent.BuildBugfixPrompt(taskCtx, codeCtx)
+	}
+
+	// Create tool registry
+	toolRegistry := agent.DefaultTools(sb)
+
+	// Create agent loop
+	loop := agent.NewAgentLoop(provider, toolRegistry, agentCfg.Model, agentCfg.MaxTokens*2, agentCfg.Temperature)
+
+	// Run agent loop
+	messages := []llm.Message{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: task.Context},
+	}
+
+	result, err := loop.Run(ctx, messages)
+	if err != nil {
+		return nil, fmt.Errorf("agent loop: %w", err)
+	}
+
+	log.Printf("[INFO] Task %d agent loop completed", task.ID)
+
+	// Check if there are changes to commit
+	if !git.HasChanges() {
+		return &Result{
+			Content: result,
+			Action:  "comment",
+		}, nil
 	}
 
 	// Stage and commit
@@ -438,7 +452,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agent *store.Agent,
 	if taskSubType == "bugfix" {
 		prTitle = fmt.Sprintf("Bugfix: %s", task.Event)
 	}
-	contentPreview := resp.Content
+	contentPreview := result
 	if len(contentPreview) > 500 {
 		contentPreview = contentPreview[:500] + "..."
 	}
@@ -456,37 +470,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agent *store.Agent,
 	log.Printf("[INFO] Task %d PR created: %s", task.ID, pr.HTMLURL)
 
 	return &Result{
-		Content: fmt.Sprintf("PR created: %s\n\n%s", pr.HTMLURL, resp.Content),
+		Content: fmt.Sprintf("PR created: %s\n\n%s", pr.HTMLURL, result),
 		Action:  "pr",
 	}, nil
-}
-
-// buildDevPrompt builds the prompt for code generation.
-func buildDevPrompt(task *store.Task, repo string) string {
-	var sb strings.Builder
-	sb.WriteString("You are a senior software engineer. ")
-	sb.WriteString("Based on the following issue, write code to solve it.\n\n")
-	sb.WriteString("## Task Context\n")
-	sb.WriteString(task.Context)
-	sb.WriteString("\n\n## Requirements\n")
-	sb.WriteString("1. Write clean, well-documented code\n")
-	sb.WriteString("2. Follow best practices\n")
-	sb.WriteString("3. Include error handling\n")
-	sb.WriteString("4. Add comments for complex logic\n")
-	return sb.String()
-}
-
-// buildBugfixPrompt builds the prompt for bug fixing.
-func buildBugfixPrompt(task *store.Task, repo string) string {
-	var sb strings.Builder
-	sb.WriteString("You are a senior software engineer specializing in debugging. ")
-	sb.WriteString("Based on the following bug report, identify and fix the issue.\n\n")
-	sb.WriteString("## Bug Report\n")
-	sb.WriteString(task.Context)
-	sb.WriteString("\n\n## Requirements\n")
-	sb.WriteString("1. Identify the root cause\n")
-	sb.WriteString("2. Provide a minimal fix\n")
-	sb.WriteString("3. Ensure the fix doesn't break existing functionality\n")
-	sb.WriteString("4. Add comments explaining the fix\n")
-	return sb.String()
 }

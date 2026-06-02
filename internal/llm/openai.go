@@ -32,6 +32,7 @@ func NewOpenAICompatibleProvider(baseURL, apiKey string) *OpenAICompatibleProvid
 type openaiRequest struct {
 	Model       string          `json:"model"`
 	Messages    []Message       `json:"messages"`
+	Tools       []Tool          `json:"tools,omitempty"`
 	MaxTokens   int             `json:"max_tokens,omitempty"`
 	Temperature float64         `json:"temperature,omitempty"`
 	Stream      bool            `json:"stream"`
@@ -40,9 +41,11 @@ type openaiRequest struct {
 type openaiResponse struct {
 	Choices []struct {
 		Message struct {
-			Content          string `json:"content"`
-			ReasoningContent string `json:"reasoning_content,omitempty"`
+			Content          string     `json:"content"`
+			ReasoningContent string     `json:"reasoning_content,omitempty"`
+			ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
 		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Usage struct {
 		PromptTokens     int `json:"prompt_tokens"`
@@ -59,6 +62,7 @@ func (p *OpenAICompatibleProvider) ChatCompletion(ctx context.Context, req *Chat
 	body := openaiRequest{
 		Model:       req.Model,
 		Messages:    req.Messages,
+		Tools:       req.Tools,
 		MaxTokens:   req.MaxTokens,
 		Temperature: req.Temperature,
 		Stream:      false,
@@ -111,7 +115,9 @@ func (p *OpenAICompatibleProvider) ChatCompletion(ctx context.Context, req *Chat
 	}
 
 	return &ChatResponse{
-		Content: content,
+		Content:      content,
+		ToolCalls:    resp.Choices[0].Message.ToolCalls,
+		FinishReason: resp.Choices[0].FinishReason,
 		Usage: Usage{
 			PromptTokens:     resp.Usage.PromptTokens,
 			CompletionTokens: resp.Usage.CompletionTokens,

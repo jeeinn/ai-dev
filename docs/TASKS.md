@@ -153,6 +153,95 @@
 - [x] 13.5 编译验证（go build，单二进制）
 - [ ] 13.6 性能测试和优化
 
+## Phase 14：沙箱增强（模块 14）⬜
+
+> 借鉴 ai-git-bot 项目，提升沙箱灵活性和功能性
+
+### 14.1 临时目录模式
+
+- [ ] 14.1.1 sandbox/sandbox.go — 支持临时目录模式（`os.MkdirTemp`）
+- [ ] 14.1.2 sandbox/sandbox.go — 配置化选择固定目录或临时目录
+- [ ] 14.1.3 sandbox/sandbox.go — 临时目录自动清理（成功立即清理，失败保留可配置时间）
+- [ ] 14.1.4 sandbox/workspace.go — 工作目录生命周期管理
+
+### 14.2 更丰富的上下文工具
+
+- [ ] 14.2.1 agent/tools.go — `cat` 工具增强（支持行号范围：`cat file.go:10-20`）
+- [ ] 14.2.2 agent/tools.go — `tree` 工具（显示目录结构，可配置深度）
+- [ ] 14.2.3 agent/tools.go — `git_log` 工具（显示 Git 提交历史）
+- [ ] 14.2.4 agent/tools.go — `git_blame` 工具（显示文件修改历史）
+- [ ] 14.2.5 agent/tools.go — `rg` 工具（ripgrep 搜索，比 grep 更快）
+- [ ] 14.2.6 agent/tools.go — `find` 工具增强（支持 glob 模式）
+
+### 14.3 配置化的超时和限制
+
+- [ ] 14.3.1 config/schema.go — SandboxConfig 结构定义
+  ```go
+  type SandboxConfig struct {
+      Mode           string        // "temp" | "fixed"
+      BaseDir        string        // 固定模式的基础目录
+      CommandTimeout time.Duration // 单命令超时
+      TaskTimeout    time.Duration // 总任务超时
+      MaxOutput      int           // 最大输出字节数
+      MaxFileSize    int           // 最大文件大小
+      CleanupAfter   time.Duration // 失败任务保留时间
+  }
+  ```
+- [ ] 14.3.2 config.example.yaml — 添加 sandbox 配置段
+  ```yaml
+  sandbox:
+    mode: "temp"  # temp | fixed
+    base_dir: "./workspace"
+    command_timeout: "5m"
+    task_timeout: "30m"
+    max_output: 1048576  # 1MB
+    max_file_size: 1048576  # 1MB
+    cleanup_after: "24h"
+  ```
+- [ ] 14.3.3 sandbox/sandbox.go — 从配置加载参数（替代硬编码默认值）
+- [ ] 14.3.4 agent/tools.go — 工具执行超时独立配置
+
+### 14.4 安全增强
+
+- [ ] 14.4.1 sandbox/sandbox.go — 文件路径验证（防止路径穿越攻击）
+- [ ] 14.4.2 sandbox/sandbox.go — 文件大小限制（防止写入超大文件）
+- [ ] 14.4.3 sandbox/sandbox.go — 命令参数验证（防止注入攻击）
+- [ ] 14.4.4 sandbox/audit.go — 审计日志增强（记录文件操作内容摘要）
+
+### 14.5 Agent 迭代控制配置化
+
+- [ ] 14.5.1 config/schema.go — AgentLoopConfig 结构定义
+  ```go
+  type AgentLoopConfig struct {
+      MaxIterations  int           // 最大迭代轮次 (默认 20)
+      MaxTokens      int           // 单次 LLM 调用最大 tokens (默认 4096)
+      Timeout        time.Duration // 单轮超时 (默认 5 分钟)
+      TotalTimeout   time.Duration // 总超时 (默认 30 分钟)
+  }
+  ```
+- [ ] 14.5.2 config/schema.go — 在 AgentsConfig 中添加 AgentLoopConfig
+  ```go
+  type AgentsConfig struct {
+      Defaults  AgentDefaultsConfig           `yaml:"defaults"`
+      Templates map[string]AgentTemplateConfig `yaml:"templates"`
+      Loop      AgentLoopConfig               `yaml:"loop"` // 新增
+  }
+  ```
+- [ ] 14.5.3 config.example.yaml — 添加 agents.loop 配置段
+  ```yaml
+  agents:
+    loop:
+      max_iterations: 20      # 最大迭代轮次
+      max_tokens: 4096        # 单次 LLM 调用最大 tokens
+      timeout: "5m"           # 单轮超时
+      total_timeout: "30m"    # 总超时
+  ```
+- [ ] 14.5.4 agent/loop.go — AgentLoop 从配置加载参数（替代硬编码默认值）
+- [ ] 14.5.5 agents/runners.go — DevRunner/BugfixRunner 传递配置给 AgentLoop
+- [ ] 14.5.6 store/agent.go — Agent 表添加 loop_config 字段（支持单 Agent 覆盖配置）
+- [ ] 14.5.7 api/router.go — Agent CRUD API 支持 loop_config 字段
+- [ ] 14.5.8 config/config.go — 配置加载时验证参数范围（max_iterations: 1-100, timeout: 1m-1h）
+
 ---
 
 ## 进度追踪
@@ -172,8 +261,9 @@
 | 模块 11：队列可靠性 | ✅ 完成 | `b0fefd9` |
 | 模块 12：前端 Web UI | ⬜ 未开始（可选） | - |
 | 模块 13：集成收尾 | 🔶 部分完成 | - |
+| 模块 14：沙箱增强 | ⬜ 未开始 | - |
 
-**总体进度：10/13 模块完成（77%）**
+**总体进度：10/14 模块完成（71%）**
 
 ---
 
@@ -230,20 +320,50 @@ tag: v0.3.1
 └── 端到端测试验证通过
 ```
 
-### v0.4：增强与优化（下一步）
+### v0.4：沙箱增强 + 功能扩展（下一步）
 
 ```
 优先级: P1
 预计工作量: 2-3 周
-目标: 增强 Agent 能力，提升可靠性
+目标: 增强沙箱灵活性，扩展工具能力
 
 任务:
-├── 多文件修改支持 (结构化输出解析)
-├── 测试生成与验证
-├── 代码审查集成
-├── Token 使用统计
-├── 执行过程可视化
-└── 可选: 集成 Aider 处理复杂场景
+├── 1. 临时目录模式 (借鉴 ai-git-bot)
+│   ├── os.MkdirTemp 创建临时工作目录
+│   ├── 配置化选择固定目录或临时目录
+│   └── 自动清理机制
+│
+├── 2. 更丰富的上下文工具 (借鉴 ai-git-bot)
+│   ├── cat 增强 (支持行号范围: cat file.go:10-20)
+│   ├── tree 工具 (目录结构展示)
+│   ├── git_log 工具 (提交历史)
+│   ├── git_blame 工具 (文件修改历史)
+│   ├── rg 工具 (ripgrep 快速搜索)
+│   └── find 增强 (glob 模式)
+│
+├── 3. 配置化的超时和限制
+│   ├── SandboxConfig 结构定义
+│   ├── config.example.yaml 添加 sandbox 配置段
+│   ├── 从配置加载参数 (替代硬编码)
+│   └── 工具执行超时独立配置
+│
+├── 4. 安全增强
+│   ├── 文件路径验证 (防止路径穿越)
+│   ├── 文件大小限制
+│   ├── 命令参数验证 (防止注入)
+│   └── 审计日志增强
+│
+├── 5. Agent 迭代控制配置化
+│   ├── AgentLoopConfig 结构定义
+│   ├── config.example.yaml 添加 agents.loop 配置段
+│   ├── AgentLoop 从配置加载参数
+│   ├── Agent 表添加 loop_config 字段 (支持单 Agent 覆盖)
+│   └── Agent CRUD API 支持 loop_config
+│
+└── 6. 其他增强
+    ├── Token 使用统计
+    ├── 执行过程可视化
+    └── 可选: 集成 Aider 处理复杂场景
 ```
 
 ### v0.5+：长期演进

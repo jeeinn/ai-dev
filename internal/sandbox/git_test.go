@@ -3,6 +3,9 @@ package sandbox
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGitOperations(t *testing.T) {
@@ -20,9 +23,7 @@ func TestGitOperations(t *testing.T) {
 
 	// Initialize a git repo
 	result := s.Execute("git", "init")
-	if result.Error != nil {
-		t.Fatalf("git init failed: %v", result.Error)
-	}
+	require.NoError(t, result.Error)
 
 	// Configure git user
 	s.Execute("git", "config", "user.email", "test@test.com")
@@ -33,26 +34,16 @@ func TestGitOperations(t *testing.T) {
 
 	// Stage
 	result = git.Add()
-	if result.Error != nil {
-		t.Fatalf("git add failed: %v", result.Error)
-	}
+	require.NoError(t, result.Error)
 
 	// Commit
 	result = git.Commit("initial commit")
-	if result.Error != nil {
-		t.Fatalf("git commit failed: %v", result.Error)
-	}
+	require.NoError(t, result.Error)
 
-	// Check status
+	// Check status - should be clean
 	result = git.Status()
-	if result.Error != nil {
-		t.Fatalf("git status failed: %v", result.Error)
-	}
-
-	// Should be clean
-	if result.Stdout != "" {
-		t.Errorf("Expected clean status, got: %s", result.Stdout)
-	}
+	require.NoError(t, result.Error)
+	assert.Empty(t, result.Stdout)
 }
 
 func TestGitCreateBranch(t *testing.T) {
@@ -78,19 +69,12 @@ func TestGitCreateBranch(t *testing.T) {
 
 	// Create branch
 	result := git.CreateBranch("ai/test/task-1002")
-	if result.Error != nil {
-		t.Fatalf("CreateBranch failed: %v", result.Error)
-	}
+	require.NoError(t, result.Error)
 
 	// Get current branch
 	branch, err := git.GetCurrentBranch()
-	if err != nil {
-		t.Fatalf("GetCurrentBranch failed: %v", err)
-	}
-
-	if branch != "ai/test/task-1002" {
-		t.Errorf("Expected branch 'ai/test/task-1002', got '%s'", branch)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "ai/test/task-1002", branch)
 }
 
 func TestGitHasChanges(t *testing.T) {
@@ -115,45 +99,38 @@ func TestGitHasChanges(t *testing.T) {
 	git.Commit("initial")
 
 	// Should not have changes
-	if git.HasChanges() {
-		t.Error("Should not have changes after commit")
-	}
+	assert.False(t, git.HasChanges(), "Should not have changes after commit")
 
 	// Add a new file
 	s.WriteFile("new.txt", []byte("new content"))
 
 	// Should have changes now
-	if !git.HasChanges() {
-		t.Error("Should have changes after adding new file")
-	}
+	assert.True(t, git.HasChanges(), "Should have changes after adding new file")
 }
 
 func TestValidateBranchName(t *testing.T) {
-	// Valid branch names
-	valid := []string{
-		"ai/dev/task-1",
-		"ai/bugfix/task-123",
-		"ai/review/pr-456",
+	tests := []struct {
+		name    string
+		branch  string
+		wantErr bool
+	}{
+		{"valid dev", "ai/dev/task-1", false},
+		{"valid bugfix", "ai/bugfix/task-123", false},
+		{"valid review", "ai/review/pr-456", false},
+		{"invalid no prefix", "main", true},
+		{"invalid feature", "feature/test", true},
+		{"invalid with semicolon", "ai/test;rm -rf /", true},
 	}
 
-	for _, branch := range valid {
-		if err := ValidateBranchName(branch); err != nil {
-			t.Errorf("Branch '%s' should be valid: %v", branch, err)
-		}
-	}
-
-	// Invalid branch names
-	invalid := []string{
-		"main",
-		"feature/test",
-		"ai/test;rm -rf /",
-		"dev/task-1",
-	}
-
-	for _, branch := range invalid {
-		if err := ValidateBranchName(branch); err == nil {
-			t.Errorf("Branch '%s' should be invalid", branch)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateBranchName(tt.branch)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
 	}
 }
 
@@ -169,10 +146,9 @@ func TestGenerateBranchName(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := GenerateBranchName(tt.taskType, tt.taskID)
-		if result != tt.expected {
-			t.Errorf("GenerateBranchName(%s, %d) = %s, want %s",
-				tt.taskType, tt.taskID, result, tt.expected)
-		}
+		t.Run(tt.expected, func(t *testing.T) {
+			result := GenerateBranchName(tt.taskType, tt.taskID)
+			assert.Equal(t, tt.expected, result)
+		})
 	}
 }

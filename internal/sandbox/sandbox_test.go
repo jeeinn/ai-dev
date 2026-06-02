@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewSandbox(t *testing.T) {
@@ -16,15 +19,9 @@ func TestNewSandbox(t *testing.T) {
 
 	s := New(cfg, 123)
 
-	if s.TaskID != 123 {
-		t.Errorf("Expected taskID=123, got %d", s.TaskID)
-	}
-	if s.Timeout != 1*time.Minute {
-		t.Errorf("Expected timeout=1m, got %v", s.Timeout)
-	}
-	if s.MaxOutput != 1024 {
-		t.Errorf("Expected maxOutput=1024, got %d", s.MaxOutput)
-	}
+	assert.Equal(t, int64(123), s.TaskID)
+	assert.Equal(t, 1*time.Minute, s.Timeout)
+	assert.Equal(t, 1024, s.MaxOutput)
 }
 
 func TestSandboxSetupCleanup(t *testing.T) {
@@ -37,24 +34,20 @@ func TestSandboxSetupCleanup(t *testing.T) {
 	s := New(cfg, 456)
 
 	// Setup
-	if err := s.Setup(); err != nil {
-		t.Fatalf("Setup failed: %v", err)
-	}
+	err := s.Setup()
+	require.NoError(t, err)
 
 	// Verify directory exists
-	if _, err := os.Stat(s.WorkDir); os.IsNotExist(err) {
-		t.Error("Workspace directory should exist after Setup")
-	}
+	_, err = os.Stat(s.WorkDir)
+	assert.False(t, os.IsNotExist(err), "Workspace directory should exist after Setup")
 
 	// Cleanup
-	if err := s.Cleanup(); err != nil {
-		t.Fatalf("Cleanup failed: %v", err)
-	}
+	err = s.Cleanup()
+	require.NoError(t, err)
 
 	// Verify directory removed
-	if _, err := os.Stat(s.WorkDir); !os.IsNotExist(err) {
-		t.Error("Workspace directory should not exist after Cleanup")
-	}
+	_, err = os.Stat(s.WorkDir)
+	assert.True(t, os.IsNotExist(err), "Workspace directory should not exist after Cleanup")
 }
 
 func TestSandboxWriteReadFile(t *testing.T) {
@@ -70,19 +63,13 @@ func TestSandboxWriteReadFile(t *testing.T) {
 
 	// Write file
 	content := []byte("hello world")
-	if err := s.WriteFile("test.txt", content); err != nil {
-		t.Fatalf("WriteFile failed: %v", err)
-	}
+	err := s.WriteFile("test.txt", content)
+	require.NoError(t, err)
 
 	// Read file
 	read, err := s.ReadFile("test.txt")
-	if err != nil {
-		t.Fatalf("ReadFile failed: %v", err)
-	}
-
-	if string(read) != "hello world" {
-		t.Errorf("Expected 'hello world', got '%s'", string(read))
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "hello world", string(read))
 }
 
 func TestSandboxWriteFileSubdirectory(t *testing.T) {
@@ -98,15 +85,13 @@ func TestSandboxWriteFileSubdirectory(t *testing.T) {
 
 	// Write file in subdirectory
 	content := []byte("nested content")
-	if err := s.WriteFile("sub/dir/file.txt", content); err != nil {
-		t.Fatalf("WriteFile failed: %v", err)
-	}
+	err := s.WriteFile("sub/dir/file.txt", content)
+	require.NoError(t, err)
 
 	// Verify file exists
 	fullPath := filepath.Join(s.WorkDir, "sub", "dir", "file.txt")
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		t.Error("Nested file should exist")
-	}
+	_, err = os.Stat(fullPath)
+	assert.False(t, os.IsNotExist(err), "Nested file should exist")
 }
 
 func TestSandboxFileExists(t *testing.T) {
@@ -121,17 +106,13 @@ func TestSandboxFileExists(t *testing.T) {
 	defer s.Cleanup()
 
 	// File doesn't exist yet
-	if s.FileExists("test.txt") {
-		t.Error("File should not exist before writing")
-	}
+	assert.False(t, s.FileExists("test.txt"), "File should not exist before writing")
 
 	// Write file
 	s.WriteFile("test.txt", []byte("content"))
 
 	// File should exist now
-	if !s.FileExists("test.txt") {
-		t.Error("File should exist after writing")
-	}
+	assert.True(t, s.FileExists("test.txt"), "File should exist after writing")
 }
 
 func TestSandboxIsAllowed(t *testing.T) {
@@ -146,17 +127,13 @@ func TestSandboxIsAllowed(t *testing.T) {
 	// Allowed commands
 	allowed := []string{"git", "go", "python", "node", "cat", "ls", "make"}
 	for _, cmd := range allowed {
-		if !s.IsAllowed(cmd) {
-			t.Errorf("Command '%s' should be allowed", cmd)
-		}
+		assert.True(t, s.IsAllowed(cmd), "Command '%s' should be allowed", cmd)
 	}
 
 	// Disallowed commands
 	disallowed := []string{"rm", "dd", "mkfs", "shutdown", "reboot"}
 	for _, cmd := range disallowed {
-		if s.IsAllowed(cmd) {
-			t.Errorf("Command '%s' should NOT be allowed", cmd)
-		}
+		assert.False(t, s.IsAllowed(cmd), "Command '%s' should NOT be allowed", cmd)
 	}
 }
 
@@ -174,15 +151,9 @@ func TestSandboxExecute(t *testing.T) {
 	// Execute echo command
 	result := s.Execute("echo", "hello")
 
-	if result.Error != nil {
-		t.Fatalf("Execute failed: %v", result.Error)
-	}
-	if result.ExitCode != 0 {
-		t.Errorf("Expected exit code 0, got %d", result.ExitCode)
-	}
-	if result.Stdout != "hello\n" {
-		t.Errorf("Expected 'hello\\n', got '%s'", result.Stdout)
-	}
+	require.NoError(t, result.Error)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
 }
 
 func TestSandboxExecuteDisallowed(t *testing.T) {
@@ -199,12 +170,8 @@ func TestSandboxExecuteDisallowed(t *testing.T) {
 	// Try to execute disallowed command
 	result := s.Execute("rm", "-rf", "/")
 
-	if result.Error == nil {
-		t.Error("Execute should fail for disallowed command")
-	}
-	if result.ExitCode != -1 {
-		t.Errorf("Expected exit code -1, got %d", result.ExitCode)
-	}
+	assert.Error(t, result.Error, "Execute should fail for disallowed command")
+	assert.Equal(t, -1, result.ExitCode)
 }
 
 func TestSandboxExecuteShell(t *testing.T) {
@@ -221,24 +188,14 @@ func TestSandboxExecuteShell(t *testing.T) {
 	// Execute shell command
 	result := s.ExecuteShell("echo hello world")
 
-	if result.Error != nil {
-		t.Fatalf("ExecuteShell failed: %v", result.Error)
-	}
-	if result.Stdout != "hello world\n" {
-		t.Errorf("Expected 'hello world\\n', got '%s'", result.Stdout)
-	}
+	require.NoError(t, result.Error)
+	assert.Equal(t, "hello world\n", result.Stdout)
 }
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.BaseDir == "" {
-		t.Error("Default BaseDir should not be empty")
-	}
-	if cfg.Timeout == 0 {
-		t.Error("Default Timeout should not be 0")
-	}
-	if cfg.MaxOutput == 0 {
-		t.Error("Default MaxOutput should not be 0")
-	}
+	assert.NotEmpty(t, cfg.BaseDir, "Default BaseDir should not be empty")
+	assert.NotZero(t, cfg.Timeout, "Default Timeout should not be 0")
+	assert.NotZero(t, cfg.MaxOutput, "Default MaxOutput should not be 0")
 }

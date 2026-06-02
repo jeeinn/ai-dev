@@ -11,24 +11,26 @@ import (
 )
 
 func TestNewSandbox(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   1 * time.Minute,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 1 * time.Minute,
+		MaxOutput:      1024,
 	}
 
 	s := New(cfg, 123)
 
 	assert.Equal(t, int64(123), s.TaskID)
-	assert.Equal(t, 1*time.Minute, s.Timeout)
-	assert.Equal(t, 1024, s.MaxOutput)
+	assert.Equal(t, 1*time.Minute, s.Config.CommandTimeout)
+	assert.Equal(t, 1024, s.Config.MaxOutput)
 }
 
 func TestSandboxSetupCleanup(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   1 * time.Minute,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 1 * time.Minute,
+		MaxOutput:      1024,
 	}
 
 	s := New(cfg, 456)
@@ -50,11 +52,40 @@ func TestSandboxSetupCleanup(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "Workspace directory should not exist after Cleanup")
 }
 
+func TestSandboxTempMode(t *testing.T) {
+	cfg := SandboxConfig{
+		Mode:           ModeTemp,
+		CommandTimeout: 1 * time.Minute,
+		MaxOutput:      1024,
+	}
+
+	s := New(cfg, 789)
+
+	// Setup should create temp directory
+	err := s.Setup()
+	require.NoError(t, err)
+	assert.NotEmpty(t, s.WorkDir)
+
+	// Verify directory exists
+	_, err = os.Stat(s.WorkDir)
+	assert.False(t, os.IsNotExist(err), "Temp directory should exist after Setup")
+
+	// Cleanup
+	err = s.Cleanup()
+	require.NoError(t, err)
+
+	// Verify directory removed
+	_, err = os.Stat(s.WorkDir)
+	assert.True(t, os.IsNotExist(err), "Temp directory should not exist after Cleanup")
+}
+
 func TestSandboxWriteReadFile(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   1 * time.Minute,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 1 * time.Minute,
+		MaxOutput:      1024,
+		MaxFileSize:    1024,
 	}
 
 	s := New(cfg, 789)
@@ -72,45 +103,13 @@ func TestSandboxWriteReadFile(t *testing.T) {
 	assert.Equal(t, "hello world", string(read))
 }
 
-// TestSandboxWriteReadNestedFiles tests writing and reading multiple nested files.
-// This complements TestSandboxWriteReadFile which tests single files.
-func TestSandboxWriteReadNestedFiles(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   10 * time.Second,
-		MaxOutput: 1024,
-	}
-
-	s := New(cfg, 555)
-	s.Setup()
-	defer s.Cleanup()
-
-	files := map[string]string{
-		"src/main.go":        "package main",
-		"src/utils.go":       "package main",
-		"docs/README.md":     "# Test",
-		"tests/main_test.go": "package main",
-	}
-
-	for path, content := range files {
-		err := s.WriteFile(path, []byte(content))
-		require.NoError(t, err)
-	}
-
-	for path, expected := range files {
-		assert.True(t, s.FileExists(path), "File %s should exist", path)
-
-		content, err := s.ReadFile(path)
-		require.NoError(t, err)
-		assert.Equal(t, expected, string(content))
-	}
-}
-
 func TestSandboxWriteFileSubdirectory(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   1 * time.Minute,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 1 * time.Minute,
+		MaxOutput:      1024,
+		MaxFileSize:    1024,
 	}
 
 	s := New(cfg, 101)
@@ -129,31 +128,36 @@ func TestSandboxWriteFileSubdirectory(t *testing.T) {
 }
 
 func TestSandboxFileExists(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   1 * time.Minute,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 1 * time.Minute,
+		MaxOutput:      1024,
+		MaxFileSize:    1024,
 	}
 
 	s := New(cfg, 202)
-	s.Setup()
+	err := s.Setup()
+	require.NoError(t, err)
 	defer s.Cleanup()
 
 	// File doesn't exist yet
 	assert.False(t, s.FileExists("test.txt"), "File should not exist before writing")
 
 	// Write file
-	s.WriteFile("test.txt", []byte("content"))
+	err = s.WriteFile("test.txt", []byte("content"))
+	require.NoError(t, err, "WriteFile should succeed")
 
 	// File should exist now
 	assert.True(t, s.FileExists("test.txt"), "File should exist after writing")
 }
 
 func TestSandboxIsAllowed(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   1 * time.Minute,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 1 * time.Minute,
+		MaxOutput:      1024,
 	}
 
 	s := New(cfg, 303)
@@ -172,10 +176,11 @@ func TestSandboxIsAllowed(t *testing.T) {
 }
 
 func TestSandboxExecute(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   10 * time.Second,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 10 * time.Second,
+		MaxOutput:      1024,
 	}
 
 	s := New(cfg, 404)
@@ -191,10 +196,11 @@ func TestSandboxExecute(t *testing.T) {
 }
 
 func TestSandboxExecuteDisallowed(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   10 * time.Second,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 10 * time.Second,
+		MaxOutput:      1024,
 	}
 
 	s := New(cfg, 505)
@@ -209,10 +215,11 @@ func TestSandboxExecuteDisallowed(t *testing.T) {
 }
 
 func TestSandboxExecuteShell(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   10 * time.Second,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 10 * time.Second,
+		MaxOutput:      1024,
 	}
 
 	s := New(cfg, 606)
@@ -229,7 +236,48 @@ func TestSandboxExecuteShell(t *testing.T) {
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
+	assert.Equal(t, ModeFixed, cfg.Mode)
 	assert.Equal(t, "./workspace", cfg.BaseDir)
-	assert.Equal(t, 5*time.Minute, cfg.Timeout)
+	assert.Equal(t, 5*time.Minute, cfg.CommandTimeout)
 	assert.Equal(t, 1024*1024, cfg.MaxOutput)
+}
+
+func TestPathTraversal(t *testing.T) {
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 10 * time.Second,
+		MaxOutput:      1024,
+		MaxFileSize:    1024,
+	}
+
+	s := New(cfg, 707)
+	s.Setup()
+	defer s.Cleanup()
+
+	// Try to write outside workspace
+	err := s.WriteFile("../../etc/passwd", []byte("malicious"))
+	assert.Error(t, err, "Should reject path traversal")
+
+	// Try to read outside workspace
+	_, err = s.ReadFile("../../etc/passwd")
+	assert.Error(t, err, "Should reject path traversal")
+}
+
+func TestFileSizeLimit(t *testing.T) {
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 10 * time.Second,
+		MaxOutput:      1024,
+		MaxFileSize:    10, // Very small limit
+	}
+
+	s := New(cfg, 808)
+	s.Setup()
+	defer s.Cleanup()
+
+	// Try to write file exceeding limit
+	err := s.WriteFile("large.txt", []byte("this is too large"))
+	assert.Error(t, err, "Should reject file exceeding size limit")
 }

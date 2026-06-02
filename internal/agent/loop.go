@@ -4,18 +4,22 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
+	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/llm"
 )
 
 // AgentLoop manages the multi-turn conversation between LLM and tools.
 type AgentLoop struct {
-	provider   llm.Provider
-	registry   *ToolRegistry
-	model      string
-	maxTokens  int
-	temperature float64
+	provider      llm.Provider
+	registry      *ToolRegistry
+	model         string
+	maxTokens     int
+	temperature   float64
 	maxIterations int
+	timeout       time.Duration
+	totalTimeout  time.Duration
 }
 
 // NewAgentLoop creates a new AgentLoop.
@@ -26,7 +30,42 @@ func NewAgentLoop(provider llm.Provider, registry *ToolRegistry, model string, m
 		model:         model,
 		maxTokens:     maxTokens,
 		temperature:   temperature,
-		maxIterations: 20, // Default max iterations
+		maxIterations: 20,
+		timeout:       5 * time.Minute,
+		totalTimeout:  30 * time.Minute,
+	}
+}
+
+// NewAgentLoopWithConfig creates a new AgentLoop with configuration.
+func NewAgentLoopWithConfig(provider llm.Provider, registry *ToolRegistry, model string, maxTokens int, temperature float64, loopCfg config.AgentLoopConfig) *AgentLoop {
+	timeout := 5 * time.Minute
+	totalTimeout := 30 * time.Minute
+
+	if loopCfg.Timeout != "" {
+		if d, err := time.ParseDuration(loopCfg.Timeout); err == nil {
+			timeout = d
+		}
+	}
+	if loopCfg.TotalTimeout != "" {
+		if d, err := time.ParseDuration(loopCfg.TotalTimeout); err == nil {
+			totalTimeout = d
+		}
+	}
+
+	maxIter := loopCfg.MaxIterations
+	if maxIter <= 0 {
+		maxIter = 20
+	}
+
+	return &AgentLoop{
+		provider:      provider,
+		registry:      registry,
+		model:         model,
+		maxTokens:     maxTokens,
+		temperature:   temperature,
+		maxIterations: maxIter,
+		timeout:       timeout,
+		totalTimeout:  totalTimeout,
 	}
 }
 

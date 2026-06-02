@@ -123,10 +123,12 @@ func TestExecuteToolUnknown(t *testing.T) {
 }
 
 func TestDefaultTools(t *testing.T) {
-	cfg := sandbox.Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   10 * time.Second,
-		MaxOutput: 1024,
+	cfg := sandbox.SandboxConfig{
+		Mode:           sandbox.ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 10 * time.Second,
+		MaxOutput:      1024,
+		MaxFileSize:    1024,
 	}
 
 	sb := sandbox.New(cfg, 1001)
@@ -136,7 +138,7 @@ func TestDefaultTools(t *testing.T) {
 	registry := DefaultTools(sb)
 
 	// Verify all tools are registered
-	expectedTools := []string{"read_file", "write_file", "list_files", "search_code", "run_command", "apply_diff"}
+	expectedTools := []string{"read_file", "write_file", "list_files", "search_code", "run_command", "apply_diff", "tree", "git_log", "git_blame"}
 	for _, name := range expectedTools {
 		_, ok := registry.Get(name)
 		assert.True(t, ok, "Tool %s should be registered", name)
@@ -144,10 +146,12 @@ func TestDefaultTools(t *testing.T) {
 }
 
 func TestWriteReadFile(t *testing.T) {
-	cfg := sandbox.Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   10 * time.Second,
-		MaxOutput: 1024,
+	cfg := sandbox.SandboxConfig{
+		Mode:           sandbox.ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 10 * time.Second,
+		MaxOutput:      1024,
+		MaxFileSize:    1024,
 	}
 
 	sb := sandbox.New(cfg, 1002)
@@ -186,10 +190,11 @@ func TestWriteReadFile(t *testing.T) {
 }
 
 func TestRunCommand(t *testing.T) {
-	cfg := sandbox.Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   10 * time.Second,
-		MaxOutput: 1024,
+	cfg := sandbox.SandboxConfig{
+		Mode:           sandbox.ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 10 * time.Second,
+		MaxOutput:      1024,
 	}
 
 	sb := sandbox.New(cfg, 1003)

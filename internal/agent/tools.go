@@ -271,5 +271,122 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 		},
 	})
 
+	// tree - Show directory structure
+	registry.Register(&ToolDef{
+		Name:        "tree",
+		Description: "Show directory structure as a tree. Useful for understanding project layout.",
+		Parameters: llm.Parameters{
+			Type: "object",
+			Properties: map[string]llm.Property{
+				"path": {
+					Type:        "string",
+					Description: "Directory path to show. Defaults to current directory.",
+				},
+				"depth": {
+					Type:        "number",
+					Description: "Maximum depth to show. Defaults to 3.",
+				},
+			},
+		},
+		Fn: func(params map[string]interface{}) (string, error) {
+			path, _ := params["path"].(string)
+			if path == "" {
+				path = "."
+			}
+			depth := 3
+			if d, ok := params["depth"].(float64); ok && d > 0 {
+				depth = int(d)
+			}
+			result := sb.Execute("find", path, "-maxdepth", fmt.Sprintf("%d", depth), "-type", "f", "-o", "-type", "d")
+			if result.Error != nil {
+				return fmt.Sprintf("Error: %v", result.Error), nil
+			}
+			return result.Stdout, nil
+		},
+	})
+
+	// git_log - Show git commit history
+	registry.Register(&ToolDef{
+		Name:        "git_log",
+		Description: "Show git commit history. Useful for understanding recent changes.",
+		Parameters: llm.Parameters{
+			Type: "object",
+			Properties: map[string]llm.Property{
+				"count": {
+					Type:        "number",
+					Description: "Number of commits to show. Defaults to 10.",
+				},
+				"path": {
+					Type:        "string",
+					Description: "File or directory to show history for. Optional.",
+				},
+			},
+		},
+		Fn: func(params map[string]interface{}) (string, error) {
+			count := 10
+			if c, ok := params["count"].(float64); ok && c > 0 {
+				count = int(c)
+			}
+			path, _ := params["path"].(string)
+
+			args := []string{"log", fmt.Sprintf("-%d", count), "--oneline", "--graph"}
+			if path != "" {
+				args = append(args, "--", path)
+			}
+			result := sb.Execute("git", args...)
+			if result.Error != nil {
+				return fmt.Sprintf("Error: %v", result.Error), nil
+			}
+			if result.Stdout == "" {
+				return "No commits found.", nil
+			}
+			return result.Stdout, nil
+		},
+	})
+
+	// git_blame - Show who changed each line
+	registry.Register(&ToolDef{
+		Name:        "git_blame",
+		Description: "Show who last modified each line of a file. Useful for understanding code history.",
+		Parameters: llm.Parameters{
+			Type: "object",
+			Properties: map[string]llm.Property{
+				"path": {
+					Type:        "string",
+					Description: "File to show blame for.",
+				},
+				"start_line": {
+					Type:        "number",
+					Description: "Start line number (1-based). Optional.",
+				},
+				"end_line": {
+					Type:        "number",
+					Description: "End line number (1-based). Optional.",
+				},
+			},
+			Required: []string{"path"},
+		},
+		Fn: func(params map[string]interface{}) (string, error) {
+			path, _ := params["path"].(string)
+			if path == "" {
+				return "", fmt.Errorf("path is required")
+			}
+
+			args := []string{"blame", "--porcelain"}
+			if start, ok := params["start_line"].(float64); ok && start > 0 {
+				if end, ok := params["end_line"].(float64); ok && end > start {
+					args = append(args, fmt.Sprintf("-L %d,%d", int(start), int(end)))
+				}
+			}
+			args = append(args, path)
+
+			result := sb.Execute("git", args...)
+			if result.Error != nil {
+				return fmt.Sprintf("Error: %v", result.Error), nil
+			}
+			return result.Stdout, nil
+		},
+	})
+
 	return registry
 }

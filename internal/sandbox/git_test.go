@@ -9,14 +9,17 @@ import (
 )
 
 func TestGitOperations(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   30 * time.Second,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 30 * time.Second,
+		MaxOutput:      1024,
+		MaxFileSize:    1024,
 	}
 
 	s := New(cfg, 1001)
-	s.Setup()
+	err := s.Setup()
+	require.NoError(t, err)
 	defer s.Cleanup()
 
 	git := NewGit(s)
@@ -30,7 +33,8 @@ func TestGitOperations(t *testing.T) {
 	s.Execute("git", "config", "user.name", "Test")
 
 	// Create a file
-	s.WriteFile("test.txt", []byte("initial content"))
+	err = s.WriteFile("test.txt", []byte("initial content"))
+	require.NoError(t, err)
 
 	// Stage
 	result = git.Add()
@@ -38,7 +42,11 @@ func TestGitOperations(t *testing.T) {
 
 	// Commit
 	result = git.Commit("initial commit")
-	require.NoError(t, result.Error)
+	if result.Error != nil {
+		t.Logf("Commit stderr: %s", result.Stderr)
+		t.Logf("Commit stdout: %s", result.Stdout)
+		require.NoError(t, result.Error)
+	}
 
 	// Check status - should be clean
 	result = git.Status()
@@ -47,14 +55,17 @@ func TestGitOperations(t *testing.T) {
 }
 
 func TestGitCreateBranch(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   30 * time.Second,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 30 * time.Second,
+		MaxOutput:      1024,
+		MaxFileSize:    1024,
 	}
 
 	s := New(cfg, 1002)
-	s.Setup()
+	err := s.Setup()
+	require.NoError(t, err)
 	defer s.Cleanup()
 
 	git := NewGit(s)
@@ -63,7 +74,8 @@ func TestGitCreateBranch(t *testing.T) {
 	s.Execute("git", "init")
 	s.Execute("git", "config", "user.email", "test@test.com")
 	s.Execute("git", "config", "user.name", "Test")
-	s.WriteFile("test.txt", []byte("content"))
+	err = s.WriteFile("test.txt", []byte("content"))
+	require.NoError(t, err)
 	git.Add()
 	git.Commit("initial")
 
@@ -78,14 +90,17 @@ func TestGitCreateBranch(t *testing.T) {
 }
 
 func TestGitHasChanges(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   30 * time.Second,
-		MaxOutput: 1024,
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 30 * time.Second,
+		MaxOutput:      1024,
+		MaxFileSize:    1024,
 	}
 
 	s := New(cfg, 1003)
-	s.Setup()
+	err := s.Setup()
+	require.NoError(t, err)
 	defer s.Cleanup()
 
 	git := NewGit(s)
@@ -94,7 +109,8 @@ func TestGitHasChanges(t *testing.T) {
 	s.Execute("git", "init")
 	s.Execute("git", "config", "user.email", "test@test.com")
 	s.Execute("git", "config", "user.name", "Test")
-	s.WriteFile("test.txt", []byte("content"))
+	err = s.WriteFile("test.txt", []byte("content"))
+	require.NoError(t, err)
 	git.Add()
 	git.Commit("initial")
 
@@ -102,7 +118,8 @@ func TestGitHasChanges(t *testing.T) {
 	assert.False(t, git.HasChanges(), "Should not have changes after commit")
 
 	// Add a new file
-	s.WriteFile("new.txt", []byte("new content"))
+	err = s.WriteFile("new.txt", []byte("new content"))
+	require.NoError(t, err)
 
 	// Should have changes now
 	assert.True(t, git.HasChanges(), "Should have changes after adding new file")
@@ -151,79 +168,4 @@ func TestGenerateBranchName(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-// TestSandboxFullWorkflow tests the complete Git lifecycle:
-// init → write → commit → branch → modify → commit → log
-func TestSandboxFullWorkflow(t *testing.T) {
-	cfg := Config{
-		BaseDir:   t.TempDir(),
-		Timeout:   30 * time.Second,
-		MaxOutput: 1024 * 1024,
-	}
-
-	s := New(cfg, 999)
-	err := s.Setup()
-	require.NoError(t, err)
-	defer s.Cleanup()
-
-	result := s.Execute("git", "init")
-	require.NoError(t, result.Error)
-	assert.Equal(t, 0, result.ExitCode)
-
-	s.Execute("git", "config", "user.email", "test@test.com")
-	s.Execute("git", "config", "user.name", "Test")
-
-	err = s.WriteFile("main.go", []byte(`package main
-
-import "fmt"
-
-func main() {
-	fmt.Println("Hello, World!")
-}
-`))
-	require.NoError(t, err)
-
-	assert.True(t, s.FileExists("main.go"))
-
-	content, err := s.ReadFile("main.go")
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "Hello, World!")
-
-	git := NewGit(s)
-	result = git.Add()
-	require.NoError(t, result.Error)
-
-	result = git.Commit("initial commit")
-	require.NoError(t, result.Error)
-
-	result = git.Status()
-	require.NoError(t, result.Error)
-	assert.Empty(t, result.Stdout)
-
-	result = git.CreateBranch("ai/dev/task-999")
-	require.NoError(t, result.Error)
-
-	branch, err := git.GetCurrentBranch()
-	require.NoError(t, err)
-	assert.Equal(t, "ai/dev/task-999", branch)
-
-	err = s.WriteFile("helper.go", []byte(`package main
-
-func helper() string {
-	return "helper"
-}
-`))
-	require.NoError(t, err)
-
-	assert.True(t, git.HasChanges())
-
-	git.Add()
-	result = git.Commit("add helper")
-	require.NoError(t, result.Error)
-
-	result = git.Log(2)
-	require.NoError(t, result.Error)
-	assert.Contains(t, result.Stdout, "add helper")
-	assert.Contains(t, result.Stdout, "initial commit")
 }

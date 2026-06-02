@@ -1,119 +1,235 @@
-# 集成测试指南
+# 测试指南
 
-## 快速验证步骤
+## 测试架构
 
-### 1. 编译并启动服务
-
-```bash
-# 编译
-go build -o gateway.exe .
-
-# 使用示例配置启动
-cp config.example.yaml config.yaml
-# 编辑 config.yaml 填入真实的 Gitea URL 和 Token
-./gateway.exe -config config.yaml
+```
+tests/
+├── integration/          # 集成测试 (testify)
+│   ├── helpers_test.go   # 测试辅助函数
+│   ├── webhook_test.go   # Webhook 端到端测试
+│   ├── agent_test.go     # Agent 生命周期测试
+│   └── sandbox_test.go   # 沙箱集成测试
+└── internal/             # 单元测试 (各包内 _test.go)
+    ├── api/
+    ├── agents/
+    ├── dispatcher/
+    ├── gitea/
+    ├── llm/
+    ├── sandbox/
+    └── webhook/
 ```
 
-### 2. 配置测试 Agent 和 Route
+## 运行测试
 
-使用管理 API 创建 Agent 和 Route：
-
-```bash
-# 创建 Agent
-curl -X POST http://localhost:8080/api/agents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "test-agent",
-    "gitea_username": "ai-agent",
-    "gitea_token": "your-gitea-token",
-    "provider": "deepseek",
-    "model": "deepseek-chat",
-    "system_prompt": "You are a helpful AI assistant. Analyze issues and provide suggestions.",
-    "status": "active"
-  }'
-
-# 创建 Route (Issue 分配给 ai-agent 时触发)
-curl -X POST http://localhost:8080/api/routes \
-  -H "Content-Type: application/json" \
-  -d '{
-    "event": "issues",
-    "action": "assigned",
-    "agent_id": 1,
-    "priority": 10
-  }'
-```
-
-### 3. 测试 Webhook 端点
+### 运行所有测试
 
 ```bash
-# 运行测试脚本
-chmod +x scripts/test-webhook.sh
-./scripts/test-webhook.sh 8080
+go test ./... -count=1
 ```
 
-### 4. 查看结果
+### 运行单元测试
 
 ```bash
-# 查看任务列表
-curl http://localhost:8080/api/tasks
-
-# 查看任务详情
-curl http://localhost:8080/api/tasks/1
-
-# 查看操作日志
-curl http://localhost:8080/api/logs
+go test ./internal/... -v -count=1
 ```
 
-## 运行 Go 单元测试
+### 运行集成测试
 
 ```bash
-# 需要 CGO 支持 SQLite
-CGO_ENABLED=1 go test ./internal/... -v
-
-# 只运行 dispatcher 测试
-CGO_ENABLED=1 go test ./internal/dispatcher/ -v -run "Test"
+go test ./tests/integration/ -v -count=1
 ```
 
-## 完整集成测试流程
+### 运行特定测试
 
-### 场景 1: Issue 分配触发 AI 分析
+```bash
+# 运行特定测试函数
+go test ./tests/integration/ -v -run TestWebhookIssueAssigned
 
-1. 在 Gitea 创建一个 Issue
-2. 将 Issue 分配给 `ai-agent` 用户
-3. 观察服务日志，应该看到：
-   - Webhook 事件接收
-   - Route 匹配成功
-   - Task 创建并入队
-   - LLM 调用
-   - 结果回写到 Issue 评论
+# 运行特定包的测试
+go test ./internal/sandbox/ -v -count=1
+```
 
-### 场景 2: PR 审查
+### 查看测试覆盖率
 
-1. 配置 PR 相关的 Route
-2. 创建或更新 PR
-3. AI Agent 自动审查并评论
+```bash
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out
+```
 
-### 场景 3: 评论回复
+## 集成测试说明
 
-1. 配置 `issue_comment` Route
-2. 在 Issue 中 @ai-agent
-3. AI 自动回复
+### TestEnv (测试环境)
 
-## 故障排查
+`TestEnv` 提供完整的测试环境：
 
-### 任务卡在 pending 状态
+```go
+env := NewTestEnv(t)
+defer env.Cleanup()
 
-- 检查 LLM 配置是否正确
-- 查看服务日志中的错误信息
-- 确认 Agent 状态为 `active`
+// 包含:
+// - 内存 SQLite 数据库
+// - Mock Gitea 服务器
+// - Mock LLM 提供者
+// - 完整的 HTTP 服务器
+// - Dispatcher 实例
+```
 
-### 结果未回写到 Gitea
+### Webhook 测试
 
-- 检查 Agent 的 `gitea_token` 是否有评论权限
-- 查看日志中的 writeback 错误
-- 确认 Issue ID 正确
+```go
+// 测试 Issue 分配触发 AI 分析
+func TestWebhookIssueAssigned(t *testing.T) {
+    env := NewTestEnv(t)
+    defer env.Cleanup()
 
-### 重复任务创建
+    // 创建 Agent 和 Route
+    agent := env.CreateTestAgent(t)
+    env.CreateTestRoute(t, agent.ID, "issues", "assigned")
 
-- 检查 `processed_deliveries` 表
-- 确认 Webhook Secret 配置正确
+    // 启动 Dispatcher
+    env.Dispatcher.Start()
+
+    // 发送 Webhook 事件
+    env.SendWebhook("issues", "delivery-001", payload)
+
+    // 等待任务完成
+    task := env.WaitForTask(t, 1, "success", 10*time.Second)
+
+    // 验证结果
+    assert.Equal(t, "analyze_issue", task.TaskType)
+    assert.NotEmpty(t, task.Result)
+}
+```
+
+### Agent 测试
+
+```go
+// 测试 Agent CRUD
+func TestAgentCRUD(t *testing.T) {
+    env := NewTestEnv(t)
+    defer env.Cleanup()
+
+    // 创建 Agent
+    resp, _ := env.APIRequest("POST", "/api/agents", createReq)
+    assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+    // 获取 Agent
+    resp, _ = env.APIRequest("GET", "/api/agents/1", nil)
+    assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+    // 验证 Token 隐藏
+    var agent map[string]interface{}
+    parseJSON(resp, &agent)
+    _, hasToken := agent["gitea_token"]
+    assert.False(t, hasToken)
+}
+```
+
+### Sandbox 测试
+
+```go
+// 测试沙箱完整工作流
+func TestSandboxFullWorkflow(t *testing.T) {
+    cfg := sandbox.Config{
+        BaseDir:   t.TempDir(),
+        Timeout:   30 * time.Second,
+        MaxOutput: 1024 * 1024,
+    }
+
+    sb := sandbox.New(cfg, 999)
+    sb.Setup()
+    defer sb.Cleanup()
+
+    // 初始化 Git
+    sb.Execute("git", "init")
+    sb.Execute("git", "config", "user.email", "test@test.com")
+    sb.Execute("git", "config", "user.name", "Test")
+
+    // 创建文件
+    sb.WriteFile("main.go", []byte("package main"))
+
+    // Git 操作
+    git := sandbox.NewGit(sb)
+    git.Add()
+    git.Commit("initial commit")
+    git.CreateBranch("ai/dev/task-999")
+
+    // 验证
+    branch, _ := git.GetCurrentBranch()
+    assert.Equal(t, "ai/dev/task-999", branch)
+}
+```
+
+## 测试覆盖范围
+
+| 模块 | 单元测试 | 集成测试 | 状态 |
+|------|----------|----------|------|
+| API 认证 | ✅ | ✅ | 完成 |
+| Agent CRUD | - | ✅ | 完成 |
+| Route CRUD | - | ✅ | 完成 |
+| Webhook 处理 | ✅ | ✅ | 完成 |
+| Webhook 去重 | - | ✅ | 完成 |
+| 任务队列 | ✅ | - | 完成 |
+| 任务执行 | ✅ | ✅ | 完成 |
+| LLM 调用 | ✅ | - | 完成 |
+| Gitea API | ✅ | - | 完成 |
+| 沙箱操作 | ✅ | ✅ | 完成 |
+| Git 操作 | ✅ | ✅ | 完成 |
+| 命令白名单 | ✅ | ✅ | 完成 |
+| 分支验证 | ✅ | ✅ | 完成 |
+
+## 添加新测试
+
+### 添加单元测试
+
+在对应包目录创建 `xxx_test.go` 文件：
+
+```go
+package mypackage
+
+import (
+    "testing"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
+)
+
+func TestMyFunction(t *testing.T) {
+    result := MyFunction()
+    assert.Equal(t, expected, result)
+}
+```
+
+### 添加集成测试
+
+在 `tests/integration/` 目录创建测试文件：
+
+```go
+package integration
+
+import (
+    "testing"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
+)
+
+func TestMyIntegration(t *testing.T) {
+    env := NewTestEnv(t)
+    defer env.Cleanup()
+
+    // 使用 env 进行测试
+    // - env.DB: 数据库
+    // - env.Server: HTTP 服务器
+    // - env.GiteaMock: Mock Gitea
+    // - env.APIRequest(): 发送 API 请求
+    // - env.SendWebhook(): 发送 Webhook
+}
+```
+
+## 最佳实践
+
+1. **使用 testify**: 断言更清晰，错误信息更友好
+2. **使用 TestEnv**: 自动管理测试环境和清理
+3. **使用 Mock**: 避免依赖外部服务
+4. **测试独立性**: 每个测试应该独立运行
+5. **清理资源**: 使用 defer 确保资源释放
+6. **有意义的断言**: 验证关键行为，而不是所有细节

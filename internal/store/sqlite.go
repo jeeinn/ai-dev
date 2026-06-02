@@ -102,6 +102,8 @@ func (db *DB) migrate() error {
 			system_prompt TEXT NOT NULL,
 			user_template TEXT NOT NULL,
 			version       INTEGER NOT NULL,
+			is_active     INTEGER DEFAULT 1,
+			note          TEXT DEFAULT '',
 			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
 			created_by    TEXT DEFAULT 'admin',
 			FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
@@ -124,6 +126,24 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_operation_logs_agent_id ON operation_logs(agent_id)`,
 	}
 
+	// Run additional migrations for schema changes
+	// These are wrapped in a transaction to handle partial failures
+	additionalMigrations := []string{
+		`ALTER TABLE prompt_history ADD COLUMN is_active INTEGER DEFAULT 1`,
+		`ALTER TABLE prompt_history ADD COLUMN note TEXT DEFAULT ''`,
+		`CREATE INDEX IF NOT EXISTS idx_prompt_history_agent_id ON prompt_history(agent_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_prompt_history_is_active ON prompt_history(is_active)`,
+	}
+
+	for _, m := range additionalMigrations {
+		if _, err := db.Exec(m); err != nil {
+			// Ignore "duplicate column" and "no such table" errors
+			if !isDuplicateColumnError(err) && !isNoSuchTableError(err) {
+				return fmt.Errorf("execute additional migration: %w\nSQL: %s", err, m)
+			}
+		}
+	}
+
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil {
 			return fmt.Errorf("execute migration: %w\nSQL: %s", err, m)
@@ -131,4 +151,34 @@ func (db *DB) migrate() error {
 	}
 
 	return nil
+}
+
+// isDuplicateColumnError checks if the error is a "duplicate column" error.
+func isDuplicateColumnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return contains(err.Error(), "duplicate column") || contains(err.Error(), "already exists")
+}
+
+// isNoSuchTableError checks if the error is a "no such table" error.
+func isNoSuchTableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return contains(err.Error(), "no such table")
+}
+
+// contains checks if a string contains a substring.
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
+}
+
+func containsSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

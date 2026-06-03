@@ -96,9 +96,6 @@ func main() {
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			// Try to serve static file
 			path := r.URL.Path
-			if path == "/" {
-				path = "/index.html"
-			}
 
 			// Check if file exists
 			f, err := webFS.Open(strings.TrimPrefix(path, "/"))
@@ -108,9 +105,16 @@ func main() {
 				return
 			}
 
-			// Fallback to index.html for SPA routing
-			r.URL.Path = "/"
-			fileServer.ServeHTTP(w, r)
+			// Only fallback to index.html for non-file requests
+			// (requests that don't look like they're requesting a specific file)
+			if !strings.Contains(path, ".") {
+				r.URL.Path = "/"
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+
+			// File not found
+			http.NotFound(w, r)
 		})
 	}
 

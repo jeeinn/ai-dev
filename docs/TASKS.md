@@ -132,13 +132,42 @@
 
 ## Phase 12：前端 Web UI（模块 12）⬜（可选）
 
-- [ ] 12.1 Vue 3 + Element Plus 项目初始化
-- [ ] 12.2 Dashboard 仪表盘（任务统计、成功率、系统状态）
-- [ ] 12.3 Agent 管理页面（创建/编辑/列表/启用禁用）
-- [ ] 12.4 任务列表页面（查看/取消/重试）
-- [ ] 12.5 Prompt 编辑页面（System Prompt + User Template + 历史版本）
-- [ ] 12.6 系统配置页面（Gitea 连接、LLM Provider、路由规则）
-- [ ] 12.7 go:embed 打包前端资源
+> 详细设计方案见 [web-ui-design.md](web-ui-design.md)
+
+### 12.1 核心认证
+
+- [ ] 12.1.1 store/user.go — users 表 + CRUD
+- [ ] 12.1.2 auth/jwt.go — JWT 认证 (生成/验证 Token)
+- [ ] 12.1.3 auth/password.go — 密码哈希 (bcrypt)
+- [ ] 12.1.4 api/auth_handler.go — 登录/登出 API
+- [ ] 12.1.5 api/auth.go — 认证中间件 (JWT 验证)
+
+### 12.2 前端基础
+
+- [ ] 12.2.1 Vue 3 + Element Plus + Vite 项目初始化
+- [ ] 12.2.2 前端登录页面
+- [ ] 12.2.3 API 客户端 (Axios + JWT 拦截器)
+- [ ] 12.2.4 路由守卫 (认证检查)
+
+### 12.3 权限控制
+
+- [ ] 12.3.1 角色定义 (admin/user/viewer)
+- [ ] 12.3.2 权限中间件 (RequireRole)
+- [ ] 12.3.3 前端权限控制 (路由 meta.roles)
+
+### 12.4 页面开发
+
+- [ ] 12.4.1 Dashboard 仪表盘（任务统计、成功率、系统状态）
+- [ ] 12.4.2 Agent 管理页面（创建/编辑/列表/启用禁用）
+- [ ] 12.4.3 任务列表页面（查看/取消/重试）
+- [ ] 12.4.4 Prompt 编辑页面（System Prompt + User Template + 历史版本）
+- [ ] 12.4.5 系统配置页面（Gitea 连接、LLM Provider、路由规则）
+- [ ] 12.4.6 用户管理页面（仅 admin）
+
+### 12.5 打包部署
+
+- [ ] 12.5.1 go:embed 打包前端资源
+- [ ] 12.5.2 静态文件服务
 
 ## Phase 13：集成测试 + 收尾（模块 13）🔶
 

@@ -28,7 +28,7 @@
             <el-option v-for="agent in agents" :key="agent.id" :label="agent.name" :value="agent.id" />
           </el-select>
 
-          <el-table v-if="prompts.length" :data="prompts" style="width: 100%; margin-top: 20px">
+          <el-table v-if="prompts && prompts.length" :data="prompts" style="width: 100%; margin-top: 20px">
             <el-table-column prop="version" label="版本" width="80" />
             <el-table-column prop="note" label="备注" />
             <el-table-column prop="is_active" label="状态" width="100">
@@ -62,25 +62,37 @@ const prompts = ref([])
 const selectedAgent = ref(null)
 
 const loadTemplates = async () => {
-  const data = await api.get('/templates')
-  // API 返回的是对象，转换为数组
-  if (data && typeof data === 'object') {
-    templates.value = Object.entries(data).map(([key, value]) => ({
-      name: key,
-      ...value
-    }))
-  } else {
+  try {
+    const data = await api.get('/templates')
+    // API 返回的是对象，转换为数组
+    if (data && typeof data === 'object') {
+      templates.value = Object.entries(data).map(([key, value]) => ({
+        name: key,
+        ...value
+      }))
+    } else {
+      templates.value = []
+    }
+  } catch (e) {
     templates.value = []
   }
 }
 
 const loadAgents = async () => {
-  agents.value = await api.get('/agents') || []
+  try {
+    agents.value = await api.get('/agents') || []
+  } catch (e) {
+    agents.value = []
+  }
 }
 
 const loadPrompts = async () => {
   if (!selectedAgent.value) return
-  prompts.value = await api.get(`/agents/${selectedAgent.value}/prompts`) || []
+  try {
+    prompts.value = await api.get(`/agents/${selectedAgent.value}/prompts`) || []
+  } catch (e) {
+    prompts.value = []
+  }
 }
 
 const rollback = async (prompt) => {

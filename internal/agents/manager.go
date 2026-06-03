@@ -44,19 +44,21 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 	// 1. Create Gitea user
 	password := generatePassword()
 	_, err := m.gitea.AdminCreateUser(gitea.CreateUserRequest{
-		LoginName:  req.GiteaUsername,
-		Username:   req.GiteaUsername,
-		Email:      req.GiteaUsername + "@gateway.local",
-		Password:   password,
-		SendNotify: false,
+		LoginName:        req.GiteaUsername,
+		Username:         req.GiteaUsername,
+		Email:            req.GiteaUsername + "@gateway.local",
+		Password:         password,
+		SendNotify:       false,
+		MustChangePassword: false,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create gitea user: %w", err)
 	}
 	log.Printf("[INFO] Created Gitea user: %s", req.GiteaUsername)
 
-	// 2. Generate API token
-	token, err := m.gitea.AdminCreateToken(req.GiteaUsername, "gateway-agent")
+	// 2. Generate API token using user's own credentials
+	// Note: Gitea 1.26+ requires using user's own credentials to create tokens
+	token, err := m.gitea.CreateTokenWithCredentials(req.GiteaUsername, password, "gateway-agent")
 	if err != nil {
 		return nil, fmt.Errorf("create gitea token: %w", err)
 	}

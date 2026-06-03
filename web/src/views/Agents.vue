@@ -38,7 +38,8 @@
           <el-input v-model="form.name" />
         </el-form-item>
         <el-form-item label="Gitea 用户名">
-          <el-input v-model="form.gitea_username" />
+          <el-input v-model="form.gitea_username" :disabled="!!editingAgent" />
+          <div v-if="editingAgent" class="form-tip">Gitea 用户名创建后不可修改</div>
         </el-form-item>
         <el-form-item label="Provider">
           <el-select v-model="form.provider">
@@ -127,5 +128,11 @@ onMounted(loadAgents)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
 }
 </style>

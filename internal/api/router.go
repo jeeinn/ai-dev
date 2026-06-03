@@ -292,7 +292,11 @@ func (h *Handler) getStats(w http.ResponseWriter, r *http.Request) {
 // --- Templates endpoint ---
 
 func (h *Handler) listTemplates(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, h.cfg.Agents.Templates)
+	templates := h.cfg.Agents.Templates
+	if templates == nil {
+		templates = make(map[string]config.AgentTemplateConfig)
+	}
+	writeJSON(w, 200, templates)
 }
 
 // --- Prompt endpoints ---

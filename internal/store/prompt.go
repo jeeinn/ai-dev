@@ -77,7 +77,7 @@ func (db *DB) ListPromptVersions(agentID int64) ([]*PromptVersion, error) {
 	}
 	defer rows.Close()
 
-	var versions []*PromptVersion
+	versions := make([]*PromptVersion, 0)
 	for rows.Next() {
 		var p PromptVersion
 		if err := rows.Scan(&p.ID, &p.AgentID, &p.SystemPrompt, &p.UserTemplate, &p.Version, &p.IsActive, &p.Note, &p.CreatedAt, &p.CreatedBy); err != nil {

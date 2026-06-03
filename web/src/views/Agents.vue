@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>Agent 管理</span>
-          <el-button type="primary" @click="showCreateDialog = true">
+          <el-button type="primary" @click="openCreateDialog">
             <el-icon><Plus /></el-icon>
             创建 Agent
           </el-button>
@@ -56,7 +56,7 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showCreateDialog = false">取消</el-button>
+        <el-button @click="closeDialog">取消</el-button>
         <el-button type="primary" @click="saveAgent">保存</el-button>
       </template>
     </el-dialog>
@@ -81,14 +81,34 @@ const form = ref({
   system_prompt: ''
 })
 
+const defaultForm = {
+  name: '',
+  gitea_username: '',
+  provider: 'deepseek',
+  model: 'deepseek-chat',
+  system_prompt: ''
+}
+
 const loadAgents = async () => {
   agents.value = await api.get('/agents')
+}
+
+const openCreateDialog = () => {
+  editingAgent.value = null
+  form.value = { ...defaultForm }
+  showCreateDialog.value = true
 }
 
 const editAgent = (agent) => {
   editingAgent.value = agent
   form.value = { ...agent }
   showCreateDialog.value = true
+}
+
+const closeDialog = () => {
+  showCreateDialog.value = false
+  editingAgent.value = null
+  form.value = { ...defaultForm }
 }
 
 const saveAgent = async () => {
@@ -100,7 +120,7 @@ const saveAgent = async () => {
       await api.post('/agents', form.value)
       ElMessage.success('创建成功')
     }
-    showCreateDialog.value = false
+    closeDialog()
     loadAgents()
   } catch (error) {
     ElMessage.error(error.response?.data?.error || '操作失败')

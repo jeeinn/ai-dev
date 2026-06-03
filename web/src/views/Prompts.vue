@@ -62,16 +62,25 @@ const prompts = ref([])
 const selectedAgent = ref(null)
 
 const loadTemplates = async () => {
-  templates.value = await api.get('/templates')
+  const data = await api.get('/templates')
+  // API 返回的是对象，转换为数组
+  if (data && typeof data === 'object') {
+    templates.value = Object.entries(data).map(([key, value]) => ({
+      name: key,
+      ...value
+    }))
+  } else {
+    templates.value = []
+  }
 }
 
 const loadAgents = async () => {
-  agents.value = await api.get('/agents')
+  agents.value = await api.get('/agents') || []
 }
 
 const loadPrompts = async () => {
   if (!selectedAgent.value) return
-  prompts.value = await api.get(`/agents/${selectedAgent.value}/prompts`)
+  prompts.value = await api.get(`/agents/${selectedAgent.value}/prompts`) || []
 }
 
 const rollback = async (prompt) => {

@@ -70,32 +70,34 @@ func parseID(r *http.Request, name string) (int64, error) {
 
 // AgentDTO is the API response for agents, hiding sensitive fields.
 type AgentDTO struct {
-	ID           int64   `json:"id"`
-	Name         string  `json:"name"`
-	GiteaUsername string  `json:"gitea_username"`
-	AvatarURL    string  `json:"avatar_url"`
-	Provider     string  `json:"provider"`
-	Model        string  `json:"model"`
-	MaxTokens    int     `json:"max_tokens"`
-	Temperature  float64 `json:"temperature"`
-	SystemPrompt string  `json:"system_prompt"`
-	UserTemplate string  `json:"user_template"`
-	Status       string  `json:"status"`
+	ID            int64                  `json:"id"`
+	Name          string                 `json:"name"`
+	GiteaUsername string                 `json:"gitea_username"`
+	AvatarURL     string                 `json:"avatar_url"`
+	Provider      string                 `json:"provider"`
+	Model         string                 `json:"model"`
+	MaxTokens     int                    `json:"max_tokens"`
+	Temperature   float64                `json:"temperature"`
+	SystemPrompt  string                 `json:"system_prompt"`
+	UserTemplate  string                 `json:"user_template"`
+	LoopConfig    *store.AgentLoopConfig  `json:"loop_config,omitempty"`
+	Status        string                 `json:"status"`
 }
 
 func toAgentDTO(a *store.Agent) AgentDTO {
 	return AgentDTO{
-		ID:           a.ID,
-		Name:         a.Name,
+		ID:            a.ID,
+		Name:          a.Name,
 		GiteaUsername: a.GiteaUsername,
-		AvatarURL:    a.AvatarURL,
-		Provider:     a.Provider,
-		Model:        a.Model,
-		MaxTokens:    a.MaxTokens,
-		Temperature:  a.Temperature,
-		SystemPrompt: a.SystemPrompt,
-		UserTemplate: a.UserTemplate,
-		Status:       a.Status,
+		AvatarURL:     a.AvatarURL,
+		Provider:      a.Provider,
+		Model:         a.Model,
+		MaxTokens:     a.MaxTokens,
+		Temperature:   a.Temperature,
+		SystemPrompt:  a.SystemPrompt,
+		UserTemplate:  a.UserTemplate,
+		LoopConfig:    a.LoopConfig,
+		Status:        a.Status,
 	}
 }
 

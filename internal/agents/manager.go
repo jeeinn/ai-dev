@@ -29,14 +29,15 @@ func NewManager(db *store.DB, cfg *config.GiteaConfig) *Manager {
 
 // CreateAgentRequest is the payload for creating a new agent.
 type CreateAgentRequest struct {
-	Name          string  `json:"name"`
-	GiteaUsername string  `json:"gitea_username"`
-	Provider      string  `json:"provider"`
-	Model         string  `json:"model"`
-	MaxTokens     int     `json:"max_tokens"`
-	Temperature   float64 `json:"temperature"`
-	SystemPrompt  string  `json:"system_prompt"`
-	UserTemplate  string  `json:"user_template"`
+	Name          string                `json:"name"`
+	GiteaUsername string                `json:"gitea_username"`
+	Provider      string                `json:"provider"`
+	Model         string                `json:"model"`
+	MaxTokens     int                   `json:"max_tokens"`
+	Temperature   float64               `json:"temperature"`
+	SystemPrompt  string                `json:"system_prompt"`
+	UserTemplate  string                `json:"user_template"`
+	LoopConfig    *store.AgentLoopConfig `json:"loop_config,omitempty"`
 }
 
 // CreateAgent registers a new agent with Gitea account and stores it in DB.
@@ -75,6 +76,7 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 		Temperature:   req.Temperature,
 		SystemPrompt:  req.SystemPrompt,
 		UserTemplate:  req.UserTemplate,
+		LoopConfig:    req.LoopConfig,
 		Status:        "active",
 	}
 	if err := m.db.CreateAgent(agent); err != nil {

@@ -410,8 +410,20 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	// Create tool registry
 	toolRegistry := agent.DefaultTools(sb)
 
-	// Create agent loop
-	loop := agent.NewAgentLoop(provider, toolRegistry, agentCfg.Model, agentCfg.MaxTokens*2, agentCfg.Temperature)
+	// Create agent loop with config priority: Agent.LoopConfig > Default
+	maxTokens := agentCfg.MaxTokens * 2
+	if agentCfg.LoopConfig != nil && agentCfg.LoopConfig.MaxTokens > 0 {
+		maxTokens = agentCfg.LoopConfig.MaxTokens
+	}
+
+	loop := agent.NewAgentLoop(provider, toolRegistry, agentCfg.Model, maxTokens, agentCfg.Temperature)
+
+	// Apply agent-specific loop config
+	if agentCfg.LoopConfig != nil {
+		if agentCfg.LoopConfig.MaxIterations > 0 {
+			loop.SetMaxIterations(agentCfg.LoopConfig.MaxIterations)
+		}
+	}
 
 	// Run agent loop
 	messages := []llm.Message{

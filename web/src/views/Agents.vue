@@ -54,6 +54,25 @@
         <el-form-item label="System Prompt">
           <el-input v-model="form.system_prompt" type="textarea" :rows="4" />
         </el-form-item>
+
+        <el-divider content-position="left">高级配置</el-divider>
+
+        <el-form-item label="最大迭代轮数">
+          <el-input-number v-model="form.loop_config.max_iterations" :min="1" :max="100" :step="1" />
+          <div class="form-tip">Agent 最大对话轮数 (默认 20)</div>
+        </el-form-item>
+        <el-form-item label="最大 Tokens">
+          <el-input-number v-model="form.loop_config.max_tokens" :min="1024" :max="32768" :step="1024" />
+          <div class="form-tip">单次 LLM 调用最大 Tokens (默认 4096)</div>
+        </el-form-item>
+        <el-form-item label="单轮超时">
+          <el-input v-model="form.loop_config.timeout" placeholder="5m" />
+          <div class="form-tip">单轮 LLM 调用超时 (默认 5m)</div>
+        </el-form-item>
+        <el-form-item label="总超时">
+          <el-input v-model="form.loop_config.total_timeout" placeholder="30m" />
+          <div class="form-tip">整个任务超时 (默认 30m)</div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="closeDialog">取消</el-button>
@@ -78,7 +97,13 @@ const form = ref({
   gitea_username: '',
   provider: 'deepseek',
   model: 'deepseek-chat',
-  system_prompt: ''
+  system_prompt: '',
+  loop_config: {
+    max_iterations: 20,
+    max_tokens: 4096,
+    timeout: '5m',
+    total_timeout: '30m'
+  }
 })
 
 const defaultForm = {
@@ -86,7 +111,13 @@ const defaultForm = {
   gitea_username: '',
   provider: 'deepseek',
   model: 'deepseek-chat',
-  system_prompt: ''
+  system_prompt: '',
+  loop_config: {
+    max_iterations: 20,
+    max_tokens: 4096,
+    timeout: '5m',
+    total_timeout: '30m'
+  }
 }
 
 const loadAgents = async () => {

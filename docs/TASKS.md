@@ -130,44 +130,44 @@
 - [x] 11.3 store/task.go — Task 状态更新时间修复（started_at/finished_at）
 - [x] 11.4 dispatcher/queue.go — 队列满时策略（DB 后台扫描兜底）
 
-## Phase 12：前端 Web UI（模块 12）⬜（可选）
+## Phase 12：前端 Web UI（模块 12）✅
 
 > 详细设计方案见 [web-ui-design.md](web-ui-design.md)
 
 ### 12.1 核心认证
 
-- [ ] 12.1.1 store/user.go — users 表 + CRUD
-- [ ] 12.1.2 auth/jwt.go — JWT 认证 (生成/验证 Token)
-- [ ] 12.1.3 auth/password.go — 密码哈希 (bcrypt)
-- [ ] 12.1.4 api/auth_handler.go — 登录/登出 API
-- [ ] 12.1.5 api/auth.go — 认证中间件 (JWT 验证)
+- [x] 12.1.1 store/user.go — users 表 + CRUD
+- [x] 12.1.2 auth/jwt.go — JWT 认证 (生成/验证 Token)
+- [x] 12.1.3 auth/password.go — 密码哈希 (bcrypt)
+- [x] 12.1.4 api/auth_handler.go — 登录/登出 API
+- [x] 12.1.5 api/auth.go — 认证中间件 (JWT 验证)
 
 ### 12.2 前端基础
 
-- [ ] 12.2.1 Vue 3 + Element Plus + Vite 项目初始化
-- [ ] 12.2.2 前端登录页面
-- [ ] 12.2.3 API 客户端 (Axios + JWT 拦截器)
-- [ ] 12.2.4 路由守卫 (认证检查)
+- [x] 12.2.1 Vue 3 + Element Plus + Vite 项目初始化
+- [x] 12.2.2 前端登录页面
+- [x] 12.2.3 API 客户端 (Axios + JWT 拦截器)
+- [x] 12.2.4 路由守卫 (认证检查)
 
 ### 12.3 权限控制
 
-- [ ] 12.3.1 角色定义 (admin/user/viewer)
-- [ ] 12.3.2 权限中间件 (RequireRole)
-- [ ] 12.3.3 前端权限控制 (路由 meta.roles)
+- [x] 12.3.1 角色定义 (admin/user/viewer)
+- [x] 12.3.2 权限中间件 (RequireRole)
+- [x] 12.3.3 前端权限控制 (路由 meta.roles)
 
 ### 12.4 页面开发
 
-- [ ] 12.4.1 Dashboard 仪表盘（任务统计、成功率、系统状态）
-- [ ] 12.4.2 Agent 管理页面（创建/编辑/列表/启用禁用）
-- [ ] 12.4.3 任务列表页面（查看/取消/重试）
-- [ ] 12.4.4 Prompt 编辑页面（System Prompt + User Template + 历史版本）
+- [x] 12.4.1 Dashboard 仪表盘（任务统计、成功率、系统状态）
+- [x] 12.4.2 Agent 管理页面（创建/编辑/列表/启用禁用）
+- [x] 12.4.3 任务列表页面（查看/取消/重试）
+- [x] 12.4.4 Prompt 编辑页面（System Prompt + User Template + 历史版本）
 - [ ] 12.4.5 系统配置页面（Gitea 连接、LLM Provider、路由规则）
-- [ ] 12.4.6 用户管理页面（仅 admin）
+- [x] 12.4.6 用户管理页面（仅 admin）
 
 ### 12.5 打包部署
 
-- [ ] 12.5.1 go:embed 打包前端资源
-- [ ] 12.5.2 静态文件服务
+- [x] 12.5.1 go:embed 打包前端资源
+- [x] 12.5.2 静态文件服务
 
 ## Phase 13：集成测试 + 收尾（模块 13）🔶
 
@@ -288,11 +288,11 @@
 | 模块 9：管理 API | ✅ 完成 | `d4c48fb` |
 | 模块 10：配置化模板 | ✅ 完成 | `2f74746` |
 | 模块 11：队列可靠性 | ✅ 完成 | `b0fefd9` |
-| 模块 12：前端 Web UI | ⬜ 未开始（可选） | - |
+| 模块 12：前端 Web UI | ✅ 完成 | `0f7924e` |
 | 模块 13：集成收尾 | 🔶 部分完成 | - |
 | 模块 14：沙箱增强 | ⬜ 未开始 | - |
 
-**总体进度：11/14 模块完成（79%）**
+**总体进度：12/14 模块完成（86%）**
 
 ---
 

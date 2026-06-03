@@ -10,6 +10,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Phase 14: 沙箱增强任务规划 (TASKS.md)
 
+## [0.6.0] - 2026-06-03
+
+### Added
+- Web UI (Vue 3 + Element Plus)
+  - Login.vue: 登录页面
+  - Dashboard.vue: 仪表盘 (统计/最近任务)
+  - Agents.vue: Agent 管理 (CRUD)
+  - Tasks.vue: 任务列表 (详情查看)
+  - Prompts.vue: Prompt 管理 (版本/回滚)
+  - Users.vue: 用户管理 (admin)
+- 认证系统
+  - store/user.go: users 表 + CRUD
+  - auth/jwt.go: JWT 认证
+  - auth/password.go: bcrypt 密码哈希
+  - api/auth_handler.go: 登录/登出 API
+- 前端构建
+  - Vue 3 + Element Plus + Vite
+  - Pinia 状态管理
+  - Vue Router 路由守卫
+  - Axios API 客户端 (JWT 拦截器)
+- 打包部署
+  - go:embed 嵌入前端资源
+  - SPA 路由支持
+
 ## [0.5.0] - 2026-06-03
 
 ### Added

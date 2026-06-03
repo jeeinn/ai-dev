@@ -62,6 +62,15 @@ func (c *Client) AdminCreateToken(username, tokenName string) (*TokenResponse, e
 	return &token, nil
 }
 
+// AdminDeleteUser deletes a user via the Admin API.
+func (c *Client) AdminDeleteUser(username string) error {
+	_, err := c.do("DELETE", fmt.Sprintf("/admin/users/%s", username), nil)
+	if err != nil {
+		return fmt.Errorf("admin delete user: %w", err)
+	}
+	return nil
+}
+
 // CreateTokenWithCredentials creates a token using the user's own credentials.
 // This is required for Gitea 1.26+ where admin token creation is not supported.
 func (c *Client) CreateTokenWithCredentials(username, password, tokenName string) (*TokenResponse, error) {

@@ -90,17 +90,21 @@ func (m *Manager) UpdateAgent(agent *store.Agent) error {
 	return m.db.UpdateAgent(agent)
 }
 
-// DeleteAgent deletes an agent. Optionally disables the Gitea account.
-func (m *Manager) DeleteAgent(id int64, disableGiteaUser bool) error {
+// DeleteAgent deletes an agent and optionally the Gitea user.
+func (m *Manager) DeleteAgent(id int64, deleteGiteaUser bool) error {
 	agent, err := m.db.GetAgent(id)
 	if err != nil {
 		return fmt.Errorf("get agent: %w", err)
 	}
 
-	if disableGiteaUser {
-		// Note: Gitea API doesn't have a direct "disable user" endpoint.
-		// We could change the password to a random value to lock out the account.
-		log.Printf("[INFO] Gitea user %s left active (disable not implemented)", agent.GiteaUsername)
+	// Delete Gitea user if requested
+	if deleteGiteaUser && agent.GiteaUsername != "" {
+		if err := m.gitea.AdminDeleteUser(agent.GiteaUsername); err != nil {
+			log.Printf("[WARN] Failed to delete Gitea user %s: %v", agent.GiteaUsername, err)
+			// Continue with agent deletion even if Gitea user deletion fails
+		} else {
+			log.Printf("[INFO] Deleted Gitea user: %s", agent.GiteaUsername)
+		}
 	}
 
 	return m.db.DeleteAgent(id)

@@ -171,7 +171,8 @@ func (h *Handler) deleteAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid id")
 		return
 	}
-	if err := h.db.DeleteAgent(id); err != nil {
+	// Delete agent and Gitea user
+	if err := h.manager.DeleteAgent(id, true); err != nil {
 		writeError(w, 500, err.Error())
 		return
 	}

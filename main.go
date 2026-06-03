@@ -27,6 +27,34 @@ import (
 //go:embed web/dist/*
 var webDist embed.FS
 
+// setContentType sets the correct Content-Type header based on file extension.
+func setContentType(w http.ResponseWriter, path string) {
+	switch {
+	case strings.HasSuffix(path, ".js"):
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	case strings.HasSuffix(path, ".mjs"):
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	case strings.HasSuffix(path, ".css"):
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	case strings.HasSuffix(path, ".html"):
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	case strings.HasSuffix(path, ".json"):
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	case strings.HasSuffix(path, ".svg"):
+		w.Header().Set("Content-Type", "image/svg+xml")
+	case strings.HasSuffix(path, ".png"):
+		w.Header().Set("Content-Type", "image/png")
+	case strings.HasSuffix(path, ".jpg"), strings.HasSuffix(path, ".jpeg"):
+		w.Header().Set("Content-Type", "image/jpeg")
+	case strings.HasSuffix(path, ".ico"):
+		w.Header().Set("Content-Type", "image/x-icon")
+	case strings.HasSuffix(path, ".woff"):
+		w.Header().Set("Content-Type", "font/woff")
+	case strings.HasSuffix(path, ".woff2"):
+		w.Header().Set("Content-Type", "font/woff2")
+	}
+}
+
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to configuration file")
 	flag.Parse()
@@ -92,24 +120,23 @@ func main() {
 	if err != nil {
 		log.Printf("[WARN] Failed to load embedded web files: %v", err)
 	} else {
-		fileServer := http.FileServer(http.FS(webFS))
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			// Try to serve static file
 			path := r.URL.Path
+			filePath := strings.TrimPrefix(path, "/")
 
-			// Check if file exists
-			f, err := webFS.Open(strings.TrimPrefix(path, "/"))
+			// Try to serve static file
+			data, err := fs.ReadFile(webFS, filePath)
 			if err == nil {
-				f.Close()
-				fileServer.ServeHTTP(w, r)
+				setContentType(w, path)
+				w.Write(data)
 				return
 			}
 
 			// Only fallback to index.html for non-file requests
-			// (requests that don't look like they're requesting a specific file)
 			if !strings.Contains(path, ".") {
-				r.URL.Path = "/"
-				fileServer.ServeHTTP(w, r)
+				indexData, _ := fs.ReadFile(webFS, "index.html")
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.Write(indexData)
 				return
 			}
 

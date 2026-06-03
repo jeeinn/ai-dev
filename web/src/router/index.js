@@ -52,9 +52,9 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
 
-  if (to.meta.requiresAuth && !authStore.isAuthenticated()) {
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
-  } else if (to.meta.guest && authStore.isAuthenticated()) {
+  } else if (to.meta.guest && authStore.isAuthenticated) {
     next('/')
   } else if (to.meta.roles && !to.meta.roles.includes(authStore.user?.role)) {
     next('/')

@@ -86,4 +86,13 @@ func applyDefaults(cfg *Config) {
 	if cfg.LLM.Defaults.Temperature == 0 {
 		cfg.LLM.Defaults.Temperature = 0.3
 	}
+	if cfg.Auth.JWTSecret == "" {
+		cfg.Auth.JWTSecret = "change-this-in-production"
+	}
+	if cfg.Auth.JWTExpiration == "" {
+		cfg.Auth.JWTExpiration = "24h"
+	}
+	if cfg.Auth.DefaultAdminPassword == "" {
+		cfg.Auth.DefaultAdminPassword = "admin123"
+	}
 }

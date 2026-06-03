@@ -2,23 +2,30 @@ package main
 
 import (
 	"context"
+	"embed"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"gitea-agent-gateway/internal/agents"
 	"gitea-agent-gateway/internal/api"
+	"gitea-agent-gateway/internal/auth"
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/dispatcher"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
 )
+
+//go:embed web/dist/*
+var webDist embed.FS
 
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to configuration file")
@@ -54,6 +61,18 @@ func main() {
 		log.Fatalf("[FATAL] Failed to start dispatcher: %v", err)
 	}
 
+	// Initialize authentication
+	jwtExpiration, err := time.ParseDuration(cfg.Auth.JWTExpiration)
+	if err != nil {
+		jwtExpiration = 24 * time.Hour
+	}
+	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, jwtExpiration)
+
+	// Create default admin user if needed
+	if err := api.EnsureDefaultAdmin(db, cfg.Auth.DefaultAdminPassword); err != nil {
+		log.Printf("[WARN] Failed to create default admin: %v", err)
+	}
+
 	// Build HTTP server
 	mux := http.NewServeMux()
 
@@ -68,10 +87,41 @@ func main() {
 	webhookHandler := webhook.NewHandler(&cfg.Gitea, db.DB, d.HandleEvent)
 	mux.Handle("POST /webhook/gitea", webhookHandler)
 
+	// Serve static files (Web UI)
+	webFS, err := fs.Sub(webDist, "web/dist")
+	if err != nil {
+		log.Printf("[WARN] Failed to load embedded web files: %v", err)
+	} else {
+		fileServer := http.FileServer(http.FS(webFS))
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			// Try to serve static file
+			path := r.URL.Path
+			if path == "/" {
+				path = "/index.html"
+			}
+
+			// Check if file exists
+			f, err := webFS.Open(strings.TrimPrefix(path, "/"))
+			if err == nil {
+				f.Close()
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+
+			// Fallback to index.html for SPA routing
+			r.URL.Path = "/"
+			fileServer.ServeHTTP(w, r)
+		})
+	}
+
 	// Management API
 	manager := agents.NewManager(db, &cfg.Gitea)
 	apiHandler := api.NewHandler(db, manager, cfg)
 	apiHandler.RegisterRoutes(mux)
+
+	// Auth API
+	authHandler := api.NewAuthHandler(db, jwtManager)
+	authHandler.RegisterAuthRoutes(mux)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{

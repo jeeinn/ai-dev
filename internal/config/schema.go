@@ -10,6 +10,7 @@ type Config struct {
 	Logging    LoggingConfig    `yaml:"logging"`
 	LLM        LLMConfig        `yaml:"llm"`
 	API        APIConfig        `yaml:"api"`
+	Auth       AuthConfig       `yaml:"auth"`
 	Agents     AgentsConfig     `yaml:"agents"`
 }
 
@@ -66,6 +67,13 @@ type AgentDefaultsConfig struct {
 // APIConfig contains API server configuration.
 type APIConfig struct {
 	AuthToken string `yaml:"auth_token"`
+}
+
+// AuthConfig contains authentication configuration.
+type AuthConfig struct {
+	JWTSecret            string `yaml:"jwt_secret"`
+	JWTExpiration        string `yaml:"jwt_expiration"`
+	DefaultAdminPassword string `yaml:"default_admin_password"`
 }
 
 // AgentsConfig contains agent templates and defaults.

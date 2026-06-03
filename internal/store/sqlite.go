@@ -120,10 +120,23 @@ func (db *DB) migrate() error {
 			detail      TEXT DEFAULT '',
 			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS users (
+			id            INTEGER PRIMARY KEY AUTOINCREMENT,
+			username      TEXT NOT NULL UNIQUE,
+			password_hash TEXT NOT NULL,
+			role          TEXT NOT NULL DEFAULT 'user',
+			display_name  TEXT DEFAULT '',
+			email         TEXT DEFAULT '',
+			is_active     INTEGER DEFAULT 1,
+			last_login    DATETIME,
+			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_agent_id ON tasks(agent_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_delivery_id ON tasks(delivery_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_operation_logs_agent_id ON operation_logs(agent_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
 	}
 
 	// Run additional migrations for schema changes

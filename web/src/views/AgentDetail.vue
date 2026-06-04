@@ -108,7 +108,12 @@
             <el-table-column prop="mention" label="Mention" width="120">
               <template #default="{ row }">{{ row.mention || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="priority" label="优先级" width="80" />
+            <el-table-column label="优先级" width="100">
+              <template #default="{ row }">
+                <el-tag v-if="row.priority > 0" size="small" type="warning">{{ row.priority }}</el-tag>
+                <span v-else class="text-muted">{{ row.priority }}</span>
+              </template>
+            </el-table-column>
             <el-table-column label="操作" width="100">
               <template #default="{ row }">
                 <el-button size="small" type="danger" @click="deleteRoute(row)">删除</el-button>
@@ -190,6 +195,7 @@
         </el-form-item>
         <el-form-item label="优先级">
           <el-input-number v-model="routeForm.priority" :min="0" :max="100" />
+          <div class="form-tip">值越大越优先匹配。多条规则匹配时，优先级最高的生效</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -442,5 +448,16 @@ onMounted(loadAgent)
   display: flex;
   justify-content: flex-end;
   margin-top: 12px;
+}
+
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+.text-muted {
+  font-size: 12px;
+  color: #c0c4cc;
 }
 </style>

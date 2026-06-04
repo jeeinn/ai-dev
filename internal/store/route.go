@@ -19,7 +19,19 @@ type Route struct {
 }
 
 // CreateRoute inserts a new route into the database.
+// Returns an error if a duplicate route exists (same event, action, label, assignee, mention, agent_id).
 func (db *DB) CreateRoute(r *Route) error {
+	// Check for duplicate
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM routes WHERE event=? AND action=? AND label=? AND assignee=? AND mention=? AND agent_id=?`,
+		r.Event, r.Action, r.Label, r.Assignee, r.Mention, r.AgentID).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("check duplicate route: %w", err)
+	}
+	if count > 0 {
+		return fmt.Errorf("duplicate route: a route with the same event, action, label, assignee, mention and agent already exists")
+	}
+
 	result, err := db.Exec(`INSERT INTO routes (event, action, label, assignee, mention, agent_id, priority)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		r.Event, r.Action, r.Label, r.Assignee, r.Mention, r.AgentID, r.Priority)

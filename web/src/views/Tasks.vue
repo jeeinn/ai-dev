@@ -13,22 +13,22 @@
 
       <!-- 筛选栏 -->
       <div class="filter-bar">
-        <el-select v-model="filterStatus" placeholder="状态" clearable style="width: 140px">
+        <el-select v-model="filterStatus" placeholder="状态" clearable style="width: 140px" @change="onFilterChange">
           <el-option label="待处理" value="pending" />
           <el-option label="运行中" value="running" />
           <el-option label="成功" value="success" />
           <el-option label="失败" value="failed" />
         </el-select>
-        <el-select v-model="filterType" placeholder="任务类型" clearable style="width: 160px">
+        <el-select v-model="filterType" placeholder="任务类型" clearable style="width: 160px" @change="onFilterChange">
           <el-option v-for="t in taskTypes" :key="t" :label="t" :value="t" />
         </el-select>
-        <el-select v-model="filterAgent" placeholder="Agent" clearable style="width: 180px">
+        <el-select v-model="filterAgent" placeholder="Agent" clearable style="width: 180px" @change="onFilterChange">
           <el-option v-for="a in agents" :key="a.id" :label="a.name" :value="a.id" />
         </el-select>
-        <span class="filter-count">共 {{ filteredTasks.length }} 条</span>
+        <span class="filter-count">共 {{ total }} 条</span>
       </div>
 
-      <el-table :data="filteredTasks" style="width: 100%">
+      <el-table v-loading="loading" :data="tasks" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="task_type" label="类型" width="120">
           <template #default="{ row }">
@@ -58,6 +58,17 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="pagination-bar">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          @current-change="loadTasks"
+          @size-change="onPageSizeChange"
+        />
+      </div>
     </el-card>
 
     <!-- Task Detail Dialog -->
@@ -95,6 +106,10 @@ const tasks = ref([])
 const agents = ref([])
 const showDetail = ref(false)
 const selectedTask = ref(null)
+const loading = ref(false)
+const total = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(20)
 
 const filterStatus = ref('')
 const filterType = ref('')
@@ -108,19 +123,26 @@ const agentMap = computed(() => {
   return map
 })
 
-const taskTypes = computed(() => {
-  const types = new Set(tasks.value.map(t => t.task_type))
-  return [...types].sort()
-})
+const taskTypes = ref(['analyze_issue', 'review_pr', 'reply_comment', 'solve_issue', 'fix_bug', 'trigger'])
 
-const filteredTasks = computed(() => {
-  return tasks.value.filter(t => {
-    if (filterStatus.value && t.status !== filterStatus.value) return false
-    if (filterType.value && t.task_type !== filterType.value) return false
-    if (filterAgent.value && t.agent_id !== filterAgent.value) return false
-    return true
-  })
-})
+const loadTasks = async () => {
+  loading.value = true
+  try {
+    const offset = (currentPage.value - 1) * pageSize.value
+    let params = `?limit=${pageSize.value}&offset=${offset}`
+    if (filterStatus.value) params += `&status=${filterStatus.value}`
+    if (filterType.value) params += `&type=${filterType.value}`
+    if (filterAgent.value) params += `&agent_id=${filterAgent.value}`
+    const res = await api.get(`/tasks${params}`)
+    tasks.value = res?.data || []
+    total.value = res?.total || 0
+  } catch {
+    tasks.value = []
+    total.value = 0
+  } finally {
+    loading.value = false
+  }
+}
 
 const getStatusType = (status) => {
   const types = { pending: 'warning', running: 'info', success: 'success', failed: 'danger' }
@@ -132,8 +154,14 @@ const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
-const loadTasks = async () => {
-  tasks.value = await api.get('/tasks?limit=100') || []
+const onFilterChange = () => {
+  currentPage.value = 1
+  loadTasks()
+}
+
+const onPageSizeChange = () => {
+  currentPage.value = 1
+  loadTasks()
 }
 
 const loadAgents = async () => {
@@ -169,6 +197,12 @@ onMounted(() => {
   font-size: 13px;
   color: #909399;
   margin-left: auto;
+}
+
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 
 .task-result,

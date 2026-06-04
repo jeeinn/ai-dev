@@ -423,7 +423,7 @@ func (h *Handler) listAgentTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listTasks(w http.ResponseWriter, r *http.Request) {
-	limit := 50
+	limit := 20
 	offset := 0
 	if v := r.URL.Query().Get("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -435,12 +435,26 @@ func (h *Handler) listTasks(w http.ResponseWriter, r *http.Request) {
 			offset = n
 		}
 	}
-	tasks, err := h.db.ListTasks(limit, offset)
+
+	// Filter params
+	status := r.URL.Query().Get("status")
+	taskType := r.URL.Query().Get("type")
+	var agentID int64
+	if v := r.URL.Query().Get("agent_id"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			agentID = n
+		}
+	}
+
+	tasks, total, err := h.db.ListTasksFiltered(limit, offset, status, taskType, agentID)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
 	}
-	writeJSON(w, 200, tasks)
+	writeJSON(w, 200, map[string]interface{}{
+		"data":  tasks,
+		"total": total,
+	})
 }
 
 func (h *Handler) getTask(w http.ResponseWriter, r *http.Request) {

@@ -171,11 +171,14 @@ func TestTaskList(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var tasks []map[string]interface{}
-	err = parseJSON(resp, &tasks)
+	var result map[string]interface{}
+	err = parseJSON(resp, &result)
 	require.NoError(t, err)
+	tasks, ok := result["data"].([]interface{})
+	require.True(t, ok)
 	assert.Len(t, tasks, 1)
-	assert.Equal(t, "success", tasks[0]["status"])
+	task := tasks[0].(map[string]interface{})
+	assert.Equal(t, "success", task["status"])
 }
 
 func TestTemplatesEndpoint(t *testing.T) {

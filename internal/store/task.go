@@ -106,6 +106,63 @@ func (db *DB) GetTask(id int64) (*Task, error) {
 	return &t, nil
 }
 
+// CountTasks returns the total number of tasks.
+func (db *DB) CountTasks() (int, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM tasks`).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count tasks: %w", err)
+	}
+	return count, nil
+}
+
+// ListTasksFiltered returns tasks with filtering and pagination, plus total count.
+func (db *DB) ListTasksFiltered(limit, offset int, status, taskType string, agentID int64) ([]*Task, int, error) {
+	// Build WHERE clause
+	where := "1=1"
+	args := []interface{}{}
+	if status != "" {
+		where += " AND status = ?"
+		args = append(args, status)
+	}
+	if taskType != "" {
+		where += " AND task_type = ?"
+		args = append(args, taskType)
+	}
+	if agentID > 0 {
+		where += " AND agent_id = ?"
+		args = append(args, agentID)
+	}
+
+	// Count total
+	var total int
+	countArgs := make([]interface{}, len(args))
+	copy(countArgs, args)
+	err := db.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM tasks WHERE %s`, where), countArgs...).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count tasks: %w", err)
+	}
+
+	// Fetch page
+	args = append(args, limit, offset)
+	rows, err := db.Query(fmt.Sprintf(`SELECT id, event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, created_at, started_at, finished_at, result, error
+		FROM tasks WHERE %s ORDER BY created_at DESC LIMIT ? OFFSET ?`, where), args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list tasks: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []*Task
+	for rows.Next() {
+		var t Task
+		if err := rows.Scan(&t.ID, &t.Event, &t.Repo, &t.IssueID, &t.AgentID, &t.TaskType, &t.Context, &t.Status, &t.Priority, &t.DeliveryID, &t.CreatedAt, &t.StartedAt, &t.FinishedAt, &t.Result, &t.Error); err != nil {
+			return nil, 0, fmt.Errorf("scan task: %w", err)
+		}
+		tasks = append(tasks, &t)
+	}
+	return tasks, total, nil
+}
+
 // ListTasks returns tasks with pagination.
 func (db *DB) ListTasks(limit, offset int) ([]*Task, error) {
 	rows, err := db.Query(`SELECT id, event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, created_at, started_at, finished_at, result, error

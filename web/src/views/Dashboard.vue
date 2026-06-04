@@ -85,15 +85,22 @@
       <el-col :span="12">
         <el-card>
           <template #header>
-            <span>最近任务</span>
+            <div class="card-header">
+              <span>最近任务</span>
+              <el-button type="primary" link @click="router.push('/tasks')">查看全部 →</el-button>
+            </div>
           </template>
           <el-table :data="recentTasks" style="width: 100%">
             <el-table-column prop="id" label="ID" width="60" />
-            <el-table-column prop="task_type" label="类型" width="120" />
+            <el-table-column prop="task_type" label="类型" width="120">
+              <template #default="{ row }">
+                <el-tag size="small" type="info">{{ row.task_type }}</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="repo" label="仓库" />
             <el-table-column prop="status" label="状态" width="100">
               <template #default="{ row }">
-                <el-tag :type="getStatusType(row.status)">{{ row.status }}</el-tag>
+                <el-tag :type="getStatusType(row.status)" size="small">{{ statusLabels[row.status] || row.status }}</el-tag>
               </template>
             </el-table-column>
           </el-table>
@@ -103,16 +110,23 @@
       <el-col :span="12">
         <el-card>
           <template #header>
-            <span>Agent 列表</span>
+            <div class="card-header">
+              <span>Agent 列表</span>
+              <el-button type="primary" link @click="router.push('/agents')">查看全部 →</el-button>
+            </div>
           </template>
           <el-table :data="agents" style="width: 100%">
             <el-table-column prop="id" label="ID" width="60" />
-            <el-table-column prop="name" label="名称" />
+            <el-table-column label="名称">
+              <template #default="{ row }">
+                <el-link type="primary" @click="router.push(`/agents/${row.id}`)">{{ row.name }}</el-link>
+              </template>
+            </el-table-column>
             <el-table-column prop="provider" label="Provider" width="100" />
             <el-table-column prop="model" label="模型" />
-            <el-table-column prop="status" label="状态" width="100">
+            <el-table-column prop="status" label="状态" width="80">
               <template #default="{ row }">
-                <el-tag :type="row.status === 'active' ? 'success' : 'info'">{{ row.status }}</el-tag>
+                <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">{{ row.status === 'active' ? '活跃' : '禁用' }}</el-tag>
               </template>
             </el-table-column>
           </el-table>
@@ -150,13 +164,10 @@ const welcomeStep = computed(() => {
   return 3
 })
 
+const statusLabels = { pending: '待处理', running: '运行中', success: '成功', failed: '失败' }
+
 const getStatusType = (status) => {
-  const types = {
-    pending: 'warning',
-    running: 'info',
-    success: 'success',
-    failed: 'danger'
-  }
+  const types = { pending: 'warning', running: 'info', success: 'success', failed: 'danger' }
   return types[status] || 'info'
 }
 
@@ -168,8 +179,8 @@ onMounted(async () => {
       api.get('/tasks?limit=10')
     ])
     stats.value = statsData
-    agents.value = agentsData
-    recentTasks.value = tasksData
+    agents.value = (agentsData || []).slice(0, 10)
+    recentTasks.value = tasksData?.data || []
   } catch (error) {
     console.error('Failed to load dashboard data:', error)
   }

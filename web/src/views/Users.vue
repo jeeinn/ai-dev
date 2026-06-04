@@ -11,7 +11,7 @@
         </div>
       </template>
 
-      <el-table :data="users" style="width: 100%">
+      <el-table :data="paginatedUsers" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="username" label="用户名" />
         <el-table-column prop="display_name" label="显示名称" />
@@ -32,6 +32,16 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="pagination-bar">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="users.length"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          small
+        />
+      </div>
     </el-card>
 
     <!-- Create/Edit Dialog -->
@@ -66,7 +76,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import api from '../api'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -74,6 +84,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 const users = ref([])
 const showCreateDialog = ref(false)
 const editingUser = ref(null)
+const currentPage = ref(1)
+const pageSize = ref(20)
+
+const paginatedUsers = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return users.value.slice(start, start + pageSize.value)
+})
 
 const form = ref({
   username: '',
@@ -135,5 +152,11 @@ onMounted(loadUsers)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 </style>

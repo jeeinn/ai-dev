@@ -11,7 +11,7 @@
         </div>
       </template>
 
-      <el-table :data="agents" style="width: 100%">
+      <el-table :data="paginatedAgents" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="名称">
           <template #default="{ row }">
@@ -40,6 +40,16 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="pagination-bar">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="agents.length"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          small
+        />
+      </div>
     </el-card>
 
     <!-- Create/Edit Dialog -->
@@ -125,7 +135,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
 import { Plus } from '@element-plus/icons-vue'
@@ -135,6 +145,13 @@ import TemplateHelp from '../components/TemplateHelp.vue'
 const router = useRouter()
 const agents = ref([])
 const agentRouteCounts = ref({})
+const currentPage = ref(1)
+const pageSize = ref(20)
+
+const paginatedAgents = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return agents.value.slice(start, start + pageSize.value)
+})
 const showCreateDialog = ref(false)
 const editingAgent = ref(null)
 const builtinTemplates = ref([])
@@ -287,5 +304,11 @@ onMounted(() => {
 .text-muted {
   font-size: 12px;
   color: #c0c4cc;
+}
+
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 </style>

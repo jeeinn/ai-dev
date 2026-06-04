@@ -88,7 +88,7 @@
           </template>
 
           <el-empty v-if="!routes.length" description="暂无触发规则，点击上方按钮添加" />
-          <el-table v-else :data="routes" style="width: 100%">
+          <el-table v-else :data="paginatedRoutes" style="width: 100%">
             <el-table-column prop="event" label="事件" width="120" />
             <el-table-column prop="action" label="动作" width="120">
               <template #default="{ row }">{{ row.action || '-' }}</template>
@@ -112,6 +112,9 @@
               </template>
             </el-table-column>
           </el-table>
+          <div v-if="routes.length > 10" class="pagination-bar">
+            <el-pagination v-model:current-page="routePage" :page-size="10" :total="routes.length" layout="prev, pager, next" small />
+          </div>
 
           <!-- 快捷规则 -->
           <el-divider content-position="left">快捷配置</el-divider>
@@ -129,7 +132,7 @@
       <el-tab-pane label="Prompt 版本" name="prompts">
         <el-card>
           <el-empty v-if="!prompts.length" description="暂无 Prompt 版本记录" />
-          <el-table v-else :data="prompts" style="width: 100%">
+          <el-table v-else :data="paginatedPrompts" style="width: 100%">
             <el-table-column prop="version" label="版本" width="80" />
             <el-table-column prop="note" label="备注" />
             <el-table-column prop="is_active" label="状态" width="100">
@@ -146,6 +149,9 @@
               </template>
             </el-table-column>
           </el-table>
+          <div v-if="prompts.length > 10" class="pagination-bar">
+            <el-pagination v-model:current-page="promptPage" :page-size="10" :total="prompts.length" layout="prev, pager, next" small />
+          </div>
         </el-card>
       </el-tab-pane>
     </el-tabs>
@@ -210,7 +216,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 import { Plus } from '@element-plus/icons-vue'
@@ -225,6 +231,18 @@ const activeTab = ref('info')
 const agent = ref(null)
 const routes = ref([])
 const prompts = ref([])
+const routePage = ref(1)
+const promptPage = ref(1)
+
+const paginatedRoutes = computed(() => {
+  const start = (routePage.value - 1) * 10
+  return routes.value.slice(start, start + 10)
+})
+
+const paginatedPrompts = computed(() => {
+  const start = (promptPage.value - 1) * 10
+  return prompts.value.slice(start, start + 10)
+})
 const saving = ref(false)
 const showAddRoute = ref(false)
 const showPromptDetail = ref(false)
@@ -395,5 +413,11 @@ onMounted(loadAgent)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 </style>

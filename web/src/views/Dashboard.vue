@@ -1,5 +1,36 @@
 <template>
   <div class="dashboard">
+    <!-- 新用户引导 -->
+    <el-card v-if="agents.length === 0" class="welcome-card" shadow="hover">
+      <div class="welcome-content">
+        <h2>👋 欢迎使用 Gitea Agent Gateway</h2>
+        <p class="welcome-desc">按照以下步骤快速开始使用</p>
+        <el-steps :active="welcomeStep" direction="vertical" class="welcome-steps">
+          <el-step title="配置 Gitea 连接" description="在系统配置中填写 Gitea 地址和管理员 Token">
+            <template #icon>
+              <el-icon><Setting /></el-icon>
+            </template>
+            <template #extra>
+              <el-button size="small" type="primary" @click="router.push('/config')">去配置</el-button>
+            </template>
+          </el-step>
+          <el-step title="创建第一个 Agent" description="选择内置模板快速创建，或自定义配置">
+            <template #icon>
+              <el-icon><User /></el-icon>
+            </template>
+            <template #extra>
+              <el-button size="small" type="primary" @click="router.push('/agents')">去创建</el-button>
+            </template>
+          </el-step>
+          <el-step title="配置触发规则" description="在 Agent 详情页设置 Label 触发条件">
+            <template #icon>
+              <el-icon><Connection /></el-icon>
+            </template>
+          </el-step>
+        </el-steps>
+      </div>
+    </el-card>
+
     <el-row :gutter="20">
       <el-col :span="6">
         <el-card shadow="hover">
@@ -93,8 +124,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../api'
-import { User, List, Clock, CircleCheck } from '@element-plus/icons-vue'
+import { User, List, Clock, CircleCheck, Setting, Connection } from '@element-plus/icons-vue'
+
+const router = useRouter()
 
 const stats = ref({})
 const agents = ref([])
@@ -109,6 +143,11 @@ const successRate = computed(() => {
   if (total === 0) return 0
   const success = recentTasks.value.filter(t => t.status === 'success').length
   return Math.round((success / total) * 100)
+})
+
+const welcomeStep = computed(() => {
+  if (agents.value.length === 0) return 1
+  return 3
 })
 
 const getStatusType = (status) => {
@@ -140,6 +179,29 @@ onMounted(async () => {
 <style scoped>
 .dashboard {
   padding: 20px;
+}
+
+.welcome-card {
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, #e8f4fd 0%, #f0f9ff 100%);
+}
+
+.welcome-content {
+  padding: 10px 20px;
+}
+
+.welcome-content h2 {
+  margin: 0 0 8px 0;
+  color: #303133;
+}
+
+.welcome-desc {
+  color: #606266;
+  margin-bottom: 20px;
+}
+
+.welcome-steps {
+  max-width: 500px;
 }
 
 .card-header {

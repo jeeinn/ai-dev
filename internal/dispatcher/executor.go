@@ -20,32 +20,36 @@ type GiteaClientFactory interface {
 
 // Executor runs agent tasks from the queue with concurrency control.
 type Executor struct {
-	maxConcurrent int
-	timeout       int // seconds
-	llmRegistry   *llm.Registry
-	db            *store.DB
-	sem           chan struct{}
-	retryCount    int
-	giteaFactory  GiteaClientFactory
-	runnerFactory *agents.RunnerFactory
+	maxConcurrent    int
+	timeout          int // seconds
+	llmRegistry      *llm.Registry
+	db               *store.DB
+	sem              chan struct{}
+	retryCount       int
+	giteaFactory     GiteaClientFactory
+	runnerFactory    *agents.RunnerFactory
+	defaultMaxTokens int
+	defaultTemp      float64
 }
 
 // NewExecutor creates a new Executor.
-func NewExecutor(maxConcurrent, timeout, retryCount int, llmRegistry *llm.Registry, db *store.DB) *Executor {
+func NewExecutor(maxConcurrent, timeout, retryCount int, llmRegistry *llm.Registry, db *store.DB, defaultMaxTokens int, defaultTemp float64) *Executor {
 	return &Executor{
-		maxConcurrent: maxConcurrent,
-		timeout:       timeout,
-		llmRegistry:   llmRegistry,
-		db:            db,
-		sem:           make(chan struct{}, maxConcurrent),
-		retryCount:    retryCount,
+		maxConcurrent:    maxConcurrent,
+		timeout:          timeout,
+		llmRegistry:      llmRegistry,
+		db:               db,
+		sem:              make(chan struct{}, maxConcurrent),
+		retryCount:       retryCount,
+		defaultMaxTokens: defaultMaxTokens,
+		defaultTemp:      defaultTemp,
 	}
 }
 
 // SetGiteaClientFactory sets the factory for creating Gitea clients.
 func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory) {
 	e.giteaFactory = factory
-	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db)
+	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.defaultMaxTokens, e.defaultTemp)
 }
 
 // Start begins the executor workers.

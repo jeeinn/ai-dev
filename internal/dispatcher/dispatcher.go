@@ -34,12 +34,24 @@ func NewDispatcher(
 ) *Dispatcher {
 	router := NewRouter(db)
 	queue := NewTaskQueue(db, dispatcherCfg.QueueSize)
+	defaultMaxTokens := 4096
+	defaultTemp := 0.3
+	if agentsCfg != nil {
+		if agentsCfg.Defaults.MaxTokens > 0 {
+			defaultMaxTokens = agentsCfg.Defaults.MaxTokens
+		}
+		if agentsCfg.Defaults.Temperature > 0 {
+			defaultTemp = agentsCfg.Defaults.Temperature
+		}
+	}
 	executor := NewExecutor(
 		dispatcherCfg.MaxConcurrent,
 		dispatcherCfg.Timeout,
 		dispatcherCfg.RetryCount,
 		llmRegistry,
 		db,
+		defaultMaxTokens,
+		defaultTemp,
 	)
 
 	d := &Dispatcher{

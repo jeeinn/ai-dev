@@ -53,9 +53,11 @@
             </el-form-item>
             <el-form-item label="最大 Token">
               <el-input-number v-model.number="form['llm.defaults.max_tokens']" :min="256" :max="128000" :step="512" />
+              <div class="form-tip">LLM 单次调用的最大 Token 数。当 Agent 未设置时回退到此值（默认 4096）</div>
             </el-form-item>
             <el-form-item label="Temperature">
               <el-slider v-model.number="form['llm.defaults.temperature']" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
+              <div class="form-tip">LLM 生成随机性。0=确定性，2=最大随机。Agent 未设置时回退到此值</div>
             </el-form-item>
           </el-form>
         </el-tab-pane>
@@ -93,9 +95,11 @@
             </el-form-item>
             <el-form-item label="最大 Token">
               <el-input-number v-model.number="form['agents.defaults.max_tokens']" :min="256" :max="128000" :step="512" />
+              <div class="form-tip">新建 Agent 时的默认最大 Token 数，可在 Agent 编辑中单独覆盖</div>
             </el-form-item>
             <el-form-item label="Temperature">
               <el-slider v-model.number="form['agents.defaults.temperature']" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
+              <div class="form-tip">新建 Agent 时的默认 Temperature，可在 Agent 编辑中单独覆盖</div>
             </el-form-item>
           </el-form>
         </el-tab-pane>

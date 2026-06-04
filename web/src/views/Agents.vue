@@ -214,6 +214,11 @@ const loadProviders = async () => {
     if (data && data['llm.providers']) {
       providers.value = data['llm.providers']
     }
+    // Update default form values from config
+    if (data['agents.defaults.provider']) defaultForm.provider = data['agents.defaults.provider']
+    if (data['agents.defaults.model']) defaultForm.model = data['agents.defaults.model']
+    if (data['agents.defaults.max_tokens']) defaultForm.max_tokens = Number(data['agents.defaults.max_tokens']) || 4096
+    if (data['agents.defaults.temperature'] !== undefined) defaultForm.temperature = Number(data['agents.defaults.temperature']) || 0.3
   } catch {
     providers.value = {}
   }

@@ -13,6 +13,11 @@ import (
 	"gitea-agent-gateway/internal/store"
 )
 
+const (
+	defaultMaxTokens = 4096
+	defaultTemp      = 0.3
+)
+
 // Runner is the interface for task execution strategies.
 type Runner interface {
 	// Run executes the task and returns the result.
@@ -33,37 +38,65 @@ type GiteaClientFactory interface {
 
 // RunnerFactory creates runners based on task type.
 type RunnerFactory struct {
-	llmRegistry *llm.Registry
-	giteaFactory GiteaClientFactory
-	sandboxCfg   sandbox.Config
-	db           *store.DB
+	llmRegistry      *llm.Registry
+	giteaFactory     GiteaClientFactory
+	sandboxCfg       sandbox.Config
+	db               *store.DB
+	defaultMaxTokens int
+	defaultTemp      float64
 }
 
 // NewRunnerFactory creates a new RunnerFactory.
-func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB) *RunnerFactory {
-	return &RunnerFactory{
-		llmRegistry:  llmRegistry,
-		giteaFactory: giteaFactory,
-		sandboxCfg:   sandbox.DefaultConfig(),
-		db:           db,
+func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, maxTokens int, temp float64) *RunnerFactory {
+	if maxTokens <= 0 {
+		maxTokens = defaultMaxTokens
 	}
+	if temp <= 0 {
+		temp = defaultTemp
+	}
+	return &RunnerFactory{
+		llmRegistry:      llmRegistry,
+		giteaFactory:     giteaFactory,
+		sandboxCfg:       sandbox.DefaultConfig(),
+		db:               db,
+		defaultMaxTokens: maxTokens,
+		defaultTemp:      temp,
+	}
+}
+
+// resolveMaxTokens returns agent.MaxTokens if > 0, otherwise the factory default.
+func (f *RunnerFactory) resolveMaxTokens(agentMaxTokens int) int {
+	if agentMaxTokens > 0 {
+		return agentMaxTokens
+	}
+	return f.defaultMaxTokens
+}
+
+// resolveTemperature returns agent.Temperature if explicitly set (> 0), otherwise the factory default.
+// Note: Temperature=0 (deterministic output) is a valid value but rarely used in practice.
+// Agents with Temperature=0 will fall back to default — set it via Agent edit if needed.
+func (f *RunnerFactory) resolveTemperature(agentTemp float64) float64 {
+	if agentTemp > 0 {
+		return agentTemp
+	}
+	return f.defaultTemp
 }
 
 // GetRunner returns the appropriate runner for the task type.
 func (f *RunnerFactory) GetRunner(taskType string) Runner {
 	switch taskType {
 	case "review_pr":
-		return NewReviewRunner(f.llmRegistry, f.giteaFactory)
+		return NewReviewRunner(f)
 	case "reply_comment":
-		return NewInteractionRunner(f.llmRegistry, f.giteaFactory)
+		return NewInteractionRunner(f)
 	case "analyze_issue", "trigger":
-		return NewAnalyzeRunner(f.llmRegistry, f.giteaFactory)
+		return NewAnalyzeRunner(f)
 	case "solve_issue":
-		return NewDevRunner(f.llmRegistry, f.giteaFactory, f.sandboxCfg, f.db)
+		return NewDevRunner(f)
 	case "fix_bug":
-		return NewBugfixRunner(f.llmRegistry, f.giteaFactory, f.sandboxCfg, f.db)
+		return NewBugfixRunner(f)
 	default:
-		return NewAnalyzeRunner(f.llmRegistry, f.giteaFactory)
+		return NewAnalyzeRunner(f)
 	}
 }
 
@@ -71,22 +104,18 @@ func (f *RunnerFactory) GetRunner(taskType string) Runner {
 
 // AnalyzeRunner handles issue analysis tasks.
 type AnalyzeRunner struct {
-	llmRegistry  *llm.Registry
-	giteaFactory GiteaClientFactory
+	factory *RunnerFactory
 }
 
 // NewAnalyzeRunner creates a new AnalyzeRunner.
-func NewAnalyzeRunner(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory) *AnalyzeRunner {
-	return &AnalyzeRunner{
-		llmRegistry:  llmRegistry,
-		giteaFactory: giteaFactory,
-	}
+func NewAnalyzeRunner(factory *RunnerFactory) *AnalyzeRunner {
+	return &AnalyzeRunner{factory: factory}
 }
 
 // Run executes the analyze task.
 func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.Agent) (*Result, error) {
 	// Get LLM provider
-	provider, err := r.llmRegistry.Get(agent.Provider)
+	provider, err := r.factory.llmRegistry.Get(agent.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("get provider: %w", err)
 	}
@@ -101,8 +130,8 @@ func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.
 	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
 		Model:       agent.Model,
 		Messages:    messages,
-		MaxTokens:   agent.MaxTokens,
-		Temperature: agent.Temperature,
+		MaxTokens:   r.factory.resolveMaxTokens(agent.MaxTokens),
+		Temperature: r.factory.resolveTemperature(agent.Temperature),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM call: %w", err)
@@ -120,16 +149,12 @@ func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.
 
 // ReviewRunner handles PR review tasks.
 type ReviewRunner struct {
-	llmRegistry  *llm.Registry
-	giteaFactory GiteaClientFactory
+	factory *RunnerFactory
 }
 
 // NewReviewRunner creates a new ReviewRunner.
-func NewReviewRunner(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory) *ReviewRunner {
-	return &ReviewRunner{
-		llmRegistry:  llmRegistry,
-		giteaFactory: giteaFactory,
-	}
+func NewReviewRunner(factory *RunnerFactory) *ReviewRunner {
+	return &ReviewRunner{factory: factory}
 }
 
 // Run executes the review task.
@@ -142,7 +167,7 @@ func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 	owner, repo := parts[0], parts[1]
 
 	// Get Gitea client
-	client := r.giteaFactory.GetGiteaClient(agent.GiteaToken)
+	client := r.factory.giteaFactory.GetGiteaClient(agent.GiteaToken)
 
 	// Get PR diff
 	diff, err := client.PRDiff(owner, repo, task.IssueID)
@@ -175,7 +200,7 @@ func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 	sb.WriteString(diff)
 
 	// Get LLM provider
-	provider, err := r.llmRegistry.Get(agent.Provider)
+	provider, err := r.factory.llmRegistry.Get(agent.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("get provider: %w", err)
 	}
@@ -190,8 +215,8 @@ func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
 		Model:       agent.Model,
 		Messages:    messages,
-		MaxTokens:   agent.MaxTokens,
-		Temperature: agent.Temperature,
+		MaxTokens:   r.factory.resolveMaxTokens(agent.MaxTokens),
+		Temperature: r.factory.resolveTemperature(agent.Temperature),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM call: %w", err)
@@ -209,16 +234,12 @@ func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 
 // InteractionRunner handles @Mention reply tasks.
 type InteractionRunner struct {
-	llmRegistry  *llm.Registry
-	giteaFactory GiteaClientFactory
+	factory *RunnerFactory
 }
 
 // NewInteractionRunner creates a new InteractionRunner.
-func NewInteractionRunner(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory) *InteractionRunner {
-	return &InteractionRunner{
-		llmRegistry:  llmRegistry,
-		giteaFactory: giteaFactory,
-	}
+func NewInteractionRunner(factory *RunnerFactory) *InteractionRunner {
+	return &InteractionRunner{factory: factory}
 }
 
 // Run executes the interaction task.
@@ -231,7 +252,7 @@ func (r *InteractionRunner) Run(ctx context.Context, task *store.Task, agent *st
 	owner, repo := parts[0], parts[1]
 
 	// Get Gitea client
-	client := r.giteaFactory.GetGiteaClient(agent.GiteaToken)
+	client := r.factory.giteaFactory.GetGiteaClient(agent.GiteaToken)
 
 	// Get comment history for context
 	comments, err := client.IssueComments(owner, repo, task.IssueID)
@@ -253,7 +274,7 @@ func (r *InteractionRunner) Run(ctx context.Context, task *store.Task, agent *st
 	}
 
 	// Get LLM provider
-	provider, err := r.llmRegistry.Get(agent.Provider)
+	provider, err := r.factory.llmRegistry.Get(agent.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("get provider: %w", err)
 	}
@@ -268,8 +289,8 @@ func (r *InteractionRunner) Run(ctx context.Context, task *store.Task, agent *st
 	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
 		Model:       agent.Model,
 		Messages:    messages,
-		MaxTokens:   agent.MaxTokens,
-		Temperature: agent.Temperature,
+		MaxTokens:   r.factory.resolveMaxTokens(agent.MaxTokens),
+		Temperature: r.factory.resolveTemperature(agent.Temperature),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM call: %w", err)
@@ -287,55 +308,39 @@ func (r *InteractionRunner) Run(ctx context.Context, task *store.Task, agent *st
 
 // DevRunner handles development tasks (read issue → write code → create PR).
 type DevRunner struct {
-	llmRegistry  *llm.Registry
-	giteaFactory GiteaClientFactory
-	sandboxCfg   sandbox.Config
-	db           *store.DB
+	factory *RunnerFactory
 }
 
 // NewDevRunner creates a new DevRunner.
-func NewDevRunner(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, sandboxCfg sandbox.Config, db *store.DB) *DevRunner {
-	return &DevRunner{
-		llmRegistry:  llmRegistry,
-		giteaFactory: giteaFactory,
-		sandboxCfg:   sandboxCfg,
-		db:           db,
-	}
+func NewDevRunner(factory *RunnerFactory) *DevRunner {
+	return &DevRunner{factory: factory}
 }
 
 // Run executes the development task.
 func (r *DevRunner) Run(ctx context.Context, task *store.Task, agent *store.Agent) (*Result, error) {
-	return runWriteTask(ctx, task, agent, r.llmRegistry, r.giteaFactory, r.sandboxCfg, "dev", r.db)
+	return runWriteTask(ctx, task, agent, r.factory, "dev")
 }
 
 // --- BugfixRunner ---
 
 // BugfixRunner handles bug fix tasks (read bug → locate → fix → create PR).
 type BugfixRunner struct {
-	llmRegistry  *llm.Registry
-	giteaFactory GiteaClientFactory
-	sandboxCfg   sandbox.Config
-	db           *store.DB
+	factory *RunnerFactory
 }
 
 // NewBugfixRunner creates a new BugfixRunner.
-func NewBugfixRunner(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, sandboxCfg sandbox.Config, db *store.DB) *BugfixRunner {
-	return &BugfixRunner{
-		llmRegistry:  llmRegistry,
-		giteaFactory: giteaFactory,
-		sandboxCfg:   sandboxCfg,
-		db:           db,
-	}
+func NewBugfixRunner(factory *RunnerFactory) *BugfixRunner {
+	return &BugfixRunner{factory: factory}
 }
 
 // Run executes the bugfix task.
 func (r *BugfixRunner) Run(ctx context.Context, task *store.Task, agent *store.Agent) (*Result, error) {
-	return runWriteTask(ctx, task, agent, r.llmRegistry, r.giteaFactory, r.sandboxCfg, "bugfix", r.db)
+	return runWriteTask(ctx, task, agent, r.factory, "bugfix")
 }
 
 // runWriteTask is the shared implementation for write-type runners.
 func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
-	llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, sandboxCfg sandbox.Config, taskSubType string, db *store.DB) (*Result, error) {
+	factory *RunnerFactory, taskSubType string) (*Result, error) {
 
 	// Parse repo owner/name
 	parts := strings.SplitN(task.Repo, "/", 2)
@@ -345,7 +350,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	owner, repo := parts[0], parts[1]
 
 	// Get Gitea client
-	client := giteaFactory.GetGiteaClient(agentCfg.GiteaToken)
+	client := factory.giteaFactory.GetGiteaClient(agentCfg.GiteaToken)
 
 	// Get repo info for clone URL
 	repoInfo, err := client.GetRepo(owner, repo)
@@ -355,14 +360,14 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	cloneURL := repoInfo.CloneURL
 
 	// Create sandbox
-	sb := sandbox.New(sandboxCfg, task.ID)
+	sb := sandbox.New(factory.sandboxCfg, task.ID)
 	if err := sb.Setup(); err != nil {
 		return nil, fmt.Errorf("setup sandbox: %w", err)
 	}
 	defer sb.Cleanup()
 
 	// Create audit logger
-	audit := sandbox.NewAuditLogger(db, task.ID, agentCfg.ID)
+	audit := sandbox.NewAuditLogger(factory.db, task.ID, agentCfg.ID)
 
 	// Clone repository
 	git := sandbox.NewGit(sb)
@@ -381,7 +386,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	}
 
 	// Get LLM provider
-	provider, err := llmRegistry.Get(agentCfg.Provider)
+	provider, err := factory.llmRegistry.Get(agentCfg.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("get provider: %w", err)
 	}
@@ -410,13 +415,14 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	// Create tool registry
 	toolRegistry := agent.DefaultTools(sb)
 
-	// Create agent loop with config priority: Agent.LoopConfig > Default
-	maxTokens := agentCfg.MaxTokens * 2
+	// Create agent loop with config priority: Agent.LoopConfig > Agent > Factory Default
+	// Agent loop runs multiple turns (tool calls + responses), so allocate 2x the single-call limit
+	maxTokens := factory.resolveMaxTokens(agentCfg.MaxTokens) * 2
 	if agentCfg.LoopConfig != nil && agentCfg.LoopConfig.MaxTokens > 0 {
 		maxTokens = agentCfg.LoopConfig.MaxTokens
 	}
 
-	loop := agent.NewAgentLoop(provider, toolRegistry, agentCfg.Model, maxTokens, agentCfg.Temperature)
+	loop := agent.NewAgentLoop(provider, toolRegistry, agentCfg.Model, maxTokens, factory.resolveTemperature(agentCfg.Temperature))
 
 	// Apply agent-specific loop config
 	if agentCfg.LoopConfig != nil {

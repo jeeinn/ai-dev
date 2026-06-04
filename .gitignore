@@ -1,4 +1,5 @@
 # Binary
+gateway
 gateway.exe*
 
 # Local config (contains tokens)

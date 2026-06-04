@@ -176,7 +176,7 @@ const loadAgents = async () => {
 
 const loadTemplates = async () => {
   try {
-    const data = await api.get('/templates')
+    const data = await api.get('/prompt-templates')
     if (data && typeof data === 'object') {
       builtinTemplates.value = Object.entries(data).map(([key, value]) => ({
         name: key,

@@ -90,17 +90,20 @@
           <el-empty v-if="!routes.length" description="暂无触发规则，点击上方按钮添加" />
           <el-table v-else :data="paginatedRoutes" style="width: 100%">
             <el-table-column prop="event" label="事件" width="120" />
-            <el-table-column prop="action" label="动作" width="120">
-              <template #default="{ row }">{{ row.action || '-' }}</template>
+            <el-table-column prop="action" label="动作" width="100">
+              <template #default="{ row }">{{ row.action || '*' }}</template>
             </el-table-column>
-            <el-table-column prop="label" label="Label" width="150">
+            <el-table-column prop="label" label="Label" width="130">
               <template #default="{ row }">
                 <el-tag v-if="row.label" size="small">{{ row.label }}</el-tag>
                 <span v-else>-</span>
               </template>
             </el-table-column>
-            <el-table-column prop="assignee" label="Assignee" width="120">
-              <template #default="{ row }">{{ row.assignee || '-' }}</template>
+            <el-table-column label="预计执行行为" min-width="200">
+              <template #default="{ row }">
+                <el-tag :type="getBehaviorTag(row).type" size="small">{{ getBehaviorTag(row).icon }}</el-tag>
+                <span style="margin-left: 6px">{{ getBehaviorTag(row).text }}</span>
+              </template>
             </el-table-column>
             <el-table-column prop="mention" label="Mention" width="120">
               <template #default="{ row }">{{ row.mention || '-' }}</template>
@@ -278,6 +281,26 @@ const defaultForm = {
 }
 
 const form = ref({ ...defaultForm, loop_config: { ...defaultLoopConfig } })
+
+const getBehaviorTag = (route) => {
+  const label = route.label || ''
+  const event = route.event || ''
+  const action = route.action || ''
+
+  // Label-based overrides (highest priority)
+  if (label === 'ai:solve') return { text: '自动开发，写代码并提 PR', type: 'warning', icon: '🛠️' }
+  if (label === 'ai:fix') return { text: '自动修复 Bug 并提 PR', type: 'danger', icon: '🔧' }
+  if (label === 'ai:analyze') return { text: '分析 Issue，输出需求报告', type: 'primary', icon: '📋' }
+  if (label === 'ai:review') return { text: '审查 PR 代码，输出审查报告', type: 'primary', icon: '🔍' }
+
+  // Event-based
+  if (event === 'pull_request') return { text: '审查 PR，输出审查报告', type: 'primary', icon: '🔍' }
+  if (event === 'issue_comment' || event === 'pull_request_comment') return { text: '回复评论', type: 'success', icon: '💬' }
+  if (event === 'issues' && (action === 'assigned' || action === 'labeled')) return { text: '分析 Issue，输出需求报告', type: 'primary', icon: '📋' }
+  if (event === 'issues') return { text: '分析 Issue（默认行为）', type: 'info', icon: '📋' }
+
+  return { text: '分析事件并回复', type: 'info', icon: '🤖' }
+}
 
 const loadAgent = async () => {
   try {

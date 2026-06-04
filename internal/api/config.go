@@ -2,7 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+
+	"gitea-agent-gateway/internal/config"
 )
 
 // --- System Config endpoints ---
@@ -30,6 +33,14 @@ func (h *Handler) updateConfig(w http.ResponseWriter, r *http.Request) {
 	if len(entries) == 0 {
 		writeError(w, 400, "no config entries provided")
 		return
+	}
+
+	// Validate all keys first
+	for key := range entries {
+		if !config.IsConfigKey(key) {
+			writeError(w, 400, fmt.Sprintf("invalid config key: %s", key))
+			return
+		}
 	}
 
 	// Apply all entries

@@ -57,8 +57,12 @@ func (m *ConfigManager) ApplyDBOverrides() error {
 	defer m.mu.Unlock()
 
 	for key, value := range entries {
+		if !IsConfigKey(key) {
+			log.Printf("[WARN] Ignore non-config DB key %q (value: %s). If this is no longer needed, delete it via: DELETE /api/config/%s", key, value, key)
+			continue
+		}
 		if err := applyConfigEntry(m.active, key, value); err != nil {
-			log.Printf("[WARN] Skip invalid DB config %s=%s: %v", key, value, err)
+			log.Printf("[WARN] Skip invalid DB config %s=%s: %v. Fix via: PUT /api/config with correct value, or DELETE /api/config/%s", key, value, err, key)
 		}
 	}
 
@@ -214,6 +218,20 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 		return fmt.Errorf("unknown config key: %s", key)
 	}
 	return nil
+}
+
+// IsConfigKey returns true if the key is a recognized config field (not a data key like prompt.templates).
+func IsConfigKey(key string) bool {
+	switch key {
+	case "gitea.url", "gitea.admin_token", "gitea.webhook_secret",
+		"llm.defaults.provider", "llm.defaults.model", "llm.defaults.max_tokens", "llm.defaults.temperature",
+		"llm.providers",
+		"dispatcher.max_concurrent", "dispatcher.retry_count", "dispatcher.timeout",
+		"agents.defaults.provider", "agents.defaults.model", "agents.defaults.max_tokens", "agents.defaults.temperature":
+		return true
+	default:
+		return false
+	}
 }
 
 // getConfigEntry reads a single config value from a Config struct.

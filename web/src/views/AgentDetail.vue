@@ -148,24 +148,6 @@
           </el-table>
         </el-card>
       </el-tab-pane>
-
-      <!-- Tab 4: 最近任务 -->
-      <el-tab-pane label="最近任务" name="tasks">
-        <el-card>
-          <el-empty v-if="!tasks.length" description="暂无任务记录" />
-          <el-table v-else :data="tasks" style="width: 100%">
-            <el-table-column prop="id" label="ID" width="60" />
-            <el-table-column prop="task_type" label="类型" width="120" />
-            <el-table-column prop="repo" label="仓库" />
-            <el-table-column prop="status" label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="statusType(row.status)" size="small">{{ row.status }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="created_at" label="创建时间" width="180" />
-          </el-table>
-        </el-card>
-      </el-tab-pane>
     </el-tabs>
 
     <!-- 添加规则对话框 -->
@@ -243,7 +225,6 @@ const activeTab = ref('info')
 const agent = ref(null)
 const routes = ref([])
 const prompts = ref([])
-const tasks = ref([])
 const saving = ref(false)
 const showAddRoute = ref(false)
 const showPromptDetail = ref(false)
@@ -280,11 +261,6 @@ const defaultForm = {
 
 const form = ref({ ...defaultForm, loop_config: { ...defaultLoopConfig } })
 
-const statusType = (status) => {
-  const types = { pending: 'warning', running: 'primary', success: 'success', failed: 'danger' }
-  return types[status] || 'info'
-}
-
 const loadAgent = async () => {
   try {
     const data = await api.get(`/agents/${agentId.value}`)
@@ -315,15 +291,6 @@ const loadPrompts = async () => {
     prompts.value = Array.isArray(data) ? data : []
   } catch {
     prompts.value = []
-  }
-}
-
-const loadTasks = async () => {
-  try {
-    const data = await api.get(`/agents/${agentId.value}/tasks`)
-    tasks.value = Array.isArray(data) ? data : []
-  } catch {
-    tasks.value = []
   }
 }
 
@@ -413,7 +380,6 @@ const deletePrompt = async (prompt) => {
 watch(activeTab, (tab) => {
   if (tab === 'routes') loadRoutes()
   else if (tab === 'prompts') loadPrompts()
-  else if (tab === 'tasks') loadTasks()
 })
 
 onMounted(loadAgent)

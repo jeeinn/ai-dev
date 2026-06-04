@@ -35,7 +35,7 @@
     </el-card>
 
     <!-- Create/Edit Dialog -->
-    <el-dialog v-model="showCreateDialog" :title="editingUser ? '编辑用户' : '创建用户'" width="500px">
+    <el-dialog v-model="showCreateDialog" :title="editingUser ? '编辑用户' : '创建用户'" width="500px" :close-on-click-modal="false">
       <el-form :model="form" label-width="100px">
         <el-form-item label="用户名">
           <el-input v-model="form.username" :disabled="!!editingUser" />

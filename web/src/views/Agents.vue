@@ -43,79 +43,76 @@
     </el-card>
 
     <!-- Create/Edit Dialog -->
-    <el-dialog v-model="showCreateDialog" :title="editingAgent ? '编辑 Agent' : '创建 Agent'" width="700px" top="5vh">
+    <el-dialog v-model="showCreateDialog" :title="editingAgent ? '编辑 Agent' : '创建 Agent'" width="700px" top="5vh"
+      :close-on-click-modal="false" :close-on-press-escape="false">
       <el-form :model="form" label-width="120px">
         <!-- 基本信息 -->
-        <el-divider content-position="left">基本信息</el-divider>
         <el-form-item label="名称">
           <el-input v-model="form.name" placeholder="如 code-reviewer" />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="form.status">
-            <el-option label="活跃" value="active" />
-            <el-option label="禁用" value="inactive" />
-          </el-select>
-        </el-form-item>
-
-        <!-- Gitea 配置 -->
-        <el-divider content-position="left">Gitea 配置</el-divider>
         <el-form-item label="Gitea 用户名">
           <el-input v-model="form.gitea_username" :disabled="!!editingAgent" placeholder="自动创建 Gitea 账号" />
-          <div v-if="editingAgent" class="form-tip">Gitea 用户名创建后不可修改</div>
-          <div v-else class="form-tip">系统将自动在 Gitea 创建此用户并生成 Token</div>
+          <div v-if="editingAgent" class="form-tip">创建后不可修改</div>
         </el-form-item>
-
-        <!-- LLM 配置 -->
-        <el-divider content-position="left">LLM 配置</el-divider>
         <el-form-item label="Provider">
-          <el-select v-model="form.provider" style="width: 100%">
-            <el-option label="DeepSeek" value="deepseek" />
-            <el-option label="OpenAI" value="openai" />
-            <el-option label="Anthropic (Claude)" value="anthropic" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="模型">
-          <el-input v-model="form.model" placeholder="deepseek-chat" />
-        </el-form-item>
-        <el-form-item label="Max Tokens">
-          <el-input-number v-model="form.max_tokens" :min="256" :max="128000" :step="512" />
-        </el-form-item>
-        <el-form-item label="Temperature">
-          <el-slider v-model="form.temperature" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
+          <el-col :span="11">
+            <el-select v-model="form.provider" placeholder="选择 Provider" style="width: 100%">
+              <el-option v-for="(_, name) in providers" :key="name" :label="name" :value="name" />
+            </el-select>
+          </el-col>
+          <el-col :span="2" style="text-align: center; line-height: 32px">:</el-col>
+          <el-col :span="11">
+            <el-input v-model="form.model" placeholder="模型名称" />
+          </el-col>
         </el-form-item>
 
-        <!-- Agent Loop 配置 -->
-        <el-divider content-position="left">Agent Loop 配置</el-divider>
-        <el-form-item label="最大迭代轮数">
-          <el-input-number v-model="form.loop_config.max_iterations" :min="1" :max="100" :step="1" />
-          <div class="form-tip">Agent 最大对话轮数 (默认 20)</div>
-        </el-form-item>
-        <el-form-item label="最大 Tokens">
-          <el-input-number v-model="form.loop_config.max_tokens" :min="1024" :max="32768" :step="1024" />
-          <div class="form-tip">单次 LLM 调用最大 Tokens (默认 4096)</div>
-        </el-form-item>
-        <el-form-item label="单轮超时">
-          <el-input v-model="form.loop_config.timeout" placeholder="5m" />
-          <div class="form-tip">单轮 LLM 调用超时 (默认 5m)</div>
-        </el-form-item>
-        <el-form-item label="总超时">
-          <el-input v-model="form.loop_config.total_timeout" placeholder="30m" />
-          <div class="form-tip">整个任务超时 (默认 30m)</div>
-        </el-form-item>
-
-        <!-- Prompt 配置 -->
-        <el-divider content-position="left">Prompt 配置</el-divider>
+        <!-- Prompt -->
         <el-form-item label="从模板导入">
-          <el-select v-model="selectedTemplate" placeholder="选择内置模板" @change="applyTemplate" clearable style="width: 100%">
+          <el-select v-model="selectedTemplate" placeholder="选择内置模板快速填充" @change="applyTemplate" clearable style="width: 100%">
             <el-option v-for="tmpl in builtinTemplates" :key="tmpl.name" :label="tmpl.name" :value="tmpl.name" />
           </el-select>
         </el-form-item>
         <el-form-item label="System Prompt">
-          <el-input v-model="form.system_prompt" type="textarea" :rows="6" placeholder="Agent 的系统提示词" />
+          <el-input v-model="form.system_prompt" type="textarea" :rows="5" placeholder="Agent 的系统提示词" />
         </el-form-item>
-        <el-form-item label="User Template">
-          <el-input v-model="form.user_template" type="textarea" :rows="4" placeholder="用户消息模板（可选，支持 Go template 语法）" />
-        </el-form-item>
+
+        <!-- 折叠：高级配置 -->
+        <el-collapse v-model="advancedOpen">
+          <el-collapse-item title="高级配置" name="advanced">
+            <el-form-item label="状态">
+              <el-select v-model="form.status">
+                <el-option label="活跃" value="active" />
+                <el-option label="禁用" value="inactive" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Max Tokens">
+              <el-input-number v-model="form.max_tokens" :min="256" :max="128000" :step="512" />
+            </el-form-item>
+            <el-form-item label="Temperature">
+              <el-slider v-model="form.temperature" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="User Template">
+              <el-input v-model="form.user_template" type="textarea" :rows="3" placeholder="用户消息模板（可选）" />
+            </el-form-item>
+          </el-collapse-item>
+
+          <el-collapse-item title="Agent Loop 配置" name="loop">
+            <el-form-item label="最大迭代轮数">
+              <el-input-number v-model="form.loop_config.max_iterations" :min="1" :max="100" :step="1" />
+              <span class="form-tip" style="margin-left: 12px">默认 20</span>
+            </el-form-item>
+            <el-form-item label="最大 Tokens">
+              <el-input-number v-model="form.loop_config.max_tokens" :min="1024" :max="32768" :step="1024" />
+              <span class="form-tip" style="margin-left: 12px">默认 4096</span>
+            </el-form-item>
+            <el-form-item label="单轮超时">
+              <el-input v-model="form.loop_config.timeout" placeholder="5m" style="width: 200px" />
+            </el-form-item>
+            <el-form-item label="总超时">
+              <el-input v-model="form.loop_config.total_timeout" placeholder="30m" style="width: 200px" />
+            </el-form-item>
+          </el-collapse-item>
+        </el-collapse>
       </el-form>
       <template #footer>
         <el-button @click="closeDialog">取消</el-button>
@@ -139,6 +136,8 @@ const showCreateDialog = ref(false)
 const editingAgent = ref(null)
 const builtinTemplates = ref([])
 const selectedTemplate = ref('')
+const advancedOpen = ref([])
+const providers = ref({})
 
 const defaultForm = {
   name: '',
@@ -186,6 +185,17 @@ const loadTemplates = async () => {
     }
   } catch {
     builtinTemplates.value = []
+  }
+}
+
+const loadProviders = async () => {
+  try {
+    const data = await api.get('/config')
+    if (data && data['llm.providers']) {
+      providers.value = data['llm.providers']
+    }
+  } catch {
+    providers.value = {}
   }
 }
 
@@ -254,6 +264,7 @@ const deleteAgent = async (agent) => {
 onMounted(() => {
   loadAgents()
   loadTemplates()
+  loadProviders()
 })
 </script>
 

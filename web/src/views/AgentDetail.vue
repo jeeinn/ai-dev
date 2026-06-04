@@ -167,7 +167,7 @@
     </el-tabs>
 
     <!-- 添加规则对话框 -->
-    <el-dialog v-model="showAddRoute" title="添加触发规则" width="500px">
+    <el-dialog v-model="showAddRoute" title="添加触发规则" width="500px" :close-on-click-modal="false">
       <el-form :model="routeForm" label-width="100px">
         <el-form-item label="事件类型">
           <el-select v-model="routeForm.event" style="width: 100%">

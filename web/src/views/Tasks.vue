@@ -35,7 +35,7 @@
     </el-card>
 
     <!-- Task Detail Dialog -->
-    <el-dialog v-model="showDetail" title="任务详情" width="700px">
+    <el-dialog v-model="showDetail" title="任务详情" width="700px" :close-on-click-modal="false">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="ID">{{ selectedTask?.id }}</el-descriptions-item>
         <el-descriptions-item label="类型">{{ selectedTask?.task_type }}</el-descriptions-item>

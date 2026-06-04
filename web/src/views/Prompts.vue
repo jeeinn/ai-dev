@@ -50,7 +50,7 @@
     </el-card>
 
     <!-- 查看模板对话框 -->
-    <el-dialog v-model="viewDialogVisible" :title="'模板详情：' + (viewingTemplate?.name || '')" width="700px">
+    <el-dialog v-model="viewDialogVisible" :title="'模板详情：' + (viewingTemplate?.name || '')" width="700px" :close-on-click-modal="false">
       <el-descriptions :column="1" border>
         <el-descriptions-item label="名称">{{ viewingTemplate?.name }}</el-descriptions-item>
       </el-descriptions>

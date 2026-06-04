@@ -32,8 +32,9 @@
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">{{ row.status === 'active' ? '活跃' : '禁用' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="250">
           <template #default="{ row }">
+            <el-button size="small" type="primary" link @click="router.push(`/agents/${row.id}`)">详情</el-button>
             <el-button size="small" @click="editAgent(row)">编辑</el-button>
             <el-button size="small" type="danger" @click="deleteAgent(row)">删除</el-button>
           </template>

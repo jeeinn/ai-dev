@@ -8,7 +8,7 @@
       </template>
     </el-page-header>
 
-    <el-tabs v-model="activeTab" style="margin-top: 20px">
+    <el-tabs v-if="agent" v-model="activeTab" style="margin-top: 20px">
       <!-- Tab 1: 基本信息 -->
       <el-tab-pane label="基本信息" name="info">
         <el-card>
@@ -220,7 +220,6 @@ const agentId = ref(route.params.id)
 
 const activeTab = ref('info')
 const agent = ref(null)
-const form = ref({})
 const routes = ref([])
 const prompts = ref([])
 const tasks = ref([])
@@ -243,29 +242,66 @@ const defaultLoopConfig = {
   total_timeout: '30m'
 }
 
+const defaultForm = {
+  name: '',
+  gitea_username: '',
+  provider: 'deepseek',
+  model: 'deepseek-chat',
+  max_tokens: 4096,
+  temperature: 0.3,
+  system_prompt: '',
+  user_template: '',
+  status: 'active',
+  loop_config: { ...defaultLoopConfig }
+}
+
+const form = ref({ ...defaultForm, loop_config: { ...defaultLoopConfig } })
+
 const statusType = (status) => {
   const types = { pending: 'warning', running: 'primary', success: 'success', failed: 'danger' }
   return types[status] || 'info'
 }
 
 const loadAgent = async () => {
-  agent.value = await api.get(`/agents/${agentId.value}`)
-  form.value = {
-    ...agent.value,
-    loop_config: { ...defaultLoopConfig, ...(agent.value.loop_config || {}) }
+  try {
+    const data = await api.get(`/agents/${agentId.value}`)
+    agent.value = data
+    form.value = {
+      ...defaultForm,
+      ...data,
+      loop_config: { ...defaultLoopConfig, ...(data.loop_config || {}) }
+    }
+  } catch (error) {
+    ElMessage.error('加载 Agent 信息失败')
+    router.push('/agents')
   }
 }
 
 const loadRoutes = async () => {
-  routes.value = await api.get(`/agents/${agentId.value}/routes`) || []
+  try {
+    const data = await api.get(`/agents/${agentId.value}/routes`)
+    routes.value = Array.isArray(data) ? data : []
+  } catch {
+    routes.value = []
+  }
 }
 
 const loadPrompts = async () => {
-  prompts.value = await api.get(`/agents/${agentId.value}/prompts`) || []
+  try {
+    const data = await api.get(`/agents/${agentId.value}/prompts`)
+    prompts.value = Array.isArray(data) ? data : []
+  } catch {
+    prompts.value = []
+  }
 }
 
 const loadTasks = async () => {
-  tasks.value = await api.get(`/agents/${agentId.value}/tasks`) || []
+  try {
+    const data = await api.get(`/agents/${agentId.value}/tasks`)
+    tasks.value = Array.isArray(data) ? data : []
+  } catch {
+    tasks.value = []
+  }
 }
 
 const saveAgent = async () => {

@@ -52,6 +52,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/config", h.jwtWrap(h.updateConfig))
 	mux.HandleFunc("DELETE /api/config/{key}", h.jwtWrap(h.deleteConfigEntry))
 
+	// Prompt template endpoints
+	mux.HandleFunc("GET /api/prompt-templates", h.auth.Wrap(h.listPromptTemplates))
+	mux.HandleFunc("PUT /api/prompt-templates", h.jwtWrap(h.updatePromptTemplates))
+	mux.HandleFunc("DELETE /api/prompt-templates/{name}", h.jwtWrap(h.deletePromptTemplate))
+
 	// Agent endpoints
 	mux.HandleFunc("GET /api/agents", h.auth.Wrap(h.listAgents))
 	mux.HandleFunc("POST /api/agents", h.auth.Wrap(h.createAgent))

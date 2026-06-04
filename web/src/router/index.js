@@ -35,11 +35,6 @@ const routes = [
         component: () => import('../views/Tasks.vue')
       },
       {
-        path: 'prompts',
-        name: 'Prompts',
-        component: () => import('../views/Prompts.vue')
-      },
-      {
         path: 'users',
         name: 'Users',
         component: () => import('../views/Users.vue'),

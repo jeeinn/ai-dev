@@ -99,21 +99,85 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
+
+        <!-- Tab 5: Prompt 模板 -->
+        <el-tab-pane label="Prompt 模板" name="prompts">
+          <el-alert title="管理内置 Prompt 模板。自定义模板优先级高于内置模板（DB > 内置）。" type="info" :closable="false" style="margin-bottom: 16px" />
+          <div style="margin-bottom: 12px">
+            <el-button type="primary" size="small" @click="showAddTemplate = true">
+              <el-icon><Plus /></el-icon> 新增模板
+            </el-button>
+          </div>
+          <el-table :data="templateList" style="width: 100%">
+            <el-table-column prop="name" label="名称" width="160" />
+            <el-table-column prop="source" label="来源" width="100">
+              <template #default="{ row }">
+                <el-tag :type="row.source === 'custom' ? 'success' : 'info'" size="small">
+                  {{ row.source === 'custom' ? '自定义' : row.source === 'config' ? '配置文件' : '内置' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="system_prompt" label="System Prompt">
+              <template #default="{ row }">
+                <span class="prompt-preview">{{ row.system_prompt?.substring(0, 80) }}...</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="150">
+              <template #default="{ row }">
+                <el-button size="small" type="primary" link @click="viewTemplate(row)">查看</el-button>
+                <el-button v-if="row.source === 'custom'" size="small" type="danger" link @click="deleteTemplate(row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
+
+    <!-- 查看模板对话框 -->
+    <el-dialog v-model="showViewTemplate" :title="'模板详情：' + (viewingTemplate?.name || '')" width="700px" :close-on-click-modal="false">
+      <h4>System Prompt</h4>
+      <el-input :model-value="viewingTemplate?.system_prompt" type="textarea" :rows="8" readonly />
+      <h4 style="margin-top: 16px">User Template</h4>
+      <el-input :model-value="viewingTemplate?.user_template" type="textarea" :rows="4" readonly />
+    </el-dialog>
+
+    <!-- 新增模板对话框 -->
+    <el-dialog v-model="showAddTemplate" title="新增 Prompt 模板" width="700px" :close-on-click-modal="false">
+      <el-form :model="newTemplate" label-width="120px">
+        <el-form-item label="模板名称">
+          <el-input v-model="newTemplate.name" placeholder="如 my_review" />
+          <div class="form-tip">唯一标识，创建后不可修改</div>
+        </el-form-item>
+        <el-form-item label="System Prompt">
+          <el-input v-model="newTemplate.system_prompt" type="textarea" :rows="8" placeholder="Agent 的系统提示词" />
+        </el-form-item>
+        <el-form-item label="User Template">
+          <el-input v-model="newTemplate.user_template" type="textarea" :rows="4" placeholder="用户消息模板（支持 Go template 语法）" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showAddTemplate = false">取消</el-button>
+        <el-button type="primary" @click="addTemplate">创建</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import api from '../api'
-import { Check } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Check, Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const activeTab = ref('gitea')
 const form = ref({})
 const saving = ref(false)
 const providersJson = ref('')
+const templateList = ref([])
+const showViewTemplate = ref(false)
+const viewingTemplate = ref(null)
+const showAddTemplate = ref(false)
+const newTemplate = ref({ name: '', system_prompt: '', user_template: '' })
 
 const providers = computed(() => {
   try {
@@ -126,9 +190,58 @@ const providers = computed(() => {
 const loadConfig = async () => {
   const data = await api.get('/config')
   form.value = data
-  // Serialize providers to JSON string for editing
   if (data['llm.providers']) {
     providersJson.value = JSON.stringify(data['llm.providers'], null, 2)
+  }
+}
+
+const loadTemplates = async () => {
+  try {
+    const data = await api.get('/prompt-templates')
+    templateList.value = Object.entries(data).map(([key, val]) => ({
+      name: key,
+      ...val
+    }))
+  } catch {
+    templateList.value = []
+  }
+}
+
+const viewTemplate = (row) => {
+  viewingTemplate.value = row
+  showViewTemplate.value = true
+}
+
+const addTemplate = async () => {
+  if (!newTemplate.value.name || !newTemplate.value.system_prompt) {
+    ElMessage.warning('请填写模板名称和 System Prompt')
+    return
+  }
+  try {
+    const payload = {}
+    payload[newTemplate.value.name] = {
+      name: newTemplate.value.name,
+      system_prompt: newTemplate.value.system_prompt,
+      user_template: newTemplate.value.user_template || ''
+    }
+    await api.put('/prompt-templates', payload)
+    ElMessage.success('模板创建成功')
+    showAddTemplate.value = false
+    newTemplate.value = { name: '', system_prompt: '', user_template: '' }
+    await loadTemplates()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '创建失败')
+  }
+}
+
+const deleteTemplate = async (row) => {
+  try {
+    await ElMessageBox.confirm(`确定删除模板"${row.name}"？`, '确认')
+    await api.delete(`/prompt-templates/${row.name}`)
+    ElMessage.success('删除成功')
+    await loadTemplates()
+  } catch (error) {
+    if (error !== 'cancel') ElMessage.error('删除失败')
   }
 }
 
@@ -164,7 +277,10 @@ const saveAll = async () => {
   }
 }
 
-onMounted(loadConfig)
+onMounted(() => {
+  loadConfig()
+  loadTemplates()
+})
 </script>
 
 <style scoped>
@@ -182,5 +298,14 @@ onMounted(loadConfig)
   font-size: 12px;
   color: #909399;
   margin-top: 4px;
+}
+
+.prompt-preview {
+  max-width: 400px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  color: #606266;
 }
 </style>

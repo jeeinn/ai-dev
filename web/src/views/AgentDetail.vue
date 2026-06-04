@@ -137,8 +137,9 @@
               </template>
             </el-table-column>
             <el-table-column prop="created_at" label="创建时间" width="180" />
-            <el-table-column label="操作" width="150">
+            <el-table-column label="操作" width="180">
               <template #default="{ row }">
+                <el-button size="small" type="primary" link @click="viewPromptDetail(row)">详情</el-button>
                 <el-button v-if="!row.is_active" size="small" @click="rollbackPrompt(row)">回滚</el-button>
                 <el-button size="small" type="danger" @click="deletePrompt(row)">删除</el-button>
               </template>
@@ -204,6 +205,22 @@
         <el-button type="primary" @click="addRoute">添加</el-button>
       </template>
     </el-dialog>
+
+    <!-- Prompt 详情对话框 -->
+    <el-dialog v-model="showPromptDetail" title="Prompt 版本详情" width="700px" :close-on-click-modal="false">
+      <el-descriptions :column="2" border style="margin-bottom: 16px">
+        <el-descriptions-item label="版本">{{ viewingPrompt?.version }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="viewingPrompt?.is_active ? 'success' : 'info'" size="small">{{ viewingPrompt?.is_active ? '活跃' : '历史' }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="备注">{{ viewingPrompt?.note || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ viewingPrompt?.created_at }}</el-descriptions-item>
+      </el-descriptions>
+      <h4>System Prompt</h4>
+      <el-input :model-value="viewingPrompt?.system_prompt" type="textarea" :rows="8" readonly />
+      <h4 style="margin-top: 16px">User Template</h4>
+      <el-input :model-value="viewingPrompt?.user_template" type="textarea" :rows="4" readonly />
+    </el-dialog>
   </div>
 </template>
 
@@ -225,6 +242,8 @@ const prompts = ref([])
 const tasks = ref([])
 const saving = ref(false)
 const showAddRoute = ref(false)
+const showPromptDetail = ref(false)
+const viewingPrompt = ref(null)
 
 const routeForm = ref({
   event: 'issues',
@@ -359,6 +378,11 @@ const deleteRoute = async (r) => {
   } catch (error) {
     if (error !== 'cancel') ElMessage.error('删除失败')
   }
+}
+
+const viewPromptDetail = (prompt) => {
+  viewingPrompt.value = prompt
+  showPromptDetail.value = true
 }
 
 const rollbackPrompt = async (prompt) => {

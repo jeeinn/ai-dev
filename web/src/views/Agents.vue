@@ -93,6 +93,7 @@
             </el-form-item>
             <el-form-item label="User Template">
               <el-input v-model="form.user_template" type="textarea" :rows="3" placeholder="用户消息模板（可选）" />
+              <el-button type="primary" link size="small" style="margin-top: 4px" @click="$refs.templateHelp.show()">查看模板变量说明</el-button>
             </el-form-item>
           </el-collapse-item>
 
@@ -119,6 +120,7 @@
         <el-button type="primary" @click="saveAgent">保存</el-button>
       </template>
     </el-dialog>
+    <TemplateHelp ref="templateHelp" />
   </div>
 </template>
 
@@ -128,6 +130,7 @@ import { useRouter } from 'vue-router'
 import api from '../api'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import TemplateHelp from '../components/TemplateHelp.vue'
 
 const router = useRouter()
 const agents = ref([])

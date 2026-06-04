@@ -1,0 +1,170 @@
+<template>
+  <div class="system-config-page">
+    <el-card>
+      <template #header>
+        <div class="card-header">
+          <span>系统配置</span>
+          <el-button type="primary" :loading="saving" @click="saveAll">
+            <el-icon><Check /></el-icon>
+            保存全部
+          </el-button>
+        </div>
+      </template>
+
+      <!-- Gitea 连接 -->
+      <el-divider content-position="left">Gitea 连接</el-divider>
+      <el-form label-width="160px" class="config-form">
+        <el-form-item label="Gitea 地址">
+          <el-input v-model="form['gitea.url']" placeholder="http://localhost:3000" />
+        </el-form-item>
+        <el-form-item label="管理员 Token">
+          <el-input v-model="form['gitea.admin_token']" type="password" show-password placeholder="Gitea 管理员 Token" />
+        </el-form-item>
+        <el-form-item label="Webhook 密钥">
+          <el-input v-model="form['gitea.webhook_secret']" type="password" show-password placeholder="Webhook 签名密钥" />
+        </el-form-item>
+      </el-form>
+
+      <!-- LLM 配置 -->
+      <el-divider content-position="left">LLM 配置</el-divider>
+      <el-form label-width="160px" class="config-form">
+        <el-form-item label="默认 Provider">
+          <el-select v-model="form['llm.defaults.provider']" style="width: 100%">
+            <el-option v-for="(_, name) in providers" :key="name" :label="name" :value="name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="默认模型">
+          <el-input v-model="form['llm.defaults.model']" placeholder="deepseek-chat" />
+        </el-form-item>
+        <el-form-item label="最大 Token">
+          <el-input-number v-model.number="form['llm.defaults.max_tokens']" :min="256" :max="128000" :step="512" />
+        </el-form-item>
+        <el-form-item label="Temperature">
+          <el-slider v-model.number="form['llm.defaults.temperature']" :min="0" :max="2" :step="0.1" show-input />
+        </el-form-item>
+        <el-form-item label="Provider 配置">
+          <el-input
+            v-model="providersJson"
+            type="textarea"
+            :rows="6"
+            placeholder='{"deepseek":{"base_url":"https://api.deepseek.com/v1","api_key":"sk-xxx"}}'
+          />
+          <div class="form-tip">JSON 格式，修改后需点击保存</div>
+        </el-form-item>
+      </el-form>
+
+      <!-- Dispatcher 配置 -->
+      <el-divider content-position="left">任务调度</el-divider>
+      <el-form label-width="160px" class="config-form">
+        <el-form-item label="最大并发数">
+          <el-input-number v-model.number="form['dispatcher.max_concurrent']" :min="1" :max="20" />
+        </el-form-item>
+        <el-form-item label="失败重试次数">
+          <el-input-number v-model.number="form['dispatcher.retry_count']" :min="0" :max="5" />
+        </el-form-item>
+        <el-form-item label="任务超时（秒）">
+          <el-input-number v-model.number="form['dispatcher.timeout']" :min="30" :max="3600" :step="30" />
+        </el-form-item>
+      </el-form>
+
+      <!-- Agent 默认值 -->
+      <el-divider content-position="left">Agent 默认参数</el-divider>
+      <el-form label-width="160px" class="config-form">
+        <el-form-item label="默认 Provider">
+          <el-select v-model="form['agents.defaults.provider']" style="width: 100%">
+            <el-option v-for="(_, name) in providers" :key="name" :label="name" :value="name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="默认模型">
+          <el-input v-model="form['agents.defaults.model']" placeholder="deepseek-chat" />
+        </el-form-item>
+        <el-form-item label="最大 Token">
+          <el-input-number v-model.number="form['agents.defaults.max_tokens']" :min="256" :max="128000" :step="512" />
+        </el-form-item>
+        <el-form-item label="Temperature">
+          <el-slider v-model.number="form['agents.defaults.temperature']" :min="0" :max="2" :step="0.1" show-input />
+        </el-form-item>
+      </el-form>
+    </el-card>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, computed } from 'vue'
+import api from '../api'
+import { Check } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+
+const form = ref({})
+const saving = ref(false)
+const providersJson = ref('')
+
+const providers = computed(() => {
+  try {
+    return JSON.parse(providersJson.value)
+  } catch {
+    return {}
+  }
+})
+
+const loadConfig = async () => {
+  const data = await api.get('/config')
+  form.value = data
+  // Serialize providers to JSON string for editing
+  if (data['llm.providers']) {
+    providersJson.value = JSON.stringify(data['llm.providers'], null, 2)
+  }
+}
+
+const saveAll = async () => {
+  saving.value = true
+  try {
+    // Parse providers JSON
+    let providersData
+    try {
+      providersData = JSON.parse(providersJson.value)
+    } catch {
+      ElMessage.error('Provider 配置 JSON 格式错误')
+      saving.value = false
+      return
+    }
+
+    // Build entries to save
+    const entries = {}
+    for (const [key, value] of Object.entries(form.value)) {
+      if (key === 'llm.providers') continue // handle separately
+      if (value !== null && value !== undefined && value !== '') {
+        entries[key] = String(value)
+      }
+    }
+    entries['llm.providers'] = JSON.stringify(providersData)
+
+    await api.put('/config', entries)
+    ElMessage.success('配置已保存')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(loadConfig)
+</script>
+
+<style scoped>
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.config-form {
+  max-width: 700px;
+}
+
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+</style>

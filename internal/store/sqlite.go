@@ -138,6 +138,11 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_tasks_delivery_id ON tasks(delivery_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_operation_logs_agent_id ON operation_logs(agent_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
+		`CREATE TABLE IF NOT EXISTS system_config (
+			key         TEXT PRIMARY KEY,
+			value       TEXT NOT NULL,
+			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, m := range migrations {

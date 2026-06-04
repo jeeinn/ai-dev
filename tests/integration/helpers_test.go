@@ -85,7 +85,7 @@ func NewTestEnv(t *testing.T) *TestEnv {
 
 	// Create API handler
 	manager := agents.NewManager(db, &cfg.Gitea)
-	apiHandler := api.NewHandler(db, manager, cfg, nil)
+	apiHandler := api.NewHandler(db, manager, cfg, nil, nil, nil)
 
 	// Create mux
 	mux := http.NewServeMux()

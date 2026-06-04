@@ -45,3 +45,16 @@ func (r *Registry) Register(name string, provider Provider) {
 	}
 	r.providers[name] = provider
 }
+
+// Reload rebuilds the registry from updated config.
+func (r *Registry) Reload(cfg *config.LLMConfig) {
+	newProviders := make(map[string]Provider)
+	for name, pcfg := range cfg.Providers {
+		if strings.EqualFold(name, "claude") || strings.EqualFold(name, "anthropic") {
+			newProviders[name] = NewAnthropicProvider(pcfg.APIKey)
+		} else {
+			newProviders[name] = NewOpenAICompatibleProvider(pcfg.BaseURL, pcfg.APIKey)
+		}
+	}
+	r.providers = newProviders
+}

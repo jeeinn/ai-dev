@@ -15,23 +15,27 @@ import (
 
 // Handler serves the management API.
 type Handler struct {
-	db         *store.DB
-	manager    *agents.Manager
-	prompt     *agents.PromptManager
-	auth       *AuthMiddleware
-	jwtManager *auth.JWTManager
-	cfg        *config.Config
+	db            *store.DB
+	manager       *agents.Manager
+	prompt        *agents.PromptManager
+	auth          *AuthMiddleware
+	jwtManager    *auth.JWTManager
+	cfg           *config.Config
+	cfgManager    *config.ConfigManager
+	onConfigChange func(cfg *config.Config)
 }
 
 // NewHandler creates a new API handler.
-func NewHandler(db *store.DB, manager *agents.Manager, cfg *config.Config, jwtManager *auth.JWTManager) *Handler {
+func NewHandler(db *store.DB, manager *agents.Manager, cfg *config.Config, jwtManager *auth.JWTManager, cfgManager *config.ConfigManager, onConfigChange func(cfg *config.Config)) *Handler {
 	return &Handler{
-		db:         db,
-		manager:    manager,
-		prompt:     agents.NewPromptManager(db, &cfg.Agents),
-		auth:       NewAuthMiddleware(cfg.API.AuthToken),
-		jwtManager: jwtManager,
-		cfg:        cfg,
+		db:            db,
+		manager:       manager,
+		prompt:        agents.NewPromptManager(db, &cfg.Agents),
+		auth:          NewAuthMiddleware(cfg.API.AuthToken),
+		jwtManager:    jwtManager,
+		cfg:           cfg,
+		cfgManager:    cfgManager,
+		onConfigChange: onConfigChange,
 	}
 }
 
@@ -42,6 +46,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/users", h.jwtWrap(h.createUser))
 	mux.HandleFunc("PUT /api/users/{id}", h.jwtWrap(h.updateUser))
 	mux.HandleFunc("DELETE /api/users/{id}", h.jwtWrap(h.deleteUser))
+
+	// System config endpoints
+	mux.HandleFunc("GET /api/config", h.jwtWrap(h.getConfig))
+	mux.HandleFunc("PUT /api/config", h.jwtWrap(h.updateConfig))
+	mux.HandleFunc("DELETE /api/config/{key}", h.jwtWrap(h.deleteConfigEntry))
 
 	// Agent endpoints
 	mux.HandleFunc("GET /api/agents", h.auth.Wrap(h.listAgents))
@@ -328,6 +337,11 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "agent not found")
 		return
 	}
+
+	// Save old prompt for comparison
+	oldSysPrompt := agent.SystemPrompt
+	oldUsrTemplate := agent.UserTemplate
+
 	if err := json.NewDecoder(r.Body).Decode(agent); err != nil {
 		writeError(w, 400, "invalid request body")
 		return
@@ -337,6 +351,17 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+
+	// Auto-create prompt history if prompt changed
+	if agent.SystemPrompt != oldSysPrompt || agent.UserTemplate != oldUsrTemplate {
+		if h.prompt != nil && agent.SystemPrompt != "" {
+			if _, err := h.prompt.SavePrompt(id, agent.SystemPrompt, agent.UserTemplate, "Agent 编辑更新", "ui"); err != nil {
+				// Log but don't fail the request
+				_ = err
+			}
+		}
+	}
+
 	writeJSON(w, 200, agent)
 }
 
@@ -467,11 +492,27 @@ func (h *Handler) getStats(w http.ResponseWriter, r *http.Request) {
 // --- Templates endpoint ---
 
 func (h *Handler) listTemplates(w http.ResponseWriter, r *http.Request) {
-	templates := h.cfg.Agents.Templates
-	if templates == nil {
-		templates = make(map[string]config.AgentTemplateConfig)
+	// Start with built-in templates from PromptManager
+	result := make(map[string]interface{})
+	if h.prompt != nil {
+		for _, name := range h.prompt.GetAvailableTemplates() {
+			sys, usr := h.prompt.GetBuiltinTemplate(name)
+			result[name] = map[string]string{
+				"name":          name,
+				"system_prompt": sys,
+				"user_template": usr,
+			}
+		}
 	}
-	writeJSON(w, 200, templates)
+	// Overlay config templates
+	for name, tmpl := range h.cfg.Agents.Templates {
+		result[name] = map[string]string{
+			"name":          tmpl.Name,
+			"system_prompt": tmpl.SystemPrompt,
+			"user_template": tmpl.UserTemplate,
+		}
+	}
+	writeJSON(w, 200, result)
 }
 
 // --- Prompt endpoints ---

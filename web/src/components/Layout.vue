@@ -15,13 +15,13 @@
           <el-icon><Monitor /></el-icon>
           <span>仪表盘</span>
         </el-menu-item>
-        <el-menu-item index="/agents">
-          <el-icon><User /></el-icon>
-          <span>Agent 管理</span>
-        </el-menu-item>
         <el-menu-item index="/tasks">
           <el-icon><List /></el-icon>
           <span>任务列表</span>
+        </el-menu-item>
+        <el-menu-item index="/agents">
+          <el-icon><User /></el-icon>
+          <span>Agent 管理</span>
         </el-menu-item>
         <el-menu-item index="/prompts">
           <el-icon><Document /></el-icon>
@@ -30,6 +30,10 @@
         <el-menu-item v-if="authStore.isAdmin" index="/users">
           <el-icon><UserFilled /></el-icon>
           <span>用户管理</span>
+        </el-menu-item>
+        <el-menu-item v-if="authStore.isAdmin" index="/config">
+          <el-icon><Tools /></el-icon>
+          <span>系统配置</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -69,7 +73,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { Monitor, User, List, Document, UserFilled } from '@element-plus/icons-vue'
+import { Monitor, User, List, Document, UserFilled, Tools } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

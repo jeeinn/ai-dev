@@ -23,11 +23,12 @@
         </el-tab-pane>
 
         <el-tab-pane label="自定义版本" name="custom">
-          <el-alert title="选择一个 Agent 查看其 Prompt 历史版本" type="info" :closable="false" />
-          <el-select v-model="selectedAgent" placeholder="选择 Agent" @change="loadPrompts">
+          <el-alert title="选择一个 Agent 查看其 Prompt 历史版本。编辑 Agent 时修改 Prompt 会自动创建版本记录。" type="info" :closable="false" style="margin-bottom: 16px" />
+          <el-select v-model="selectedAgent" placeholder="选择 Agent" @change="loadPrompts" style="width: 300px">
             <el-option v-for="agent in agents" :key="agent.id" :label="agent.name" :value="agent.id" />
           </el-select>
 
+          <el-empty v-if="selectedAgent && (!prompts || prompts.length === 0)" description="暂无 Prompt 版本记录" />
           <el-table v-if="prompts && prompts.length" :data="prompts" style="width: 100%; margin-top: 20px">
             <el-table-column prop="version" label="版本" width="80" />
             <el-table-column prop="note" label="备注" />
@@ -47,6 +48,18 @@
         </el-tab-pane>
       </el-tabs>
     </el-card>
+
+    <!-- 查看模板对话框 -->
+    <el-dialog v-model="viewDialogVisible" :title="'模板详情：' + (viewingTemplate?.name || '')" width="700px">
+      <el-descriptions :column="1" border>
+        <el-descriptions-item label="名称">{{ viewingTemplate?.name }}</el-descriptions-item>
+      </el-descriptions>
+      <el-divider />
+      <h4>System Prompt</h4>
+      <el-input :model-value="viewingTemplate?.system_prompt" type="textarea" :rows="8" readonly />
+      <h4 style="margin-top: 16px">User Template</h4>
+      <el-input :model-value="viewingTemplate?.user_template" type="textarea" :rows="4" readonly />
+    </el-dialog>
   </div>
 </template>
 
@@ -60,6 +73,13 @@ const templates = ref([])
 const agents = ref([])
 const prompts = ref([])
 const selectedAgent = ref(null)
+const viewDialogVisible = ref(false)
+const viewingTemplate = ref(null)
+
+const viewTemplate = (row) => {
+  viewingTemplate.value = row
+  viewDialogVisible.value = true
+}
 
 const loadTemplates = async () => {
   try {

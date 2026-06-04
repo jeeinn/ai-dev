@@ -73,16 +73,26 @@ func main() {
 	defer db.Close()
 	log.Printf("[INFO] Database opened: %s", cfg.Database.Path)
 
+	// Initialize config manager (DB overrides on top of file config)
+	cfgManager := config.NewConfigManager(cfg)
+	cfgManager.SetStore(db)
+	if err := cfgManager.ApplyDBOverrides(); err != nil {
+		log.Printf("[WARN] Failed to apply DB config overrides: %v", err)
+	}
+
 	// Ensure workspace directory exists
 	if err := os.MkdirAll(cfg.Workspace.BaseDir, 0755); err != nil {
 		log.Fatalf("[FATAL] Failed to create workspace dir: %v", err)
 	}
 
+	// Get active config (may have DB overrides)
+	activeCfg := cfgManager.Get()
+
 	// Initialize LLM registry
-	llmRegistry := llm.NewRegistry(&cfg.LLM)
+	llmRegistry := llm.NewRegistry(&activeCfg.LLM)
 
 	// Initialize dispatcher (Router + TaskQueue + Executor)
-	d := dispatcher.NewDispatcher(db, &cfg.Gitea, &cfg.Dispatcher, llmRegistry, &cfg.Agents)
+	d := dispatcher.NewDispatcher(db, &activeCfg.Gitea, &activeCfg.Dispatcher, llmRegistry, &activeCfg.Agents)
 
 	// Start dispatcher (loads pending tasks and starts workers)
 	if err := d.Start(); err != nil {
@@ -112,7 +122,7 @@ func main() {
 	})
 
 	// Webhook handler - wired to dispatcher
-	webhookHandler := webhook.NewHandler(&cfg.Gitea, db.DB, d.HandleEvent)
+	webhookHandler := webhook.NewHandler(&activeCfg.Gitea, db.DB, d.HandleEvent)
 	mux.Handle("POST /webhook/gitea", webhookHandler)
 
 	// Serve static files (Web UI)
@@ -146,8 +156,12 @@ func main() {
 	}
 
 	// Management API
-	manager := agents.NewManager(db, &cfg.Gitea)
-	apiHandler := api.NewHandler(db, manager, cfg, jwtManager)
+	manager := agents.NewManager(db, &activeCfg.Gitea)
+	apiHandler := api.NewHandler(db, manager, activeCfg, jwtManager, cfgManager, func(newCfg *config.Config) {
+		// Hot-reload LLM providers when config changes
+		llmRegistry.Reload(&newCfg.LLM)
+		log.Printf("[INFO] LLM registry reloaded")
+	})
 	apiHandler.RegisterRoutes(mux)
 
 	// Auth API

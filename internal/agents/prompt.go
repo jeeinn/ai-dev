@@ -210,3 +210,11 @@ func (pm *PromptManager) GetAvailableTemplates() []string {
 	}
 	return templates
 }
+
+// GetBuiltinTemplate returns a built-in template by name.
+func (pm *PromptManager) GetBuiltinTemplate(name string) (systemPrompt, userTemplate string) {
+	if tmpl, ok := pm.builtin[name]; ok {
+		return tmpl.SystemPrompt, tmpl.UserTemplate
+	}
+	return "", ""
+}

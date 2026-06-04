@@ -58,6 +58,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/agents/{id}", h.auth.Wrap(h.getAgent))
 	mux.HandleFunc("PUT /api/agents/{id}", h.auth.Wrap(h.updateAgent))
 	mux.HandleFunc("DELETE /api/agents/{id}", h.auth.Wrap(h.deleteAgent))
+	mux.HandleFunc("GET /api/agents/{id}/routes", h.auth.Wrap(h.listAgentRoutes))
+	mux.HandleFunc("GET /api/agents/{id}/tasks", h.auth.Wrap(h.listAgentTasks))
 	mux.HandleFunc("GET /api/tasks", h.auth.Wrap(h.listTasks))
 	mux.HandleFunc("GET /api/tasks/{id}", h.auth.Wrap(h.getTask))
 	mux.HandleFunc("GET /api/routes", h.auth.Wrap(h.listRoutes))
@@ -380,6 +382,40 @@ func (h *Handler) deleteAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- Task endpoints ---
+
+func (h *Handler) listAgentRoutes(w http.ResponseWriter, r *http.Request) {
+	agentID, err := parseID(r, "id")
+	if err != nil {
+		writeError(w, 400, "invalid agent id")
+		return
+	}
+	routes, err := h.db.ListRoutesByAgentID(agentID)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, routes)
+}
+
+func (h *Handler) listAgentTasks(w http.ResponseWriter, r *http.Request) {
+	agentID, err := parseID(r, "id")
+	if err != nil {
+		writeError(w, 400, "invalid agent id")
+		return
+	}
+	limit := 20
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	tasks, err := h.db.ListTasksByAgentID(agentID, limit)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, tasks)
+}
 
 func (h *Handler) listTasks(w http.ResponseWriter, r *http.Request) {
 	limit := 50

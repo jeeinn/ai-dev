@@ -25,6 +25,11 @@ const routes = [
         component: () => import('../views/Agents.vue')
       },
       {
+        path: 'agents/:id',
+        name: 'AgentDetail',
+        component: () => import('../views/AgentDetail.vue')
+      },
+      {
         path: 'tasks',
         name: 'Tasks',
         component: () => import('../views/Tasks.vue')

@@ -51,6 +51,26 @@ func (db *DB) ListRoutes() ([]*Route, error) {
 	return routes, nil
 }
 
+// ListRoutesByAgentID returns all routes for a specific agent.
+func (db *DB) ListRoutesByAgentID(agentID int64) ([]*Route, error) {
+	rows, err := db.Query(`SELECT id, event, action, label, assignee, mention, agent_id, priority, created_at
+		FROM routes WHERE agent_id = ? ORDER BY priority DESC, id`, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("list routes by agent: %w", err)
+	}
+	defer rows.Close()
+
+	var routes []*Route
+	for rows.Next() {
+		var r Route
+		if err := rows.Scan(&r.ID, &r.Event, &r.Action, &r.Label, &r.Assignee, &r.Mention, &r.AgentID, &r.Priority, &r.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan route: %w", err)
+		}
+		routes = append(routes, &r)
+	}
+	return routes, nil
+}
+
 // UpdateRoute updates an existing route.
 func (db *DB) UpdateRoute(r *Route) error {
 	_, err := db.Exec(`UPDATE routes SET event=?, action=?, label=?, assignee=?, mention=?, agent_id=?, priority=? WHERE id=?`,

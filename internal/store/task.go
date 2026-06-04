@@ -126,6 +126,26 @@ func (db *DB) ListTasks(limit, offset int) ([]*Task, error) {
 	return tasks, nil
 }
 
+// ListTasksByAgentID returns tasks for a specific agent.
+func (db *DB) ListTasksByAgentID(agentID int64, limit int) ([]*Task, error) {
+	rows, err := db.Query(`SELECT id, event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, created_at, started_at, finished_at, result, error
+		FROM tasks WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`, agentID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list tasks by agent: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []*Task
+	for rows.Next() {
+		var t Task
+		if err := rows.Scan(&t.ID, &t.Event, &t.Repo, &t.IssueID, &t.AgentID, &t.TaskType, &t.Context, &t.Status, &t.Priority, &t.DeliveryID, &t.CreatedAt, &t.StartedAt, &t.FinishedAt, &t.Result, &t.Error); err != nil {
+			return nil, fmt.Errorf("scan task: %w", err)
+		}
+		tasks = append(tasks, &t)
+	}
+	return tasks, nil
+}
+
 // ResetStaleRunningTasks resets tasks that have been in "running" state too long.
 // Returns the number of tasks reset.
 func (db *DB) ResetStaleRunningTasks(threshold time.Duration) (int, error) {

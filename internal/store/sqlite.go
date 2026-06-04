@@ -49,6 +49,7 @@ func Open(dbPath string) (*DB, error) {
 
 // migrate creates all required tables.
 func (db *DB) migrate() error {
+	// Step 1: Create tables (IF NOT EXISTS is safe to repeat)
 	migrations := []string{
 		`CREATE TABLE IF NOT EXISTS agents (
 			id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -139,8 +140,13 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
 	}
 
-	// Run additional migrations for schema changes
-	// These are wrapped in a transaction to handle partial failures
+	for _, m := range migrations {
+		if _, err := db.Exec(m); err != nil {
+			return fmt.Errorf("execute migration: %w\nSQL: %s", err, m)
+		}
+	}
+
+	// Step 2: Schema evolution (ALTER TABLE) — runs after tables exist
 	additionalMigrations := []string{
 		`ALTER TABLE prompt_history ADD COLUMN is_active INTEGER DEFAULT 1`,
 		`ALTER TABLE prompt_history ADD COLUMN note TEXT DEFAULT ''`,
@@ -155,12 +161,6 @@ func (db *DB) migrate() error {
 			if !isDuplicateColumnError(err) && !isNoSuchTableError(err) {
 				return fmt.Errorf("execute additional migration: %w\nSQL: %s", err, m)
 			}
-		}
-	}
-
-	for _, m := range migrations {
-		if _, err := db.Exec(m); err != nil {
-			return fmt.Errorf("execute migration: %w\nSQL: %s", err, m)
 		}
 	}
 

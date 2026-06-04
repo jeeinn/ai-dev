@@ -147,7 +147,7 @@ func main() {
 
 	// Management API
 	manager := agents.NewManager(db, &cfg.Gitea)
-	apiHandler := api.NewHandler(db, manager, cfg)
+	apiHandler := api.NewHandler(db, manager, cfg, jwtManager)
 	apiHandler.RegisterRoutes(mux)
 
 	// Auth API

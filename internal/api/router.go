@@ -1,37 +1,49 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"gitea-agent-gateway/internal/agents"
+	"gitea-agent-gateway/internal/auth"
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/store"
 )
 
 // Handler serves the management API.
 type Handler struct {
-	db      *store.DB
-	manager *agents.Manager
-	prompt  *agents.PromptManager
-	auth    *AuthMiddleware
-	cfg     *config.Config
+	db         *store.DB
+	manager    *agents.Manager
+	prompt     *agents.PromptManager
+	auth       *AuthMiddleware
+	jwtManager *auth.JWTManager
+	cfg        *config.Config
 }
 
 // NewHandler creates a new API handler.
-func NewHandler(db *store.DB, manager *agents.Manager, cfg *config.Config) *Handler {
+func NewHandler(db *store.DB, manager *agents.Manager, cfg *config.Config, jwtManager *auth.JWTManager) *Handler {
 	return &Handler{
-		db:      db,
-		manager: manager,
-		prompt:  agents.NewPromptManager(db, &cfg.Agents),
-		auth:    NewAuthMiddleware(cfg.API.AuthToken),
-		cfg:     cfg,
+		db:         db,
+		manager:    manager,
+		prompt:     agents.NewPromptManager(db, &cfg.Agents),
+		auth:       NewAuthMiddleware(cfg.API.AuthToken),
+		jwtManager: jwtManager,
+		cfg:        cfg,
 	}
 }
 
 // RegisterRoutes registers all API routes on the given mux.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	// User management endpoints
+	mux.HandleFunc("GET /api/users", h.jwtWrap(h.listUsers))
+	mux.HandleFunc("POST /api/users", h.jwtWrap(h.createUser))
+	mux.HandleFunc("PUT /api/users/{id}", h.jwtWrap(h.updateUser))
+	mux.HandleFunc("DELETE /api/users/{id}", h.jwtWrap(h.deleteUser))
+
+	// Agent endpoints
 	mux.HandleFunc("GET /api/agents", h.auth.Wrap(h.listAgents))
 	mux.HandleFunc("POST /api/agents", h.auth.Wrap(h.createAgent))
 	mux.HandleFunc("GET /api/agents/{id}", h.auth.Wrap(h.getAgent))
@@ -66,6 +78,167 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 
 func parseID(r *http.Request, name string) (int64, error) {
 	return strconv.ParseInt(r.PathValue(name), 10, 64)
+}
+
+type contextKey string
+
+const claimsKey contextKey = "claims"
+
+// jwtWrap validates JWT token from Authorization header and adds claims to context.
+func (h *Handler) jwtWrap(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if h.jwtManager == nil {
+			writeError(w, 500, "jwt not configured")
+			return
+		}
+
+		token := extractBearerToken(r.Header.Get("Authorization"))
+		if token == "" {
+			writeError(w, 401, "missing or invalid authorization header")
+			return
+		}
+
+		claims, err := h.jwtManager.ValidateToken(token)
+		if err != nil {
+			writeError(w, 401, "invalid token")
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), claimsKey, claims)
+		next(w, r.WithContext(ctx))
+	}
+}
+
+func extractBearerToken(header string) string {
+	const prefix = "Bearer "
+	if len(header) > len(prefix) && strings.EqualFold(header[:len(prefix)], prefix) {
+		return header[len(prefix):]
+	}
+	return ""
+}
+
+// --- User endpoints ---
+
+func (h *Handler) listUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := h.db.ListUsers()
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, users)
+}
+
+func (h *Handler) createUser(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Username    string `json:"username"`
+		Password    string `json:"password"`
+		DisplayName string `json:"display_name"`
+		Email       string `json:"email"`
+		Role        string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, 400, "invalid request body")
+		return
+	}
+	if req.Username == "" || req.Password == "" {
+		writeError(w, 400, "username and password are required")
+		return
+	}
+	if req.Role == "" {
+		req.Role = "user"
+	}
+
+	hash, err := auth.HashPassword(req.Password)
+	if err != nil {
+		writeError(w, 500, "failed to hash password")
+		return
+	}
+
+	user := &store.User{
+		Username:     req.Username,
+		PasswordHash: hash,
+		DisplayName:  req.DisplayName,
+		Email:        req.Email,
+		Role:         req.Role,
+		IsActive:     true,
+	}
+	if err := h.db.CreateUser(user); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 201, user)
+}
+
+func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r, "id")
+	if err != nil {
+		writeError(w, 400, "invalid id")
+		return
+	}
+	user, err := h.db.GetUser(id)
+	if err != nil {
+		writeError(w, 404, "user not found")
+		return
+	}
+
+	var req struct {
+		DisplayName *string `json:"display_name"`
+		Email       *string `json:"email"`
+		Role        *string `json:"role"`
+		IsActive    *bool   `json:"is_active"`
+		Password    *string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, 400, "invalid request body")
+		return
+	}
+	if req.DisplayName != nil {
+		user.DisplayName = *req.DisplayName
+	}
+	if req.Email != nil {
+		user.Email = *req.Email
+	}
+	if req.Role != nil {
+		user.Role = *req.Role
+	}
+	if req.IsActive != nil {
+		user.IsActive = *req.IsActive
+	}
+	if req.Password != nil && *req.Password != "" {
+		hash, err := auth.HashPassword(*req.Password)
+		if err != nil {
+			writeError(w, 500, "failed to hash password")
+			return
+		}
+		if err := h.db.UpdatePassword(id, hash); err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+	}
+
+	if err := h.db.UpdateUser(user); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, user)
+}
+
+func (h *Handler) deleteUser(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r, "id")
+	if err != nil {
+		writeError(w, 400, "invalid id")
+		return
+	}
+	// Prevent deleting self
+	if claims, ok := r.Context().Value(claimsKey).(*auth.Claims); ok && claims.UserID == id {
+		writeError(w, 400, "cannot delete yourself")
+		return
+	}
+	if err := h.db.DeleteUser(id); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "deleted"})
 }
 
 // AgentDTO is the API response for agents, hiding sensitive fields.

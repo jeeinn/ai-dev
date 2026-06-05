@@ -64,6 +64,13 @@
           <el-input v-model="form.gitea_username" :disabled="!!editingAgent" placeholder="自动创建 Gitea 账号" />
           <div v-if="editingAgent" class="form-tip">创建后不可修改</div>
         </el-form-item>
+        <el-form-item label="关联仓库">
+          <el-select v-model="form.repos" multiple filterable placeholder="选择仓库（可多选）" style="width: 100%">
+            <el-option v-for="r in repoList" :key="r.full_name" :label="r.full_name" :value="r.full_name" />
+          </el-select>
+          <div class="form-tip">自动将 Agent 添加为仓库协作者（用于创建 PR）</div>
+          <el-alert v-if="!form.repos || form.repos.length === 0" title="Agent 需要至少关联一个仓库才能获得协作者权限，用于创建 PR" type="warning" :closable="false" show-icon style="margin-top: 8px" />
+        </el-form-item>
         <el-form-item label="Provider">
           <el-col :span="11">
             <el-select v-model="form.provider" placeholder="选择 Provider" style="width: 100%">
@@ -158,6 +165,7 @@ const builtinTemplates = ref([])
 const selectedTemplate = ref('')
 const advancedOpen = ref([])
 const providers = ref({})
+const repoList = ref([])
 
 const defaultForm = {
   name: '',
@@ -169,6 +177,7 @@ const defaultForm = {
   system_prompt: '',
   user_template: '',
   status: 'active',
+  repos: [],
   loop_config: {
     max_iterations: 20,
     max_tokens: 4096,
@@ -205,6 +214,14 @@ const loadTemplates = async () => {
     }
   } catch {
     builtinTemplates.value = []
+  }
+}
+
+const loadRepos = async () => {
+  try {
+    repoList.value = await api.get('/repos') || []
+  } catch {
+    repoList.value = []
   }
 }
 
@@ -263,8 +280,12 @@ const saveAgent = async () => {
       await api.put(`/agents/${editingAgent.value.id}`, form.value)
       ElMessage.success('更新成功')
     } else {
-      await api.post('/agents', form.value)
-      ElMessage.success('创建成功')
+      const res = await api.post('/agents', form.value)
+      if (res?.repo_warnings?.length > 0) {
+        ElMessage.warning(`创建成功，但部分仓库关联失败：${res.repo_warnings.join('; ')}`)
+      } else {
+        ElMessage.success('创建成功')
+      }
     }
     closeDialog()
     loadAgents()
@@ -290,6 +311,7 @@ onMounted(() => {
   loadAgents()
   loadTemplates()
   loadProviders()
+  loadRepos()
 })
 </script>
 

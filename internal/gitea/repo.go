@@ -26,6 +26,29 @@ func (c *Client) GetRepo(owner, repo string) (*RepoInfo, error) {
 	return &info, nil
 }
 
+// RepoItem represents a repository in a list response.
+type RepoItem struct {
+	FullName      string `json:"full_name"`
+	Name          string `json:"name"`
+	DefaultBranch string `json:"default_branch"`
+}
+
+// ListRepos returns all repositories visible to the authenticated user.
+func (c *Client) ListRepos() ([]RepoItem, error) {
+	body, err := c.do("GET", "/repos/search?limit=1000", nil)
+	if err != nil {
+		return nil, fmt.Errorf("list repos: %w", err)
+	}
+
+	var resp struct {
+		Data []RepoItem `json:"data"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal repos: %w", err)
+	}
+	return resp.Data, nil
+}
+
 // GetFileContent returns the content of a file in the repository.
 func (c *Client) GetFileContent(owner, repo, ref, filepath string) (string, error) {
 	body, err := c.do("GET", fmt.Sprintf("/repos/%s/%s/contents/%s?ref=%s", owner, repo, filepath, ref), nil)

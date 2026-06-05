@@ -26,10 +26,12 @@ func TestAgentCRUD(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
-	var agent map[string]interface{}
-	err = parseJSON(resp, &agent)
+	var result map[string]interface{}
+	err = parseJSON(resp, &result)
 	require.NoError(t, err)
 
+	agent, ok := result["agent"].(map[string]interface{})
+	require.True(t, ok, "response should contain 'agent' field")
 	assert.Equal(t, "test-agent", agent["name"])
 	assert.Equal(t, "ai-test", agent["gitea_username"])
 

@@ -71,6 +71,16 @@ func (c *Client) AdminDeleteUser(username string) error {
 	return nil
 }
 
+// AdminAddCollaborator adds a user as a collaborator to a repository.
+func (c *Client) AdminAddCollaborator(owner, repo, username string) error {
+	_, err := c.do("PUT", fmt.Sprintf("/repos/%s/%s/collaborators/%s", owner, repo, username),
+		map[string]string{"permission": "write"})
+	if err != nil {
+		return fmt.Errorf("add collaborator: %w", err)
+	}
+	return nil
+}
+
 // CreateTokenWithCredentials creates a token using the user's own credentials.
 // This is required for Gitea 1.26+ where admin token creation is not supported.
 func (c *Client) CreateTokenWithCredentials(username, password, tokenName string) (*TokenResponse, error) {

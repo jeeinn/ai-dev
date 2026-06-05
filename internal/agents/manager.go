@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"strings"
 
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
@@ -38,6 +39,38 @@ type CreateAgentRequest struct {
 	SystemPrompt  string                `json:"system_prompt"`
 	UserTemplate  string                `json:"user_template"`
 	LoopConfig    *store.AgentLoopConfig `json:"loop_config,omitempty"`
+	Repos         []string              `json:"repos,omitempty"` // Repos to add as collaborator (e.g. ["owner/repo"])
+}
+
+// ListRepos returns all repositories from Gitea.
+func (m *Manager) ListRepos() ([]gitea.RepoItem, error) {
+	return m.gitea.ListRepos()
+}
+
+// AddCollaboratorToRepos adds the agent user as a collaborator to the specified repos.
+func (m *Manager) AddCollaboratorToRepos(username string, repos []string) []string {
+	var errors []string
+	for _, repo := range repos {
+		parts := splitRepo(repo)
+		if len(parts) != 2 {
+			errors = append(errors, fmt.Sprintf("invalid repo format: %s", repo))
+			continue
+		}
+		if err := m.gitea.AdminAddCollaborator(parts[0], parts[1], username); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", repo, err))
+		} else {
+			log.Printf("[INFO] Added %s as collaborator to %s", username, repo)
+		}
+	}
+	return errors
+}
+
+func splitRepo(fullName string) []string {
+	parts := strings.SplitN(fullName, "/", 2)
+	if len(parts) != 2 {
+		return nil
+	}
+	return parts
 }
 
 // CreateAgent registers a new agent with Gitea account and stores it in DB.

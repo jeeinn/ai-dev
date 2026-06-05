@@ -47,6 +47,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/users/{id}", h.jwtWrap(h.updateUser))
 	mux.HandleFunc("DELETE /api/users/{id}", h.jwtWrap(h.deleteUser))
 
+	// Repo endpoints
+	mux.HandleFunc("GET /api/repos", h.jwtWrap(h.listRepos))
+
 	// System config endpoints
 	mux.HandleFunc("GET /api/config", h.jwtWrap(h.getConfig))
 	mux.HandleFunc("PUT /api/config", h.jwtWrap(h.updateConfig))
@@ -142,6 +145,16 @@ func (h *Handler) listUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, users)
+}
+
+func (h *Handler) listRepos(w http.ResponseWriter, r *http.Request) {
+	// Use admin client to list all repos
+	repos, err := h.manager.ListRepos()
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, repos)
 }
 
 func (h *Handler) createUser(w http.ResponseWriter, r *http.Request) {
@@ -316,7 +329,20 @@ func (h *Handler) createAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
-	writeJSON(w, 201, toAgentDTO(agent))
+
+	// Add agent as collaborator to selected repos
+	var repoWarnings []string
+	if len(req.Repos) > 0 {
+		repoWarnings = h.manager.AddCollaboratorToRepos(req.GiteaUsername, req.Repos)
+	}
+
+	resp := map[string]interface{}{
+		"agent": toAgentDTO(agent),
+	}
+	if len(repoWarnings) > 0 {
+		resp["repo_warnings"] = repoWarnings
+	}
+	writeJSON(w, 201, resp)
 }
 
 func (h *Handler) getAgent(w http.ResponseWriter, r *http.Request) {

@@ -82,6 +82,12 @@ func ParseEvent(eventType, deliveryID string, payload []byte) (*WebhookEvent, er
 	evt.DeliveryID = deliveryID
 	evt.Event = eventType
 
+	// Normalize action names across Gitea versions
+	// Gitea 1.26+ sends "label_updated" instead of "labeled"
+	if evt.Action == "label_updated" {
+		evt.Action = "labeled"
+	}
+
 	log.Printf("[DEBUG] Parsed event: type=%s action=%s repo=%s sender=%s",
 		eventType, evt.Action, evt.Repo.FullName, evt.Sender.Login)
 

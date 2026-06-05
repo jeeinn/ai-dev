@@ -26,6 +26,13 @@
             <el-form-item label="Gitea 用户">
               <el-input :model-value="form.gitea_username" disabled />
             </el-form-item>
+            <el-form-item label="关联仓库">
+              <el-select v-model="form.repos" multiple filterable placeholder="选择仓库（可多选）" style="width: 100%">
+                <el-option v-for="r in repoList" :key="r.full_name" :label="r.full_name" :value="r.full_name" />
+              </el-select>
+              <div class="form-tip">自动将 Agent 添加为仓库协作者（用于创建 PR）</div>
+              <el-alert v-if="!form.repos || form.repos.length === 0" title="Agent 需要至少关联一个仓库才能获得协作者权限，用于创建 PR" type="warning" :closable="false" show-icon style="margin-top: 8px" />
+            </el-form-item>
 
             <el-divider content-position="left">LLM 配置</el-divider>
             <el-form-item label="Provider">
@@ -240,6 +247,7 @@ const activeTab = ref('info')
 const agent = ref(null)
 const routes = ref([])
 const prompts = ref([])
+const repoList = ref([])
 const routePage = ref(1)
 const promptPage = ref(1)
 
@@ -308,6 +316,14 @@ const getBehaviorTag = (route) => {
   return { text: '分析事件并回复', type: 'info', icon: '🤖' }
 }
 
+const loadRepos = async () => {
+  try {
+    repoList.value = await api.get('/repos') || []
+  } catch {
+    repoList.value = []
+  }
+}
+
 const loadAgent = async () => {
   try {
     const data = await api.get(`/agents/${agentId.value}`)
@@ -344,8 +360,12 @@ const loadPrompts = async () => {
 const saveAgent = async () => {
   saving.value = true
   try {
-    await api.put(`/agents/${agentId.value}`, form.value)
-    ElMessage.success('保存成功')
+    const res = await api.put(`/agents/${agentId.value}`, form.value)
+    if (res?.repo_warnings?.length > 0) {
+      ElMessage.warning(`保存成功，但部分仓库关联失败：${res.repo_warnings.join('; ')}`)
+    } else {
+      ElMessage.success('保存成功')
+    }
     await loadAgent()
   } catch (error) {
     ElMessage.error(error.response?.data?.error || '保存失败')
@@ -429,7 +449,10 @@ watch(activeTab, (tab) => {
   else if (tab === 'prompts') loadPrompts()
 })
 
-onMounted(loadAgent)
+onMounted(() => {
+  loadAgent()
+  loadRepos()
+})
 </script>
 
 <style scoped>

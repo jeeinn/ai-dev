@@ -375,14 +375,37 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 	oldSysPrompt := agent.SystemPrompt
 	oldUsrTemplate := agent.UserTemplate
 
-	if err := json.NewDecoder(r.Body).Decode(agent); err != nil {
+	// Decode into a temp struct to capture extra fields (repos)
+	var req struct {
+		store.Agent
+		Repos []string `json:"repos"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, 400, "invalid request body")
 		return
+	}
+	// Copy decoded fields to agent
+	agent.Name = req.Name
+	agent.Provider = req.Provider
+	agent.Model = req.Model
+	agent.MaxTokens = req.MaxTokens
+	agent.Temperature = req.Temperature
+	agent.SystemPrompt = req.SystemPrompt
+	agent.UserTemplate = req.UserTemplate
+	agent.Status = req.Status
+	if req.LoopConfig != nil {
+		agent.LoopConfig = req.LoopConfig
 	}
 	agent.ID = id
 	if err := h.db.UpdateAgent(agent); err != nil {
 		writeError(w, 500, err.Error())
 		return
+	}
+
+	// Add agent as collaborator to newly selected repos
+	var repoWarnings []string
+	if len(req.Repos) > 0 {
+		repoWarnings = h.manager.AddCollaboratorToRepos(agent.GiteaUsername, req.Repos)
 	}
 
 	// Auto-create prompt history if prompt changed
@@ -395,7 +418,13 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, 200, agent)
+	resp := map[string]interface{}{
+		"agent": agent,
+	}
+	if len(repoWarnings) > 0 {
+		resp["repo_warnings"] = repoWarnings
+	}
+	writeJSON(w, 200, resp)
 }
 
 func (h *Handler) deleteAgent(w http.ResponseWriter, r *http.Request) {

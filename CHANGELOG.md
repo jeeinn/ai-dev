@@ -7,8 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Phase 14: 沙箱增强（详见 sandbox-roadmap.md）
+
+## [0.7.0] - 2026-06-05
+
 ### Added
-- Phase 14: 沙箱增强任务规划 (TASKS.md)
+- 系统配置页面 (SystemConfig.vue)
+  - 标签页布局: Gitea 连接 / LLM 配置 / 任务调度 / Agent 默认参数 / Prompt 模板
+  - ConfigManager: DB 配置 > 文件配置 > 默认值
+  - GET/PUT/DELETE /api/config 端点（含 key 校验）
+  - LLM Registry 热更新
+  - Prompt 模板管理（查看/新增/删除自定义模板，DB 持久化）
+  - 配置项说明 tips（MaxTokens/Temperature 含义区分）
+- Agent 详情页 (AgentDetail.vue)
+  - 基本信息编辑 + 模板变量说明
+  - 触发规则管理（Route CRUD + 快捷配置 + 预计执行行为）
+  - Prompt 版本历史（详情查看 + 回滚 + 删除）
+- Agent 创建增强
+  - 表单分组折叠（核心字段直接展示，高级配置折叠）
+  - 模板选择下拉框（从 /api/prompt-templates 动态加载）
+  - Provider 下拉从配置动态读取
+  - 创建表单从 agents.defaults 读取默认值
+- 触发规则增强
+  - 预计执行行为列（根据 event+action+label 自动推断，图标+中文描述）
+  - 防重复规则（CreateRoute 唯一性检查）
+  - 优先级说明（值越大越优先）
+- 任务列表增强
+  - 服务端分页（limit/offset + total）
+  - 筛选：状态 / 任务类型 / Agent
+  - Agent 名称显示（非 ID）
+- Dashboard 优化
+  - 新用户引导卡片（无 Agent 时显示，三步跳转）
+  - 最近任务 / Agent 列表限 10 条 + 查看全部链接
+- 用户管理 API
+  - GET/POST/PUT/DELETE /api/users（JWT 认证）
+- 配置值生效链路
+  - RunnerFactory 持有 defaultMaxTokens / defaultTemp
+  - runners 所有 LLM 调用使用 resolveMaxTokens / resolveTemperature
+  - Agent.MaxTokens 为 0 时回退到 agents.defaults.max_tokens
+- 共享组件
+  - TemplateHelp.vue: 模板变量说明弹窗（三处复用）
+- 文档
+  - ARCHITECTURE.md 校正 + mermaid 图
+  - README.md 重写
+  - DEPLOYMENT.md 部署指南
+  - 端到端测试报告
+
+### Changed
+- Prompt 管理拆分: 内置模板→系统配置，自定义版本→Agent 详情页
+- 删除独立 Prompts.vue 页面及菜单
+- 所有弹窗禁用点击外部关闭（close-on-click-modal=false）
+- Menu 顺序调整: 仪表盘、任务列表、Agent 管理、用户管理、系统配置
+
+### Fixed
+- 用户管理页面返回 HTML（添加 /api/users 端点）
+- 内置模板为空（/api/prompt-templates 返回内置 + 自定义模板）
+- Prompt 版本记录（Agent 编辑时自动创建 prompt_history）
+- AgentDetail 页面空白（form 初始化 + 错误处理）
+- 启动时 prompt.templates 警告（配置校验 + 详细 WARN 提示）
+- Dashboard /api/tasks 返回格式适配
+- SQLite 迁移顺序（ALTER TABLE 在 CREATE TABLE 之后）
+- Agent 列表模板加载改用 /api/prompt-templates
 
 ## [0.6.0] - 2026-06-03
 
@@ -192,7 +252,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SQLite 存储 (WAL 模式)
 - YAML 配置 (环境变量展开)
 
-[Unreleased]: https://github.com/your-org/gitea-agent-gateway/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/your-org/gitea-agent-gateway/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/your-org/gitea-agent-gateway/compare/v0.3.1...v0.7.0
 [0.3.1]: https://github.com/your-org/gitea-agent-gateway/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/your-org/gitea-agent-gateway/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/your-org/gitea-agent-gateway/compare/v0.1.0...v0.2.0

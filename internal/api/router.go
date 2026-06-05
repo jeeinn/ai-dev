@@ -283,6 +283,7 @@ type AgentDTO struct {
 	SystemPrompt  string                 `json:"system_prompt"`
 	UserTemplate  string                 `json:"user_template"`
 	LoopConfig    *store.AgentLoopConfig  `json:"loop_config,omitempty"`
+	Repos         []string               `json:"repos,omitempty"`
 	Status        string                 `json:"status"`
 }
 
@@ -292,6 +293,7 @@ func toAgentDTO(a *store.Agent) AgentDTO {
 		Name:          a.Name,
 		GiteaUsername: a.GiteaUsername,
 		AvatarURL:     a.AvatarURL,
+		Repos:         a.Repos,
 		Provider:      a.Provider,
 		Model:         a.Model,
 		MaxTokens:     a.MaxTokens,

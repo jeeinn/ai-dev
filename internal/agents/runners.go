@@ -502,7 +502,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		Title: prTitle,
 		Body:  prBody,
 		Head:  branchName,
-		Base:  "main",
+		Base:  repoInfo.DefaultBranch,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create PR: %w", err)

@@ -68,7 +68,7 @@
           <el-select v-model="form.repos" multiple filterable placeholder="选择仓库（可多选）" style="width: 100%">
             <el-option v-for="r in repoList" :key="r.full_name" :label="r.full_name" :value="r.full_name" />
           </el-select>
-          <div class="form-tip">自动将 Agent 添加为仓库协作者（用于创建 PR）</div>
+          <div class="form-tip">自动将 Agent 添加为仓库协作者（用于创建 PR）。也可以在 Gitea 仓库设置 → 协作者中手动添加</div>
           <el-alert v-if="!form.repos || form.repos.length === 0" title="Agent 需要至少关联一个仓库才能获得协作者权限，用于创建 PR" type="warning" :closable="false" show-icon style="margin-top: 8px" />
         </el-form-item>
         <el-form-item label="Provider">

@@ -68,8 +68,9 @@ func (g *Git) Commit(message string) *Result {
 }
 
 // Push pushes the current branch to remote.
+// Uses --force-with-lease to handle retries (branch may already exist from a previous attempt).
 func (g *Git) Push(remote, branch string) *Result {
-	result := g.sandbox.Execute("git", "push", remote, branch)
+	result := g.sandbox.Execute("git", "push", "--force-with-lease", remote, branch)
 	if result.Error != nil {
 		return result
 	}

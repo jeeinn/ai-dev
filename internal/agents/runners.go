@@ -374,7 +374,11 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	cloneResult := git.Clone(cloneURL)
 	audit.LogCommand("git", []string{"clone", cloneURL}, cloneResult)
 	if cloneResult.Error != nil {
-		return nil, fmt.Errorf("clone repo: %w", cloneResult.Error)
+		errMsg := cloneResult.Stderr
+		if errMsg == "" {
+			errMsg = cloneResult.Error.Error()
+		}
+		return nil, fmt.Errorf("clone repo: %s", errMsg)
 	}
 
 	// Create branch
@@ -382,7 +386,11 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	branchResult := git.CreateBranch(branchName)
 	audit.LogCommand("git", []string{"checkout", "-b", branchName}, branchResult)
 	if branchResult.Error != nil {
-		return nil, fmt.Errorf("create branch: %w", branchResult.Error)
+		errMsg := branchResult.Stderr
+		if errMsg == "" {
+			errMsg = branchResult.Error.Error()
+		}
+		return nil, fmt.Errorf("create branch: %s", errMsg)
 	}
 
 	// Get LLM provider
@@ -468,7 +476,11 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	pushResult := git.Push("origin", branchName)
 	audit.LogCommand("git", []string{"push", "origin", branchName}, pushResult)
 	if pushResult.Error != nil {
-		return nil, fmt.Errorf("push: %w", pushResult.Error)
+		errMsg := pushResult.Stderr
+		if errMsg == "" {
+			errMsg = pushResult.Error.Error()
+		}
+		return nil, fmt.Errorf("push: %s", errMsg)
 	}
 
 	// Create PR

@@ -154,17 +154,17 @@ func TestValidateBranchName(t *testing.T) {
 func TestGenerateBranchName(t *testing.T) {
 	tests := []struct {
 		taskType string
-		taskID   int64
+		issueID  int
 		expected string
 	}{
-		{"dev", 123, "ai/dev/task-123"},
-		{"bugfix", 456, "ai/bugfix/task-456"},
-		{"solve_issue", 789, "ai/solve-issue/task-789"},
+		{"dev", 14, "ai/dev/issue-14"},
+		{"bugfix", 5, "ai/bugfix/issue-5"},
+		{"solve_issue", 123, "ai/solve-issue/issue-123"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			result := GenerateBranchName(tt.taskType, tt.taskID)
+			result := GenerateBranchName(tt.taskType, tt.issueID)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

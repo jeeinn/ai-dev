@@ -68,9 +68,15 @@ func (g *Git) Commit(message string) *Result {
 }
 
 // Push pushes the current branch to remote.
-// Uses --force-with-lease to handle retries (branch may already exist from a previous attempt).
+// Uses --force to handle retries (branch may already exist from a previous attempt).
 func (g *Git) Push(remote, branch string) *Result {
+	// Fetch latest refs to avoid stale info with --force-with-lease
+	g.sandbox.Execute("git", "fetch", remote)
 	result := g.sandbox.Execute("git", "push", "--force-with-lease", remote, branch)
+	if result.Error != nil {
+		// Fallback to plain --force if --force-with-lease still fails
+		result = g.sandbox.Execute("git", "push", "--force", remote, branch)
+	}
 	if result.Error != nil {
 		return result
 	}
@@ -125,9 +131,8 @@ func ValidateBranchName(branch string) error {
 	return nil
 }
 
-// GenerateBranchName generates a safe branch name for a task.
-func GenerateBranchName(taskType string, taskID int64) string {
-	// Clean task type
+// GenerateBranchName generates a safe branch name using issue number.
+func GenerateBranchName(taskType string, issueID int) string {
 	cleanType := strings.ReplaceAll(taskType, "_", "-")
-	return fmt.Sprintf("ai/%s/task-%d", cleanType, taskID)
+	return fmt.Sprintf("ai/%s/issue-%d", cleanType, issueID)
 }

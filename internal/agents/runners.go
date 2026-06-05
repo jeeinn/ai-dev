@@ -382,7 +382,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	}
 
 	// Create branch
-	branchName := sandbox.GenerateBranchName(taskSubType, task.ID)
+	branchName := sandbox.GenerateBranchName(taskSubType, task.IssueID)
 	branchResult := git.CreateBranch(branchName)
 	audit.LogCommand("git", []string{"checkout", "-b", branchName}, branchResult)
 	if branchResult.Error != nil {
@@ -492,7 +492,12 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	if len(contentPreview) > 500 {
 		contentPreview = contentPreview[:500] + "..."
 	}
-	prBody := fmt.Sprintf("## AI Generated Solution\n\n%s\n\n---\n*Task ID: %d*", contentPreview, task.ID)
+	// Link PR to issue via "Fixes #N" keyword (Gitea auto-closes issue on merge)
+	issueLink := ""
+	if task.IssueID > 0 {
+		issueLink = fmt.Sprintf("\n\nFixes #%d", task.IssueID)
+	}
+	prBody := fmt.Sprintf("## AI Generated Solution\n\n%s\n\n---\n*Task ID: %d*%s", contentPreview, task.ID, issueLink)
 	pr, err := client.CreatePR(owner, repo, gitea.CreatePRRequest{
 		Title: prTitle,
 		Body:  prBody,

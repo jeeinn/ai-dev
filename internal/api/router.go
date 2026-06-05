@@ -393,6 +393,7 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 	agent.SystemPrompt = req.SystemPrompt
 	agent.UserTemplate = req.UserTemplate
 	agent.Status = req.Status
+	agent.Repos = req.Repos
 	if req.LoopConfig != nil {
 		agent.LoopConfig = req.LoopConfig
 	}

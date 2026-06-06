@@ -131,6 +131,11 @@ func (d *Dispatcher) HandleEvent(evt *webhook.WebhookEvent) bool {
 		DeliveryID: evt.DeliveryID,
 	}
 
+	// For PR events, capture the head branch so runners can update the existing PR
+	if evt.PR != nil && evt.PR.Head.Ref != "" {
+		task.BaseBranch = evt.PR.Head.Ref
+	}
+
 	if err := d.queue.Enqueue(task); err != nil {
 		log.Printf("[ERROR] Failed to enqueue task: %v", err)
 		return false
@@ -240,6 +245,14 @@ func determineTaskType(evt *webhook.WebhookEvent) string {
 	case "pull_request":
 		return "review_pr"
 	case "issue_comment", "pull_request_comment":
+		// Check for label-based override (e.g. @mention + ai:solve → solve_comment)
+		if evt.Issue != nil {
+			for _, label := range evt.Issue.Labels {
+				if label.Name == "ai:solve" {
+					return "solve_comment"
+				}
+			}
+		}
 		return "reply_comment"
 	default:
 		return "trigger"
@@ -249,4 +262,9 @@ func determineTaskType(evt *webhook.WebhookEvent) string {
 // GetGiteaClient creates a Gitea client using agent's token for writeback.
 func (d *Dispatcher) GetGiteaClient(agentToken string) *gitea.Client {
 	return gitea.NewClient(d.giteaCfg.URL, agentToken)
+}
+
+// GetAdminGiteaClient creates a Gitea client using admin token.
+func (d *Dispatcher) GetAdminGiteaClient() *gitea.Client {
+	return gitea.NewClient(d.giteaCfg.URL, d.giteaCfg.AdminToken)
 }

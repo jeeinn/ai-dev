@@ -16,6 +16,7 @@ import (
 // GiteaClientFactory creates Gitea clients for result writeback.
 type GiteaClientFactory interface {
 	GetGiteaClient(token string) *gitea.Client
+	GetAdminGiteaClient() *gitea.Client
 }
 
 // Executor runs agent tasks from the queue with concurrency control.

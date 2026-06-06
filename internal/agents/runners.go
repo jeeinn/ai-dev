@@ -34,6 +34,7 @@ type Result struct {
 // GiteaClientFactory creates Gitea clients.
 type GiteaClientFactory interface {
 	GetGiteaClient(token string) *gitea.Client
+	GetAdminGiteaClient() *gitea.Client
 }
 
 // RunnerFactory creates runners based on task type.
@@ -91,7 +92,7 @@ func (f *RunnerFactory) GetRunner(taskType string) Runner {
 		return NewInteractionRunner(f)
 	case "analyze_issue", "trigger":
 		return NewAnalyzeRunner(f)
-	case "solve_issue":
+	case "solve_issue", "solve_comment":
 		return NewDevRunner(f)
 	case "fix_bug":
 		return NewBugfixRunner(f)
@@ -381,16 +382,36 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		return nil, fmt.Errorf("clone repo: %s", errMsg)
 	}
 
-	// Create branch
-	branchName := sandbox.GenerateBranchName(taskSubType, task.IssueID)
-	branchResult := git.CreateBranch(branchName)
-	audit.LogCommand("git", []string{"checkout", "-b", branchName}, branchResult)
-	if branchResult.Error != nil {
-		errMsg := branchResult.Stderr
-		if errMsg == "" {
-			errMsg = branchResult.Error.Error()
+	// Branch strategy: use existing PR branch or create new one
+	branchName := task.BaseBranch
+	isExistingBranch := branchName != ""
+	if !isExistingBranch {
+		branchName = sandbox.GenerateBranchName(taskSubType, task.IssueID)
+	}
+
+	if isExistingBranch {
+		// Fetch and checkout existing branch
+		// shallow clone only tracks default branch, so we need to add the target branch
+		sb.Execute("git", "remote", "set-branches", "--add", "origin", branchName)
+		fetchResult := sb.Execute("git", "fetch", "--depth", "1", "origin", branchName)
+		audit.LogCommand("git", []string{"fetch", "origin", branchName}, fetchResult)
+		checkoutResult := sb.Execute("git", "checkout", "-b", branchName, "origin/"+branchName)
+		audit.LogCommand("git", []string{"checkout", "-b", branchName, "origin/" + branchName}, checkoutResult)
+		if checkoutResult.Error != nil {
+			return nil, fmt.Errorf("checkout branch %s: %s", branchName, checkoutResult.Stderr)
 		}
-		return nil, fmt.Errorf("create branch: %s", errMsg)
+		log.Printf("[INFO] Checked out existing branch: %s", branchName)
+	} else {
+		// Create new branch
+		branchResult := git.CreateBranch(branchName)
+		audit.LogCommand("git", []string{"checkout", "-b", branchName}, branchResult)
+		if branchResult.Error != nil {
+			errMsg := branchResult.Stderr
+			if errMsg == "" {
+				errMsg = branchResult.Error.Error()
+			}
+			return nil, fmt.Errorf("create branch: %s", errMsg)
+		}
 	}
 
 	// Get LLM provider
@@ -483,7 +504,16 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		return nil, fmt.Errorf("push: %s", errMsg)
 	}
 
-	// Create PR
+	if isExistingBranch {
+		// Existing branch: PR already exists, just comment on it
+		log.Printf("[INFO] Task %d updated existing branch: %s", task.ID, branchName)
+		return &Result{
+			Content: fmt.Sprintf("Updated PR branch `%s` with new changes.\n\n%s", branchName, result),
+			Action:  "comment",
+		}, nil
+	}
+
+	// New branch: create PR
 	prTitle := fmt.Sprintf("AI Solution: %s", task.Event)
 	if taskSubType == "bugfix" {
 		prTitle = fmt.Sprintf("Bugfix: %s", task.Event)
@@ -498,7 +528,8 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		issueLink = fmt.Sprintf("\n\nFixes #%d", task.IssueID)
 	}
 	prBody := fmt.Sprintf("## AI Generated Solution\n\n%s\n\n---\n*Task ID: %d*%s", contentPreview, task.ID, issueLink)
-	pr, err := client.CreatePR(owner, repo, gitea.CreatePRRequest{
+	adminClient := factory.giteaFactory.GetAdminGiteaClient()
+	pr, err := adminClient.CreatePR(owner, repo, gitea.CreatePRRequest{
 		Title: prTitle,
 		Body:  prBody,
 		Head:  branchName,

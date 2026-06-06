@@ -139,6 +139,7 @@
             <el-button size="small" @click="quickAddRoute('issues', 'labeled', 'ai:fix')">Issue + ai:fix</el-button>
             <el-button size="small" @click="quickAddRoute('pull_request', 'labeled', 'ai:review')">PR + ai:review</el-button>
             <el-button size="small" @click="quickAddRoute('issue_comment', '', '', '', agent?.gitea_username)">@mention 回复</el-button>
+            <el-button size="small" @click="quickAddRoute('issue_comment', '', 'ai:solve', '', agent?.gitea_username)">PR @mention + ai:solve</el-button>
           </el-space>
         </el-card>
       </el-tab-pane>
@@ -306,6 +307,11 @@ const getBehaviorTag = (route) => {
   if (label === 'ai:fix') return { text: '自动修复 Bug 并提 PR', type: 'danger', icon: '🔧' }
   if (label === 'ai:analyze') return { text: '分析 Issue，输出需求报告', type: 'primary', icon: '📋' }
   if (label === 'ai:review') return { text: '审查 PR 代码，输出审查报告', type: 'primary', icon: '🔍' }
+
+  // Event-based
+  if (event === 'issue_comment' || event === 'pull_request_comment') {
+    return { text: '回复评论（只读）', type: 'success', icon: '💬' }
+  }
 
   // Event-based
   if (event === 'pull_request') return { text: '审查 PR，输出审查报告', type: 'primary', icon: '🔍' }

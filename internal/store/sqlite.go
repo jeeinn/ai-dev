@@ -159,6 +159,7 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_prompt_history_is_active ON prompt_history(is_active)`,
 		`ALTER TABLE agents ADD COLUMN loop_config TEXT DEFAULT '{}'`,
 		`ALTER TABLE agents ADD COLUMN repos TEXT DEFAULT '[]'`,
+		`ALTER TABLE tasks ADD COLUMN base_branch TEXT DEFAULT ''`,
 	}
 
 	for _, m := range additionalMigrations {

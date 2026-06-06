@@ -32,6 +32,10 @@ func (m *mockGiteaFactory) GetGiteaClient(token string) *gitea.Client {
 	return gitea.NewClient("http://localhost:0", token)
 }
 
+func (m *mockGiteaFactory) GetAdminGiteaClient() *gitea.Client {
+	return gitea.NewClient("http://localhost:0", "admin-token")
+}
+
 func TestRunnerFactoryGetRunner(t *testing.T) {
 	factory := NewRunnerFactory(nil, nil, nil, 4096, 0.3)
 

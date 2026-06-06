@@ -88,8 +88,8 @@
           <template #header>
             <div class="card-header">
               <span>触发规则 <el-tag size="small" style="margin-left: 8px">{{ routes.length }} 条</el-tag></span>
-              <el-button type="primary" size="small" @click="showAddRoute = true">
-                <el-icon><Plus /></el-icon> 添加规则
+              <el-button type="primary" size="small" @click="router.push('/rules')">
+                管理所有规则 →
               </el-button>
             </div>
           </template>

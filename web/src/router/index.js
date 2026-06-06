@@ -35,6 +35,11 @@ const routes = [
         component: () => import('../views/Tasks.vue')
       },
       {
+        path: 'rules',
+        name: 'TriggerRules',
+        component: () => import('../views/TriggerRules.vue')
+      },
+      {
         path: 'users',
         name: 'Users',
         component: () => import('../views/Users.vue'),

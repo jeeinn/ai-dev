@@ -22,12 +22,12 @@ func TestDetermineTaskType(t *testing.T) {
 			expected: "analyze_issue",
 		},
 		{
-			name: "issue labeled",
+			name: "issue labeled (v2: no longer triggers)",
 			event: &webhook.WebhookEvent{
 				Event:  "issues",
 				Action: "labeled",
 			},
-			expected: "analyze_issue",
+			expected: "trigger",
 		},
 		{
 			name: "issue opened",

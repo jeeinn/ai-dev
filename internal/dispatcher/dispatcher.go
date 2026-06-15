@@ -404,37 +404,18 @@ func (d *Dispatcher) buildDefaultContext(evt *webhook.WebhookEvent) string {
 	return sb.String()
 }
 
-// determineTaskType returns the task type based on the event.
-// Supports label-based task type override: "ai:solve" → solve_issue, "ai:fix" → fix_bug
+// determineTaskType returns the task type based on the event (legacy pipeline).
+// v2: Label-based task type override removed. Task type is determined by Agent.role + event.
 func determineTaskType(evt *webhook.WebhookEvent) string {
 	switch evt.Event {
 	case "issues":
-		// Check for label-based task type override
-		if evt.Issue != nil {
-			for _, label := range evt.Issue.Labels {
-				switch label.Name {
-				case "ai:solve":
-					return "solve_issue"
-				case "ai:fix":
-					return "fix_bug"
-				}
-			}
-		}
-		if evt.Action == "assigned" || evt.Action == "labeled" {
+		if evt.Action == "assigned" {
 			return "analyze_issue"
 		}
 		return "trigger"
 	case "pull_request":
 		return "review_pr"
 	case "issue_comment", "pull_request_comment":
-		// Check for label-based override (e.g. @mention + ai:solve → solve_comment)
-		if evt.Issue != nil {
-			for _, label := range evt.Issue.Labels {
-				if label.Name == "ai:solve" {
-					return "solve_comment"
-				}
-			}
-		}
 		return "reply_comment"
 	default:
 		return "trigger"

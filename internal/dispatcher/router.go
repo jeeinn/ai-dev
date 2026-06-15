@@ -25,7 +25,8 @@ type MatchResult struct {
 
 // Match finds the first matching route for the given event.
 // Matching priority: higher priority first, then by ID.
-// Conditions: event type, action, label, assignee, mention.
+// Conditions: event type, action, assignee, mention.
+// NOTE: Label matching removed in v2 — Label trigger is deprecated.
 func (r *Router) Match(evt *webhook.WebhookEvent) *MatchResult {
 	routes, err := r.db.ListRoutes()
 	if err != nil {
@@ -40,9 +41,7 @@ func (r *Router) Match(evt *webhook.WebhookEvent) *MatchResult {
 		if route.Action != "" && route.Action != evt.Action {
 			continue
 		}
-		if route.Label != "" && !evt.HasLabel(route.Label) {
-			continue
-		}
+		// v2: Label matching removed — Label trigger is deprecated
 		if route.Assignee != "" && !evt.HasAssignee(route.Assignee) {
 			continue
 		}

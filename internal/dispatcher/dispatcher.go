@@ -88,6 +88,24 @@ func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *
 	d.resolver = resolver
 	d.wfMgr = wfMgr
 	d.l1Gate = l1Gate
+
+	// Wire task completion callback for WorkflowContext updates
+	d.executor.SetOnComplete(func(task *store.Task) {
+		if wfMgr == nil || task == nil {
+			return
+		}
+		ctx, err := d.db.GetWorkflowContext(task.Repo, task.IssueID)
+		if err != nil {
+			log.Printf("[WARN] Failed to get workflow context for task %d completion: %v", task.ID, err)
+			return
+		}
+		if err := wfMgr.OnTaskComplete(ctx, task.TaskType, 0, task.SessionID); err != nil {
+			log.Printf("[WARN] Failed to update workflow context after task %d: %v", task.ID, err)
+		}
+		// Release in-flight lock
+		lockKey := fmt.Sprintf("%s#%d", task.Repo, task.IssueID)
+		d.inFlight.Delete(lockKey)
+	})
 }
 
 // Start initializes the executor workers, loads pending tasks, and starts the queue scanner.

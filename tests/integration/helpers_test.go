@@ -21,6 +21,7 @@ import (
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
+	"gitea-agent-gateway/internal/workflow"
 
 	_ "modernc.org/sqlite"
 )
@@ -198,6 +199,45 @@ func (e *TestEnv) CreateTestAgent(t *testing.T) *store.Agent {
 		MaxTokens:     1024,
 		Temperature:   0.3,
 		SystemPrompt:  "You are a helpful AI assistant.",
+		Status:        "active",
+	}
+
+	err := e.DB.CreateAgent(agent)
+	require.NoError(t, err)
+
+	return agent
+}
+
+// EnableWorkflowV2 wires up the v2 workflow components for the dispatcher.
+func (e *TestEnv) EnableWorkflowV2(t *testing.T) *agents.Registry {
+	t.Helper()
+
+	registry := agents.NewRegistry()
+	err := registry.LoadFromDB(e.DB)
+	require.NoError(t, err)
+
+	resolver := workflow.NewResolver(registry)
+	wfMgr := workflow.NewWorkflowManager(e.DB)
+	l1Gate := workflow.NewL1Gate(e.DB)
+
+	e.Dispatcher.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate)
+	return registry
+}
+
+// CreateTestAgentWithRole creates a test agent with a specific role.
+func (e *TestEnv) CreateTestAgentWithRole(t *testing.T, name, username, role string) *store.Agent {
+	t.Helper()
+
+	agent := &store.Agent{
+		Name:          name,
+		GiteaUsername: username,
+		GiteaToken:    "test-gitea-token",
+		Provider:      "mock",
+		Model:         "mock-model",
+		MaxTokens:     1024,
+		Temperature:   0.3,
+		SystemPrompt:  "You are a helpful AI assistant.",
+		Role:          role,
 		Status:        "active",
 	}
 

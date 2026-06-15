@@ -19,6 +19,9 @@ type GiteaClientFactory interface {
 	GetAdminGiteaClient() *gitea.Client
 }
 
+// TaskCompleteCallback is called after a task completes successfully.
+type TaskCompleteCallback func(task *store.Task)
+
 // Executor runs agent tasks from the queue with concurrency control.
 type Executor struct {
 	maxConcurrent    int
@@ -31,6 +34,7 @@ type Executor struct {
 	runnerFactory    *agents.RunnerFactory
 	defaultMaxTokens int
 	defaultTemp      float64
+	onComplete       TaskCompleteCallback
 }
 
 // NewExecutor creates a new Executor.
@@ -45,6 +49,11 @@ func NewExecutor(maxConcurrent, timeout, retryCount int, llmRegistry *llm.Regist
 		defaultMaxTokens: defaultMaxTokens,
 		defaultTemp:      defaultTemp,
 	}
+}
+
+// SetOnComplete sets the callback for successful task completion.
+func (e *Executor) SetOnComplete(cb TaskCompleteCallback) {
+	e.onComplete = cb
 }
 
 // SetGiteaClientFactory sets the factory for creating Gitea clients.
@@ -107,6 +116,11 @@ func (e *Executor) execute(task *store.Task) {
 		task.Status = "success"
 		e.db.UpdateTaskStatus(task.ID, "success", task.Result, "")
 		log.Printf("[INFO] Task %d completed successfully", task.ID)
+
+		// Call completion callback (for WorkflowContext update)
+		if e.onComplete != nil {
+			e.onComplete(task)
+		}
 
 		// Write back result to Gitea
 		if writeErr := e.writeBackToGitea(task); writeErr != nil {

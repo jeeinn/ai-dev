@@ -22,6 +22,7 @@ import (
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
+	"gitea-agent-gateway/internal/workflow"
 )
 
 //go:embed web/dist/*
@@ -93,6 +94,17 @@ func main() {
 
 	// Initialize dispatcher (Router + TaskQueue + Executor)
 	d := dispatcher.NewDispatcher(db, &activeCfg.Gitea, &activeCfg.Dispatcher, llmRegistry, &activeCfg.Agents)
+
+	// Initialize v2 workflow components (Agent Registry + Event Resolver + State Machine + L1 Gate)
+	registry := agents.NewRegistry()
+	if err := registry.LoadFromDB(db); err != nil {
+		log.Printf("[WARN] Failed to load agent registry: %v", err)
+	}
+	resolver := workflow.NewResolver(registry)
+	wfMgr := workflow.NewWorkflowManager(db)
+	l1Gate := workflow.NewL1Gate(db)
+	d.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate)
+	log.Printf("[INFO] Workflow v2 components initialized")
 
 	// Start dispatcher (loads pending tasks and starts workers)
 	if err := d.Start(); err != nil {

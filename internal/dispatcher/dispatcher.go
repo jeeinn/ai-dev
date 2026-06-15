@@ -4,24 +4,36 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
+	"gitea-agent-gateway/internal/agents"
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
+	"gitea-agent-gateway/internal/workflow"
 )
 
 // Dispatcher orchestrates the event processing pipeline:
-// WebhookEvent → Router.Match → TaskQueue.Enqueue → Executor.execute
+// WebhookEvent → EventResolver → Gate checks → WorkflowContext → TaskQueue.Enqueue → Executor.execute
 type Dispatcher struct {
-	router    *Router
+	router    *Router // Legacy router (Phase 16.9 will remove)
 	queue     *TaskQueue
 	executor  *Executor
 	db        *store.DB
 	giteaCfg  *config.GiteaConfig
 	agentsCfg *config.AgentsConfig
+
+	// v2 components (optional; when set, new pipeline is used)
+	registry *agents.Registry
+	resolver *workflow.Resolver
+	wfMgr    *workflow.WorkflowManager
+	l1Gate   *workflow.L1Gate
+
+	// In-flight lock: prevents concurrent tasks on the same (repo, issue)
+	inFlight sync.Map // map[string]bool — key is "repo#issueID"
 }
 
 // NewDispatcher creates a new Dispatcher with all components wired together.
@@ -69,6 +81,15 @@ func NewDispatcher(
 	return d
 }
 
+// SetWorkflowComponents sets the v2 workflow components.
+// When set, the dispatcher uses the new Assign-based pipeline instead of Router.Match.
+func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *workflow.Resolver, wfMgr *workflow.WorkflowManager, l1Gate *workflow.L1Gate) {
+	d.registry = registry
+	d.resolver = resolver
+	d.wfMgr = wfMgr
+	d.l1Gate = l1Gate
+}
+
 // Start initializes the executor workers, loads pending tasks, and starts the queue scanner.
 func (d *Dispatcher) Start() error {
 	// Load pending tasks from DB before starting workers
@@ -88,11 +109,154 @@ func (d *Dispatcher) Start() error {
 
 // HandleEvent processes a webhook event through the pipeline.
 // This is the callback function passed to webhook.Handler.
-// Returns true if the event was successfully processed (task enqueued).
+// Returns true if the event was successfully processed (or intentionally skipped).
 func (d *Dispatcher) HandleEvent(evt *webhook.WebhookEvent) bool {
 	log.Printf("[INFO] Processing event: %s/%s repo=%s sender=%s",
 		evt.Event, evt.Action, evt.Repo.FullName, evt.Sender.Login)
 
+	// v2 pipeline: use Resolver if workflow components are configured
+	if d.resolver != nil {
+		return d.handleEventV2(evt)
+	}
+
+	// Legacy pipeline: Router.Match
+	return d.handleEventLegacy(evt)
+}
+
+// handleEventV2 processes events through the new Assign-based pipeline.
+func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
+	// Step 1: Sender filter — skip if sender is any active agent (self-trigger prevention)
+	if d.resolver.IsAgentSender(evt) {
+		log.Printf("[INFO] Sender %q is an active agent, ignoring event to prevent self-trigger", evt.Sender.Login)
+		return true
+	}
+
+	// Step 2: Resolve event via EventResolver
+	result := d.resolver.Resolve(evt)
+	if result == nil {
+		log.Printf("[DEBUG] Event %s/%s not handled by resolver, ignoring", evt.Event, evt.Action)
+		return true // Not an error, just not handled
+	}
+
+	log.Printf("[INFO] Resolved: agent=%q role=%s taskType=%s issueID=%d prID=%d",
+		result.Agent.Name, result.Role, result.TaskType, result.IssueID, result.PRID)
+
+	repo := evt.Repo.FullName
+	issueID := result.IssueID
+
+	// Step 3: L1 gate check
+	if d.l1Gate != nil {
+		l1Result := d.l1Gate.CheckL1(evt, result.Role, result.Agent)
+		if !l1Result.Allowed {
+			log.Printf("[INFO] L1 gate rejected: %s — %s", l1Result.Code, l1Result.Message)
+			// Post rejection comment via agent's token
+			d.postGateComment(result.Agent, repo, issueID, l1Result.Message)
+			return true
+		}
+	}
+
+	// Step 4: WorkflowContext transition
+	if d.wfMgr != nil {
+		ctx, err := d.db.GetOrCreateWorkflowContext(repo, issueID)
+		if err != nil {
+			log.Printf("[ERROR] Failed to get workflow context: %v", err)
+			return false
+		}
+
+		transition := d.wfMgr.Transition(ctx, result.Role)
+		if !transition.Allowed {
+			log.Printf("[INFO] Transition blocked: %s", transition.Reason)
+			d.postGateComment(result.Agent, repo, issueID, "⚠️ "+transition.Reason)
+			return true
+		}
+
+		// Step 5: In-flight lock
+		lockKey := fmt.Sprintf("%s#%d", repo, issueID)
+		if _, loaded := d.inFlight.LoadOrStore(lockKey, true); loaded {
+			log.Printf("[INFO] In-flight lock held for %s, skipping", lockKey)
+			d.postGateComment(result.Agent, repo, issueID, "⏳ 此 Issue 正在处理中，请稍候。")
+			return true
+		}
+
+		// Step 6: Check for existing pending/running tasks
+		hasPending, err := d.db.HasPendingOrRunningTask(repo, issueID)
+		if err != nil {
+			d.inFlight.Delete(lockKey)
+			log.Printf("[ERROR] Failed to check pending tasks: %v", err)
+			return false
+		}
+		if hasPending {
+			d.inFlight.Delete(lockKey)
+			log.Printf("[INFO] Pending/running task exists for %s#%d, skipping", repo, issueID)
+			d.postGateComment(result.Agent, repo, issueID, "⏳ 已有任务正在处理中。")
+			return true
+		}
+
+		// Apply transition to DB
+		if err := d.wfMgr.ApplyTransition(ctx, transition, result.Agent.ID, result.Role, ""); err != nil {
+			d.inFlight.Delete(lockKey)
+			log.Printf("[ERROR] Failed to apply transition: %v", err)
+			return false
+		}
+	}
+
+	// Step 7: Build task context and enqueue
+	taskContext := d.buildTaskContext(evt, result.Agent, result.TaskType)
+
+	task := &store.Task{
+		Event:      evt.Event,
+		Repo:       repo,
+		IssueID:    issueID,
+		AgentID:    result.Agent.ID,
+		TaskType:   result.TaskType,
+		Context:    taskContext,
+		Status:     "pending",
+		Priority:   10, // Default priority for v2
+		Role:       result.Role,
+		DeliveryID: evt.DeliveryID,
+	}
+
+	// For PR events, capture the head branch
+	if evt.PR != nil && evt.PR.Head.Ref != "" {
+		task.BaseBranch = evt.PR.Head.Ref
+	}
+
+	if err := d.queue.Enqueue(task); err != nil {
+		// Release in-flight lock on error
+		lockKey := fmt.Sprintf("%s#%d", repo, issueID)
+		d.inFlight.Delete(lockKey)
+		log.Printf("[ERROR] Failed to enqueue task: %v", err)
+		return false
+	}
+
+	log.Printf("[INFO] Task %d enqueued: agent=%s role=%s type=%s on %s#%d",
+		task.ID, result.Agent.Name, result.Role, result.TaskType, repo, issueID)
+
+	// Post progress comment
+	d.postGateComment(result.Agent, repo, issueID,
+		fmt.Sprintf("🔄 %s 已开始处理（task #%d）", result.Agent.Name, task.ID))
+
+	return true
+}
+
+// postGateComment posts a comment on the issue/PR using the agent's Gitea token.
+func (d *Dispatcher) postGateComment(agent *store.Agent, repo string, issueID int, body string) {
+	if d.giteaCfg == nil || agent.GiteaToken == "" || issueID == 0 {
+		return
+	}
+	parts := strings.SplitN(repo, "/", 2)
+	if len(parts) != 2 {
+		return
+	}
+	client := gitea.NewClient(d.giteaCfg.URL, agent.GiteaToken)
+	commentBody := workflow.FormatAgentComment(body)
+	if err := client.IssueComment(parts[0], parts[1], issueID, commentBody); err != nil {
+		log.Printf("[WARN] Failed to post gate comment on %s#%d: %v", repo, issueID, err)
+	}
+}
+
+// handleEventLegacy processes events through the old Router.Match pipeline (pre-v2).
+func (d *Dispatcher) handleEventLegacy(evt *webhook.WebhookEvent) bool {
 	// Match event to an agent via routes
 	match := d.router.Match(evt)
 	if match == nil {

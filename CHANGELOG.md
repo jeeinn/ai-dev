@@ -7,8 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Assign Workflow v2 — Phase 16)
+- **Agent role 字段**: `analyze` | `coder` | `review`，决定触发后的任务类型
+- **Event Resolver** (`internal/workflow/resolver.go`): 替代 Router.Match + determineTaskType
+  - `issues.assigned`: 通过 payload 中单个 `assignee` 查找 Registry Agent → 按 role 映射 task_type
+  - `pull_request` + `review_requested`: 在 reviewers 中查找 review 角色 Agent
+  - `issues.labeled` / `unassigned`: 忽略（v2 不再使用 Label 触发）
+- **WorkflowContext 状态机** (`internal/workflow/context.go`):
+  - 阶段: `idle → analyzing → analyzed → developing → reviewing → done`
+  - Task 完成回调: analyze→analyzed, solve→developing(写入 PR ID)
+- **L1 结构性门禁** (`internal/workflow/gate_l1.go`):
+  - `l1.review_requires_pr`: review Agent 需要有 open PR
+  - `l1.review_on_closed_pr`: PR 已关闭 → hard 拒绝
+- **Dispatcher v2 流水线**: sender 过滤 → Resolver → L1 门禁 → WorkflowContext → in-flight 锁 → 入队
+- **新数据表**: `workflow_contexts`, `agent_sessions`
+- **tasks 表扩展**: `session_id`, `role` 字段
+- **18 个 store 单元测试** + **16 个 resolver 测试** + **8 个集成测试**
+
+### Breaking Changes (v2)
+- **Label 触发已移除**: `issues.labeled` / `pull_request.labeled` 事件不再触发任务
+- **Router.Label 匹配已移除**: `determineTaskType()` 中 `ai:solve` / `ai:fix` 等 Label 分支已删除
+- **迁移**: 使用 Label (`ai:analyze`, `ai:solve`) 触发的用户需改为 Assign Agent
+
 ### Planned
 - Phase 14: 沙箱增强（详见 sandbox-roadmap.md）
+- Phase 17: Session 续作 + WorkflowPolicy L2/L3
 
 ## [0.7.0] - 2026-06-05
 

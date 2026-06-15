@@ -145,3 +145,27 @@ agents:
         {{.Comment.Body}}
 
         请给出有帮助的回复。
+
+# ===== 工作流配置 (v2 Assign 工作流) =====
+# workflow:
+#   # 预设: free | standard | strict
+#   preset: standard
+#   gates:
+#     coder_requires_analyzed: off      # strict → hard
+#     allow_skip_analyze: true
+#     reanalyze_while_developing: soft
+#     rerun_same_stage: soft
+#     review_warn_if_draft: off
+#     coder_switch_agent: soft
+#   notify:
+#     on_analyze_done: true
+#     on_coder_pr_opened: true
+#     on_gate_soft: true
+#     on_gate_hard: true
+
+# ===== Session 配置 (Phase 17) =====
+# session:
+#   idle_ttl: "168h"              # 7 天无活动则 archive
+#   workspace_retention: "24h"    # archived 后延迟删盘
+#   pr_closed_retention: "168h"   # PR 未合并关闭后保留
+#   max_disk_per_repo: "5GB"      # 超限 LRU

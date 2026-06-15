@@ -143,6 +143,36 @@ func (db *DB) migrate() error {
 			value       TEXT NOT NULL,
 			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS workflow_contexts (
+			id              INTEGER PRIMARY KEY AUTOINCREMENT,
+			repo            TEXT NOT NULL,
+			issue_id        INTEGER NOT NULL DEFAULT 0,
+			pr_id           INTEGER NOT NULL DEFAULT 0,
+			stage           TEXT NOT NULL DEFAULT 'idle',
+			active_agent_id INTEGER NOT NULL DEFAULT 0,
+			active_role     TEXT NOT NULL DEFAULT '',
+			session_id      TEXT NOT NULL DEFAULT '',
+			updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(repo, issue_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_workflow_repo_issue ON workflow_contexts(repo, issue_id)`,
+		`CREATE TABLE IF NOT EXISTS agent_sessions (
+			id              TEXT PRIMARY KEY,
+			repo            TEXT NOT NULL,
+			issue_id        INTEGER NOT NULL DEFAULT 0,
+			pr_id           INTEGER NOT NULL DEFAULT 0,
+			agent_id        INTEGER NOT NULL,
+			role            TEXT NOT NULL,
+			status          TEXT NOT NULL DEFAULT 'active',
+			branch          TEXT NOT NULL DEFAULT '',
+			workspace_path  TEXT NOT NULL DEFAULT '',
+			last_task_id    INTEGER NOT NULL DEFAULT 0,
+			message_count   INTEGER NOT NULL DEFAULT 0,
+			last_active_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+			created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_repo_issue ON agent_sessions(repo, issue_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_status ON agent_sessions(status)`,
 	}
 
 	for _, m := range migrations {
@@ -160,6 +190,9 @@ func (db *DB) migrate() error {
 		`ALTER TABLE agents ADD COLUMN loop_config TEXT DEFAULT '{}'`,
 		`ALTER TABLE agents ADD COLUMN repos TEXT DEFAULT '[]'`,
 		`ALTER TABLE tasks ADD COLUMN base_branch TEXT DEFAULT ''`,
+		`ALTER TABLE agents ADD COLUMN role TEXT NOT NULL DEFAULT 'analyze'`,
+		`ALTER TABLE tasks ADD COLUMN session_id TEXT DEFAULT ''`,
+		`ALTER TABLE tasks ADD COLUMN role TEXT DEFAULT ''`,
 	}
 
 	for _, m := range additionalMigrations {

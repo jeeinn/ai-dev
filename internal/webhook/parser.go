@@ -18,37 +18,37 @@ type WebhookEvent struct {
 }
 
 type Repository struct {
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	FullName string `json:"full_name"`
-	Owner     User   `json:"owner"`
-	CloneURL  string `json:"clone_url"`
-	SSHURL    string `json:"ssh_url"`
+	ID            int    `json:"id"`
+	Name          string `json:"name"`
+	FullName      string `json:"full_name"`
+	Owner         User   `json:"owner"`
+	CloneURL      string `json:"clone_url"`
+	SSHURL        string `json:"ssh_url"`
 	DefaultBranch string `json:"default_branch"`
 }
 
 type Issue struct {
-	ID        int    `json:"id"`
-	Number    int    `json:"number"`
-	Title     string `json:"title"`
-	Body      string `json:"body"`
-	State     string `json:"state"`
-	User      User   `json:"user"`
-	Assignees []User `json:"assignees"`
+	ID        int     `json:"id"`
+	Number    int     `json:"number"`
+	Title     string  `json:"title"`
+	Body      string  `json:"body"`
+	State     string  `json:"state"`
+	User      User    `json:"user"`
+	Assignees []User  `json:"assignees"`
 	Labels    []Label `json:"labels"`
-	HTMLURL   string `json:"html_url"`
+	HTMLURL   string  `json:"html_url"`
 }
 
 type PullRequest struct {
-	ID        int    `json:"id"`
-	Number    int    `json:"number"`
-	Title     string `json:"title"`
-	Body      string `json:"body"`
-	State     string `json:"state"`
-	User      User   `json:"user"`
-	Head      Branch `json:"head"`
-	Base      Branch `json:"base"`
-	HTMLURL   string `json:"html_url"`
+	ID      int    `json:"id"`
+	Number  int    `json:"number"`
+	Title   string `json:"title"`
+	Body    string `json:"body"`
+	State   string `json:"state"`
+	User    User   `json:"user"`
+	Head    Branch `json:"head"`
+	Base    Branch `json:"base"`
+	HTMLURL string `json:"html_url"`
 }
 
 type Branch struct {

@@ -54,7 +54,7 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	// Create config
 	cfg := &config.Config{
 		Gitea: config.GiteaConfig{
-			URL:    giteaMock.URL,
+			URL:        giteaMock.URL,
 			AdminToken: "test-admin-token",
 		},
 		Dispatcher: config.DispatcherConfig{
@@ -250,18 +250,18 @@ func newGiteaMock() *httptest.Server {
 
 		case r.URL.Path == "/api/v1/repos/owner/repo" && r.Method == "GET":
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"id":          1,
-				"name":        "repo",
-				"full_name":   "owner/repo",
-				"clone_url":   "http://localhost:3000/owner/repo.git",
+				"id":             1,
+				"name":           "repo",
+				"full_name":      "owner/repo",
+				"clone_url":      "http://localhost:3000/owner/repo.git",
 				"default_branch": "main",
 			})
 
 		case r.URL.Path == "/api/v1/repos/owner/repo/pulls" && r.Method == "POST":
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"id":     1,
-				"number": 1,
-				"title":  "AI PR",
+				"id":       1,
+				"number":   1,
+				"title":    "AI PR",
 				"html_url": "http://localhost:3000/owner/repo/pulls/1",
 			})
 

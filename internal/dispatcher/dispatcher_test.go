@@ -199,9 +199,9 @@ func TestDispatcherDuplicateDelivery(t *testing.T) {
 		Action:     "assigned",
 		Repo:       webhook.Repository{FullName: "admin/test-repo"},
 		Issue: &webhook.Issue{
-			Number: 1,
-			Title:  "Test",
-			User:   webhook.User{Login: "admin"},
+			Number:    1,
+			Title:     "Test",
+			User:      webhook.User{Login: "admin"},
 			Assignees: []webhook.User{{Login: "ai-agent"}},
 		},
 		Sender: webhook.User{Login: "admin"},

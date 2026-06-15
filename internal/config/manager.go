@@ -19,9 +19,9 @@ type Store interface {
 // ConfigManager manages configuration with DB overrides on top of file config.
 type ConfigManager struct {
 	mu     sync.RWMutex
-	base   *Config   // file-based config (immutable baseline)
-	active *Config   // merged config (base + DB overrides)
-	store  Store     // DB store for persistence
+	base   *Config // file-based config (immutable baseline)
+	active *Config // merged config (base + DB overrides)
+	store  Store   // DB store for persistence
 }
 
 // NewConfigManager creates a ConfigManager from a file-loaded config.
@@ -131,20 +131,20 @@ func (m *ConfigManager) GetMap() map[string]interface{} {
 	defer m.mu.RUnlock()
 	cfg := m.active
 	return map[string]interface{}{
-		"gitea.url":               cfg.Gitea.URL,
-		"gitea.admin_token":       cfg.Gitea.AdminToken,
-		"gitea.webhook_secret":    cfg.Gitea.WebhookSecret,
-		"llm.defaults.provider":   cfg.LLM.Defaults.Provider,
-		"llm.defaults.model":      cfg.LLM.Defaults.Model,
-		"llm.defaults.max_tokens": cfg.LLM.Defaults.MaxTokens,
-		"llm.defaults.temperature": cfg.LLM.Defaults.Temperature,
-		"llm.providers":           cfg.LLM.Providers,
-		"dispatcher.max_concurrent": cfg.Dispatcher.MaxConcurrent,
-		"dispatcher.retry_count":  cfg.Dispatcher.RetryCount,
-		"dispatcher.timeout":      cfg.Dispatcher.Timeout,
-		"agents.defaults.provider":   cfg.Agents.Defaults.Provider,
-		"agents.defaults.model":      cfg.Agents.Defaults.Model,
-		"agents.defaults.max_tokens": cfg.Agents.Defaults.MaxTokens,
+		"gitea.url":                   cfg.Gitea.URL,
+		"gitea.admin_token":           cfg.Gitea.AdminToken,
+		"gitea.webhook_secret":        cfg.Gitea.WebhookSecret,
+		"llm.defaults.provider":       cfg.LLM.Defaults.Provider,
+		"llm.defaults.model":          cfg.LLM.Defaults.Model,
+		"llm.defaults.max_tokens":     cfg.LLM.Defaults.MaxTokens,
+		"llm.defaults.temperature":    cfg.LLM.Defaults.Temperature,
+		"llm.providers":               cfg.LLM.Providers,
+		"dispatcher.max_concurrent":   cfg.Dispatcher.MaxConcurrent,
+		"dispatcher.retry_count":      cfg.Dispatcher.RetryCount,
+		"dispatcher.timeout":          cfg.Dispatcher.Timeout,
+		"agents.defaults.provider":    cfg.Agents.Defaults.Provider,
+		"agents.defaults.model":       cfg.Agents.Defaults.Model,
+		"agents.defaults.max_tokens":  cfg.Agents.Defaults.MaxTokens,
 		"agents.defaults.temperature": cfg.Agents.Defaults.Temperature,
 	}
 }

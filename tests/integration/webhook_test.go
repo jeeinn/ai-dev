@@ -24,10 +24,10 @@ func TestWebhookIssueAssigned(t *testing.T) {
 	payload := map[string]interface{}{
 		"action": "assigned",
 		"repository": map[string]interface{}{
-			"id":          1,
-			"name":        "repo",
-			"full_name":   "owner/repo",
-			"clone_url":   "http://localhost:3000/owner/repo.git",
+			"id":             1,
+			"name":           "repo",
+			"full_name":      "owner/repo",
+			"clone_url":      "http://localhost:3000/owner/repo.git",
 			"default_branch": "main",
 		},
 		"issue": map[string]interface{}{

@@ -17,9 +17,9 @@ type CreatePRRequest struct {
 
 // PRResponse represents a Gitea pull request.
 type PRResponse struct {
-	ID     int    `json:"id"`
-	Number int    `json:"number"`
-	Title  string `json:"title"`
+	ID      int    `json:"id"`
+	Number  int    `json:"number"`
+	Title   string `json:"title"`
 	HTMLURL string `json:"html_url"`
 }
 
@@ -92,12 +92,12 @@ func (c *Client) PRDiff(owner, repo string, prID int) (string, error) {
 
 // PRFiles returns the list of files changed in a pull request.
 type PRFile struct {
-	Filename    string `json:"filename"`
-	Status      string `json:"status"`
-	Additions   int    `json:"additions"`
-	Deletions   int    `json:"deletions"`
-	Changes     int    `json:"changes"`
-	Patch       string `json:"patch,omitempty"`
+	Filename  string `json:"filename"`
+	Status    string `json:"status"`
+	Additions int    `json:"additions"`
+	Deletions int    `json:"deletions"`
+	Changes   int    `json:"changes"`
+	Patch     string `json:"patch,omitempty"`
 }
 
 func (c *Client) PRFiles(owner, repo string, prID int) ([]PRFile, error) {

@@ -14,9 +14,9 @@ import (
 
 // Manager handles agent lifecycle (create, update, delete) and Gitea account registration.
 type Manager struct {
-	db     *store.DB
-	gitea  *gitea.Client
-	cfg    *config.GiteaConfig
+	db    *store.DB
+	gitea *gitea.Client
+	cfg   *config.GiteaConfig
 }
 
 // NewManager creates a new agent Manager.
@@ -30,16 +30,16 @@ func NewManager(db *store.DB, cfg *config.GiteaConfig) *Manager {
 
 // CreateAgentRequest is the payload for creating a new agent.
 type CreateAgentRequest struct {
-	Name          string                `json:"name"`
-	GiteaUsername string                `json:"gitea_username"`
-	Provider      string                `json:"provider"`
-	Model         string                `json:"model"`
-	MaxTokens     int                   `json:"max_tokens"`
-	Temperature   float64               `json:"temperature"`
-	SystemPrompt  string                `json:"system_prompt"`
-	UserTemplate  string                `json:"user_template"`
+	Name          string                 `json:"name"`
+	GiteaUsername string                 `json:"gitea_username"`
+	Provider      string                 `json:"provider"`
+	Model         string                 `json:"model"`
+	MaxTokens     int                    `json:"max_tokens"`
+	Temperature   float64                `json:"temperature"`
+	SystemPrompt  string                 `json:"system_prompt"`
+	UserTemplate  string                 `json:"user_template"`
 	LoopConfig    *store.AgentLoopConfig `json:"loop_config,omitempty"`
-	Repos         []string              `json:"repos,omitempty"` // Repos to add as collaborator (e.g. ["owner/repo"])
+	Repos         []string               `json:"repos,omitempty"` // Repos to add as collaborator (e.g. ["owner/repo"])
 }
 
 // ListRepos returns all repositories from Gitea.
@@ -78,11 +78,11 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 	// 1. Create Gitea user
 	password := generatePassword()
 	_, err := m.gitea.AdminCreateUser(gitea.CreateUserRequest{
-		LoginName:        req.GiteaUsername,
-		Username:         req.GiteaUsername,
-		Email:            req.GiteaUsername + "@gateway.local",
-		Password:         password,
-		SendNotify:       false,
+		LoginName:          req.GiteaUsername,
+		Username:           req.GiteaUsername,
+		Email:              req.GiteaUsername + "@gateway.local",
+		Password:           password,
+		SendNotify:         false,
 		MustChangePassword: false,
 	})
 	if err != nil {

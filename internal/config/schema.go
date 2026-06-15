@@ -49,7 +49,7 @@ type LoggingConfig struct {
 
 type LLMConfig struct {
 	Providers map[string]ProviderConfig `yaml:"providers"`
-	Defaults  AgentDefaultsConfig      `yaml:"defaults"`
+	Defaults  AgentDefaultsConfig       `yaml:"defaults"`
 }
 
 type ProviderConfig struct {
@@ -78,9 +78,9 @@ type AuthConfig struct {
 
 // AgentsConfig contains agent templates and defaults.
 type AgentsConfig struct {
-	Defaults  AgentDefaultsConfig           `yaml:"defaults"`
+	Defaults  AgentDefaultsConfig            `yaml:"defaults"`
 	Templates map[string]AgentTemplateConfig `yaml:"templates"`
-	Loop      AgentLoopConfig               `yaml:"loop"`
+	Loop      AgentLoopConfig                `yaml:"loop"`
 }
 
 // AgentTemplateConfig is a template for creating agents.
@@ -96,8 +96,8 @@ type AgentTemplateConfig struct {
 type AgentLoopConfig struct {
 	MaxIterations int    `yaml:"max_iterations"` // Max iteration rounds (default 20)
 	MaxTokens     int    `yaml:"max_tokens"`     // Max tokens per LLM call (default 4096)
-	Timeout       string `yaml:"timeout"`         // Single round timeout (default "5m")
-	TotalTimeout  string `yaml:"total_timeout"`   // Total task timeout (default "30m")
+	Timeout       string `yaml:"timeout"`        // Single round timeout (default "5m")
+	TotalTimeout  string `yaml:"total_timeout"`  // Total task timeout (default "30m")
 }
 
 // DefaultAgentLoopConfig returns default agent loop configuration.

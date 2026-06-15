@@ -10,8 +10,8 @@ import (
 
 // AuditLogger logs command executions to the database.
 type AuditLogger struct {
-	db     *store.DB
-	taskID int64
+	db      *store.DB
+	taskID  int64
 	agentID int64
 }
 

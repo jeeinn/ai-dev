@@ -18,6 +18,8 @@ type Task struct {
 	Priority   int        `json:"priority"`
 	DeliveryID string     `json:"delivery_id"`
 	BaseBranch string     `json:"base_branch"` // PR head branch for solve_comment (empty = create new branch)
+	SessionID  string     `json:"session_id"`  // Link to AgentSession
+	Role       string     `json:"role"`        // Role that produced this task
 	CreatedAt  time.Time  `json:"created_at"`
 	StartedAt  *time.Time `json:"started_at"`
 	FinishedAt *time.Time `json:"finished_at"`
@@ -38,9 +40,9 @@ func (db *DB) CreateTask(t *Task) error {
 		}
 	}
 
-	result, err := db.Exec(`INSERT INTO tasks (event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, base_branch)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.Event, t.Repo, t.IssueID, t.AgentID, t.TaskType, t.Context, t.Status, t.Priority, t.DeliveryID, t.BaseBranch)
+	result, err := db.Exec(`INSERT INTO tasks (event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, base_branch, session_id, role)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.Event, t.Repo, t.IssueID, t.AgentID, t.TaskType, t.Context, t.Status, t.Priority, t.DeliveryID, t.BaseBranch, t.SessionID, t.Role)
 	if err != nil {
 		return fmt.Errorf("insert task: %w", err)
 	}
@@ -75,10 +77,17 @@ func (db *DB) UpdateTaskStatus(id int64, status, result, errMsg string) error {
 	return nil
 }
 
+// taskColumns is the common SELECT column list for tasks.
+const taskColumns = `id, event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, base_branch, session_id, role, created_at, started_at, finished_at, result, error`
+
+// taskScanFields returns scan targets for a Task row.
+func taskScanFields(t *Task) []interface{} {
+	return []interface{}{&t.ID, &t.Event, &t.Repo, &t.IssueID, &t.AgentID, &t.TaskType, &t.Context, &t.Status, &t.Priority, &t.DeliveryID, &t.BaseBranch, &t.SessionID, &t.Role, &t.CreatedAt, &t.StartedAt, &t.FinishedAt, &t.Result, &t.Error}
+}
+
 // ListPendingTasks returns all pending tasks ordered by priority and creation time.
 func (db *DB) ListPendingTasks() ([]*Task, error) {
-	rows, err := db.Query(`SELECT id, event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, base_branch, created_at
-		FROM tasks WHERE status='pending' ORDER BY priority DESC, created_at ASC`)
+	rows, err := db.Query(fmt.Sprintf(`SELECT %s FROM tasks WHERE status='pending' ORDER BY priority DESC, created_at ASC`, taskColumns))
 	if err != nil {
 		return nil, fmt.Errorf("list pending tasks: %w", err)
 	}
@@ -87,7 +96,7 @@ func (db *DB) ListPendingTasks() ([]*Task, error) {
 	var tasks []*Task
 	for rows.Next() {
 		var t Task
-		if err := rows.Scan(&t.ID, &t.Event, &t.Repo, &t.IssueID, &t.AgentID, &t.TaskType, &t.Context, &t.Status, &t.Priority, &t.DeliveryID, &t.BaseBranch, &t.CreatedAt); err != nil {
+		if err := rows.Scan(taskScanFields(&t)...); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
 		tasks = append(tasks, &t)
@@ -98,9 +107,7 @@ func (db *DB) ListPendingTasks() ([]*Task, error) {
 // GetTask returns a task by ID.
 func (db *DB) GetTask(id int64) (*Task, error) {
 	var t Task
-	err := db.QueryRow(`SELECT id, event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, base_branch, created_at, started_at, finished_at, result, error
-		FROM tasks WHERE id=?`, id).Scan(
-		&t.ID, &t.Event, &t.Repo, &t.IssueID, &t.AgentID, &t.TaskType, &t.Context, &t.Status, &t.Priority, &t.DeliveryID, &t.BaseBranch, &t.CreatedAt, &t.StartedAt, &t.FinishedAt, &t.Result, &t.Error)
+	err := db.QueryRow(fmt.Sprintf(`SELECT %s FROM tasks WHERE id=?`, taskColumns), id).Scan(taskScanFields(&t)...)
 	if err != nil {
 		return nil, fmt.Errorf("get task: %w", err)
 	}
@@ -146,8 +153,7 @@ func (db *DB) ListTasksFiltered(limit, offset int, status, taskType string, agen
 
 	// Fetch page
 	args = append(args, limit, offset)
-	rows, err := db.Query(fmt.Sprintf(`SELECT id, event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, base_branch, created_at, started_at, finished_at, result, error
-		FROM tasks WHERE %s ORDER BY created_at DESC LIMIT ? OFFSET ?`, where), args...)
+	rows, err := db.Query(fmt.Sprintf(`SELECT %s FROM tasks WHERE %s ORDER BY created_at DESC LIMIT ? OFFSET ?`, taskColumns, where), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list tasks: %w", err)
 	}
@@ -156,7 +162,7 @@ func (db *DB) ListTasksFiltered(limit, offset int, status, taskType string, agen
 	var tasks []*Task
 	for rows.Next() {
 		var t Task
-		if err := rows.Scan(&t.ID, &t.Event, &t.Repo, &t.IssueID, &t.AgentID, &t.TaskType, &t.Context, &t.Status, &t.Priority, &t.DeliveryID, &t.BaseBranch, &t.CreatedAt, &t.StartedAt, &t.FinishedAt, &t.Result, &t.Error); err != nil {
+		if err := rows.Scan(taskScanFields(&t)...); err != nil {
 			return nil, 0, fmt.Errorf("scan task: %w", err)
 		}
 		tasks = append(tasks, &t)
@@ -166,8 +172,7 @@ func (db *DB) ListTasksFiltered(limit, offset int, status, taskType string, agen
 
 // ListTasks returns tasks with pagination.
 func (db *DB) ListTasks(limit, offset int) ([]*Task, error) {
-	rows, err := db.Query(`SELECT id, event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, base_branch, created_at, started_at, finished_at, result, error
-		FROM tasks ORDER BY created_at DESC LIMIT ? OFFSET ?`, limit, offset)
+	rows, err := db.Query(fmt.Sprintf(`SELECT %s FROM tasks ORDER BY created_at DESC LIMIT ? OFFSET ?`, taskColumns), limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
@@ -176,7 +181,7 @@ func (db *DB) ListTasks(limit, offset int) ([]*Task, error) {
 	var tasks []*Task
 	for rows.Next() {
 		var t Task
-		if err := rows.Scan(&t.ID, &t.Event, &t.Repo, &t.IssueID, &t.AgentID, &t.TaskType, &t.Context, &t.Status, &t.Priority, &t.DeliveryID, &t.BaseBranch, &t.CreatedAt, &t.StartedAt, &t.FinishedAt, &t.Result, &t.Error); err != nil {
+		if err := rows.Scan(taskScanFields(&t)...); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
 		tasks = append(tasks, &t)
@@ -186,8 +191,7 @@ func (db *DB) ListTasks(limit, offset int) ([]*Task, error) {
 
 // ListTasksByAgentID returns tasks for a specific agent.
 func (db *DB) ListTasksByAgentID(agentID int64, limit int) ([]*Task, error) {
-	rows, err := db.Query(`SELECT id, event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, base_branch, created_at, started_at, finished_at, result, error
-		FROM tasks WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`, agentID, limit)
+	rows, err := db.Query(fmt.Sprintf(`SELECT %s FROM tasks WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`, taskColumns), agentID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks by agent: %w", err)
 	}
@@ -196,12 +200,22 @@ func (db *DB) ListTasksByAgentID(agentID int64, limit int) ([]*Task, error) {
 	var tasks []*Task
 	for rows.Next() {
 		var t Task
-		if err := rows.Scan(&t.ID, &t.Event, &t.Repo, &t.IssueID, &t.AgentID, &t.TaskType, &t.Context, &t.Status, &t.Priority, &t.DeliveryID, &t.BaseBranch, &t.CreatedAt, &t.StartedAt, &t.FinishedAt, &t.Result, &t.Error); err != nil {
+		if err := rows.Scan(taskScanFields(&t)...); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
 		tasks = append(tasks, &t)
 	}
 	return tasks, nil
+}
+
+// HasPendingOrRunningTask checks if there is a pending or running task for the given repo and issue.
+func (db *DB) HasPendingOrRunningTask(repo string, issueID int) (bool, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE repo = ? AND issue_id = ? AND status IN ('pending', 'running')`, repo, issueID).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("check pending task: %w", err)
+	}
+	return count > 0, nil
 }
 
 // ResetStaleRunningTasks resets tasks that have been in "running" state too long.

@@ -10,8 +10,8 @@ import (
 // Registry holds active agents in memory for fast lookup.
 type Registry struct {
 	mu     sync.RWMutex
-	agents map[int64]*store.Agent       // by ID
-	byUser map[string]*store.Agent      // by Gitea username
+	agents map[int64]*store.Agent  // by ID
+	byUser map[string]*store.Agent // by Gitea username
 }
 
 // NewRegistry creates a new empty Registry.

@@ -15,26 +15,26 @@ import (
 
 // Handler serves the management API.
 type Handler struct {
-	db            *store.DB
-	manager       *agents.Manager
-	prompt        *agents.PromptManager
-	auth          *AuthMiddleware
-	jwtManager    *auth.JWTManager
-	cfg           *config.Config
-	cfgManager    *config.ConfigManager
+	db             *store.DB
+	manager        *agents.Manager
+	prompt         *agents.PromptManager
+	auth           *AuthMiddleware
+	jwtManager     *auth.JWTManager
+	cfg            *config.Config
+	cfgManager     *config.ConfigManager
 	onConfigChange func(cfg *config.Config)
 }
 
 // NewHandler creates a new API handler.
 func NewHandler(db *store.DB, manager *agents.Manager, cfg *config.Config, jwtManager *auth.JWTManager, cfgManager *config.ConfigManager, onConfigChange func(cfg *config.Config)) *Handler {
 	return &Handler{
-		db:            db,
-		manager:       manager,
-		prompt:        agents.NewPromptManager(db, &cfg.Agents),
-		auth:          NewAuthMiddleware(cfg.API.AuthToken),
-		jwtManager:    jwtManager,
-		cfg:           cfg,
-		cfgManager:    cfgManager,
+		db:             db,
+		manager:        manager,
+		prompt:         agents.NewPromptManager(db, &cfg.Agents),
+		auth:           NewAuthMiddleware(cfg.API.AuthToken),
+		jwtManager:     jwtManager,
+		cfg:            cfg,
+		cfgManager:     cfgManager,
 		onConfigChange: onConfigChange,
 	}
 }
@@ -282,7 +282,7 @@ type AgentDTO struct {
 	Temperature   float64                `json:"temperature"`
 	SystemPrompt  string                 `json:"system_prompt"`
 	UserTemplate  string                 `json:"user_template"`
-	LoopConfig    *store.AgentLoopConfig  `json:"loop_config,omitempty"`
+	LoopConfig    *store.AgentLoopConfig `json:"loop_config,omitempty"`
 	Repos         []string               `json:"repos,omitempty"`
 	Status        string                 `json:"status"`
 }

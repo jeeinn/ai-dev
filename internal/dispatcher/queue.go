@@ -10,11 +10,11 @@ import (
 
 // TaskQueue is an in-memory task queue backed by SQLite for persistence.
 type TaskQueue struct {
-	mu      sync.Mutex
-	ch      chan *store.Task
-	db      *store.DB
-	size    int
-	stopCh  chan struct{}
+	mu     sync.Mutex
+	ch     chan *store.Task
+	db     *store.DB
+	size   int
+	stopCh chan struct{}
 }
 
 // NewTaskQueue creates a new task queue.

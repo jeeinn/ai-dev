@@ -26,9 +26,9 @@ type Runner interface {
 
 // Result contains the output of a task execution.
 type Result struct {
-	Content     string // Main content (comment body)
-	Action      string // Optional action: "comment", "label", "pr"
-	ActionData  map[string]interface{} // Additional data for the action
+	Content    string                 // Main content (comment body)
+	Action     string                 // Optional action: "comment", "label", "pr"
+	ActionData map[string]interface{} // Additional data for the action
 }
 
 // GiteaClientFactory creates Gitea clients.

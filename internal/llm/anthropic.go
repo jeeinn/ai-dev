@@ -27,10 +27,10 @@ func NewAnthropicProvider(apiKey string) *AnthropicProvider {
 }
 
 type anthropicRequest struct {
-	Model     string           `json:"model"`
-	MaxTokens int              `json:"max_tokens"`
-	System    string           `json:"system,omitempty"`
-	Messages  []anthropicMsg   `json:"messages"`
+	Model     string         `json:"model"`
+	MaxTokens int            `json:"max_tokens"`
+	System    string         `json:"system,omitempty"`
+	Messages  []anthropicMsg `json:"messages"`
 }
 
 type anthropicMsg struct {

@@ -30,12 +30,12 @@ func NewOpenAICompatibleProvider(baseURL, apiKey string) *OpenAICompatibleProvid
 }
 
 type openaiRequest struct {
-	Model       string          `json:"model"`
-	Messages    []Message       `json:"messages"`
-	Tools       []Tool          `json:"tools,omitempty"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
-	Temperature float64         `json:"temperature,omitempty"`
-	Stream      bool            `json:"stream"`
+	Model       string    `json:"model"`
+	Messages    []Message `json:"messages"`
+	Tools       []Tool    `json:"tools,omitempty"`
+	MaxTokens   int       `json:"max_tokens,omitempty"`
+	Temperature float64   `json:"temperature,omitempty"`
+	Stream      bool      `json:"stream"`
 }
 
 type openaiResponse struct {

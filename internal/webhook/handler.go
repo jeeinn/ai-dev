@@ -17,9 +17,9 @@ type EventCallback func(evt *WebhookEvent) bool
 
 // Handler processes incoming Gitea webhook requests.
 type Handler struct {
-	cfg          *config.GiteaConfig
-	dedup        *Deduplicator
-	callback     EventCallback
+	cfg      *config.GiteaConfig
+	dedup    *Deduplicator
+	callback EventCallback
 }
 
 // NewHandler creates a new webhook Handler.

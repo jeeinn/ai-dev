@@ -28,11 +28,11 @@ const (
 type SandboxConfig struct {
 	Mode           SandboxMode   `yaml:"mode"`            // "temp" | "fixed"
 	BaseDir        string        `yaml:"base_dir"`        // Fixed mode base directory
-	CommandTimeout time.Duration `yaml:"command_timeout"`  // Single command timeout
-	TaskTimeout    time.Duration `yaml:"task_timeout"`     // Total task timeout
-	MaxOutput      int           `yaml:"max_output"`       // Max output bytes
-	MaxFileSize    int           `yaml:"max_file_size"`    // Max file size for write operations
-	CleanupAfter   time.Duration `yaml:"cleanup_after"`    // Failed task retention time
+	CommandTimeout time.Duration `yaml:"command_timeout"` // Single command timeout
+	TaskTimeout    time.Duration `yaml:"task_timeout"`    // Total task timeout
+	MaxOutput      int           `yaml:"max_output"`      // Max output bytes
+	MaxFileSize    int           `yaml:"max_file_size"`   // Max file size for write operations
+	CleanupAfter   time.Duration `yaml:"cleanup_after"`   // Failed task retention time
 }
 
 // DefaultSandboxConfig returns default sandbox configuration.

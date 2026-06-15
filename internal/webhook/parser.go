@@ -14,6 +14,7 @@ type WebhookEvent struct {
 	Issue      *Issue       `json:"issue,omitempty"`
 	PR         *PullRequest `json:"pull_request,omitempty"`
 	Comment    *Comment     `json:"comment,omitempty"`
+	Assignee   *User        `json:"assignee,omitempty"` // Single assignee from issues.assigned event
 	Sender     User         `json:"sender"`
 }
 
@@ -40,15 +41,16 @@ type Issue struct {
 }
 
 type PullRequest struct {
-	ID      int    `json:"id"`
-	Number  int    `json:"number"`
-	Title   string `json:"title"`
-	Body    string `json:"body"`
-	State   string `json:"state"`
-	User    User   `json:"user"`
-	Head    Branch `json:"head"`
-	Base    Branch `json:"base"`
-	HTMLURL string `json:"html_url"`
+	ID                 int    `json:"id"`
+	Number             int    `json:"number"`
+	Title              string `json:"title"`
+	Body               string `json:"body"`
+	State              string `json:"state"`
+	User               User   `json:"user"`
+	Head               Branch `json:"head"`
+	Base               Branch `json:"base"`
+	HTMLURL            string `json:"html_url"`
+	RequestedReviewers []User `json:"requested_reviewers,omitempty"`
 }
 
 type Branch struct {

@@ -2,6 +2,9 @@ package webhook
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseEventIssues(t *testing.T) {
@@ -154,4 +157,86 @@ func TestHasMention(t *testing.T) {
 	if evt2.HasMention("ai-agent") {
 		t.Error("Should return false for nil comment")
 	}
+}
+
+func TestParseEventAssignee(t *testing.T) {
+	payload := []byte(`{
+		"action": "assigned",
+		"repository": {
+			"id": 1,
+			"name": "repo",
+			"full_name": "owner/repo"
+		},
+		"issue": {
+			"id": 1,
+			"number": 5,
+			"title": "Test",
+			"state": "open",
+			"user": {"id": 1, "login": "admin"},
+			"assignees": [
+				{"id": 1, "login": "admin"},
+				{"id": 2, "login": "coder-ds"}
+			]
+		},
+		"assignee": {"id": 2, "login": "coder-ds"},
+		"sender": {"id": 1, "login": "admin"}
+	}`)
+
+	evt, err := ParseEvent("issues", "del-assignee", payload)
+	require.NoError(t, err)
+
+	// Assignee is the single user this event is about
+	require.NotNil(t, evt.Assignee)
+	assert.Equal(t, "coder-ds", evt.Assignee.Login)
+	assert.Equal(t, 2, evt.Assignee.ID)
+
+	// Issue.Assignees is the full list
+	assert.Len(t, evt.Issue.Assignees, 2)
+}
+
+func TestParseEventPullRequestReviewRequested(t *testing.T) {
+	payload := []byte(`{
+		"action": "review_requested",
+		"repository": {
+			"id": 1,
+			"name": "repo",
+			"full_name": "owner/repo"
+		},
+		"pull_request": {
+			"id": 10,
+			"number": 3,
+			"title": "Fix bug",
+			"state": "open",
+			"user": {"id": 1, "login": "coder-ds"},
+			"head": {"ref": "fix-3", "repo": {"full_name": "owner/repo"}},
+			"base": {"ref": "main", "repo": {"full_name": "owner/repo"}},
+			"requested_reviewers": [
+				{"id": 5, "login": "reviewer-gpt"}
+			]
+		},
+		"sender": {"id": 1, "login": "coder-ds"}
+	}`)
+
+	evt, err := ParseEvent("pull_request", "del-review", payload)
+	require.NoError(t, err)
+
+	require.NotNil(t, evt.PR)
+	require.Len(t, evt.PR.RequestedReviewers, 1)
+	assert.Equal(t, "reviewer-gpt", evt.PR.RequestedReviewers[0].Login)
+}
+
+func TestParseEventNoAssignee(t *testing.T) {
+	payload := []byte(`{
+		"action": "opened",
+		"repository": {"id": 1, "name": "repo", "full_name": "owner/repo"},
+		"issue": {
+			"id": 1, "number": 1, "title": "Test", "state": "open",
+			"user": {"id": 1, "login": "admin"}
+		},
+		"sender": {"id": 1, "login": "admin"}
+	}`)
+
+	evt, err := ParseEvent("issues", "del-no-assignee", payload)
+	require.NoError(t, err)
+	assert.Nil(t, evt.Assignee)
 }

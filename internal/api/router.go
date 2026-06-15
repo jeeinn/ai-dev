@@ -284,6 +284,7 @@ type AgentDTO struct {
 	UserTemplate  string                 `json:"user_template"`
 	LoopConfig    *store.AgentLoopConfig `json:"loop_config,omitempty"`
 	Repos         []string               `json:"repos,omitempty"`
+	Role          string                 `json:"role"`
 	Status        string                 `json:"status"`
 }
 
@@ -301,6 +302,7 @@ func toAgentDTO(a *store.Agent) AgentDTO {
 		SystemPrompt:  a.SystemPrompt,
 		UserTemplate:  a.UserTemplate,
 		LoopConfig:    a.LoopConfig,
+		Role:          a.Role,
 		Status:        a.Status,
 	}
 }
@@ -396,6 +398,9 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 	agent.UserTemplate = req.UserTemplate
 	agent.Status = req.Status
 	agent.Repos = req.Repos
+	if req.Role != "" {
+		agent.Role = req.Role
+	}
 	if req.LoopConfig != nil {
 		agent.LoopConfig = req.LoopConfig
 	}

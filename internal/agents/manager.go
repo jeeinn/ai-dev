@@ -40,6 +40,7 @@ type CreateAgentRequest struct {
 	UserTemplate  string                 `json:"user_template"`
 	LoopConfig    *store.AgentLoopConfig `json:"loop_config,omitempty"`
 	Repos         []string               `json:"repos,omitempty"` // Repos to add as collaborator (e.g. ["owner/repo"])
+	Role          string                 `json:"role"`            // analyze | coder | review
 }
 
 // ListRepos returns all repositories from Gitea.
@@ -99,6 +100,10 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 	log.Printf("[INFO] Created Gitea token for: %s", req.GiteaUsername)
 
 	// 3. Store in DB
+	role := req.Role
+	if role == "" {
+		role = store.RoleAnalyze
+	}
 	agent := &store.Agent{
 		Name:          req.Name,
 		GiteaUsername: req.GiteaUsername,
@@ -110,6 +115,7 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 		SystemPrompt:  req.SystemPrompt,
 		UserTemplate:  req.UserTemplate,
 		LoopConfig:    req.LoopConfig,
+		Role:          role,
 		Status:        "active",
 	}
 	if err := m.db.CreateAgent(agent); err != nil {

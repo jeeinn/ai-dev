@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"gitea-agent-gateway/internal/agent"
@@ -360,30 +362,86 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	}
 	cloneURL := repoInfo.CloneURL
 
-	// Create sandbox
-	sb := sandbox.New(factory.sandboxCfg, task.ID)
+	// Determine workspace strategy: session-level or task-level
+	var sb *sandbox.Sandbox
+	useSessionWorkspace := false
+	var sessionBranch string
+
+	if task.SessionID != "" && factory.db != nil {
+		// Look up session for workspace reuse
+		if session, err := factory.db.GetSession(task.SessionID); err == nil && session.WorkspacePath != "" {
+			useSessionWorkspace = true
+			sessionBranch = session.Branch
+			sb = sandbox.NewWithPath(factory.sandboxCfg, task.ID, session.WorkspacePath)
+			log.Printf("[INFO] Using session workspace: %s", session.WorkspacePath)
+		}
+	}
+
+	if sb == nil {
+		sb = sandbox.New(factory.sandboxCfg, task.ID)
+	}
+
 	if err := sb.Setup(); err != nil {
 		return nil, fmt.Errorf("setup sandbox: %w", err)
 	}
-	defer sb.Cleanup()
+
+	// Only cleanup for non-session workspaces (session workspaces persist)
+	if !useSessionWorkspace {
+		defer sb.Cleanup()
+	}
 
 	// Create audit logger
 	audit := sandbox.NewAuditLogger(factory.db, task.ID, agentCfg.ID)
 
-	// Clone repository
+	// Clone or fetch repository
 	git := sandbox.NewGit(sb)
-	cloneResult := git.Clone(cloneURL)
-	audit.LogCommand("git", []string{"clone", cloneURL}, cloneResult)
-	if cloneResult.Error != nil {
-		errMsg := cloneResult.Stderr
-		if errMsg == "" {
-			errMsg = cloneResult.Error.Error()
+
+	if useSessionWorkspace && sb.WorkDir != "" {
+		// Check if the session workspace already has a git repo
+		gitDir := filepath.Join(sb.WorkDir, ".git")
+		if _, statErr := os.Stat(gitDir); statErr == nil {
+			// Existing repo — fetch latest
+			log.Printf("[INFO] Session workspace has existing repo, fetching latest")
+			fetchResult := sb.Execute("git", "fetch", "origin")
+			audit.LogCommand("git", []string{"fetch", "origin"}, fetchResult)
+			// Checkout the session branch or main
+			branch := sessionBranch
+			if branch == "" {
+				branch = "main"
+			}
+			sb.Execute("git", "checkout", branch)
+			pullResult := sb.Execute("git", "pull", "origin", branch)
+			audit.LogCommand("git", []string{"pull", "origin", branch}, pullResult)
+		} else {
+			// New session workspace — clone
+			cloneResult := git.Clone(cloneURL)
+			audit.LogCommand("git", []string{"clone", cloneURL}, cloneResult)
+			if cloneResult.Error != nil {
+				errMsg := cloneResult.Stderr
+				if errMsg == "" {
+					errMsg = cloneResult.Error.Error()
+				}
+				return nil, fmt.Errorf("clone repo: %s", errMsg)
+			}
 		}
-		return nil, fmt.Errorf("clone repo: %s", errMsg)
+	} else {
+		// Standard task-level clone
+		cloneResult := git.Clone(cloneURL)
+		audit.LogCommand("git", []string{"clone", cloneURL}, cloneResult)
+		if cloneResult.Error != nil {
+			errMsg := cloneResult.Stderr
+			if errMsg == "" {
+				errMsg = cloneResult.Error.Error()
+			}
+			return nil, fmt.Errorf("clone repo: %s", errMsg)
+		}
 	}
 
-	// Branch strategy: use existing PR branch or create new one
+	// Branch strategy: use session branch, existing PR branch, or create new one
 	branchName := task.BaseBranch
+	if branchName == "" && sessionBranch != "" {
+		branchName = sessionBranch
+	}
 	isExistingBranch := branchName != ""
 	if !isExistingBranch {
 		branchName = sandbox.GenerateBranchName(taskSubType, task.IssueID)
@@ -502,6 +560,14 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 			errMsg = pushResult.Error.Error()
 		}
 		return nil, fmt.Errorf("push: %s", errMsg)
+	}
+
+	// Update session branch if using session workspace
+	if useSessionWorkspace && task.SessionID != "" {
+		if session, sessErr := factory.db.GetSession(task.SessionID); sessErr == nil {
+			session.Branch = branchName
+			factory.db.UpdateSession(session)
+		}
 	}
 
 	if isExistingBranch {

@@ -66,6 +66,13 @@ type Sandbox struct {
 	AllowedCmds map[string]bool
 }
 
+// NewWithPath creates a Sandbox with a custom working directory (for session-level workspaces).
+func NewWithPath(cfg SandboxConfig, taskID int64, workDir string) *Sandbox {
+	s := New(cfg, taskID)
+	s.WorkDir = workDir
+	return s
+}
+
 // New creates a new Sandbox for the given task.
 func New(cfg SandboxConfig, taskID int64) *Sandbox {
 	var workDir string

@@ -23,6 +23,14 @@
                 <el-option label="禁用" value="inactive" />
               </el-select>
             </el-form-item>
+            <el-form-item label="角色">
+              <el-select v-model="form.role" style="width: 100%">
+                <el-option label="分析 (analyze)" value="analyze" />
+                <el-option label="开发 (coder)" value="coder" />
+                <el-option label="审查 (review)" value="review" />
+              </el-select>
+              <div class="form-tip">Assign Agent 后的角色行为</div>
+            </el-form-item>
             <el-form-item label="Gitea 用户">
               <el-input :model-value="form.gitea_username" disabled />
             </el-form-item>
@@ -82,65 +90,15 @@
         </el-card>
       </el-tab-pane>
 
-      <!-- Tab 2: 触发规则 -->
+      <!-- Tab 2: 触发规则 (v2 deprecated) -->
       <el-tab-pane label="触发规则" name="routes">
         <el-card>
-          <template #header>
-            <div class="card-header">
-              <span>触发规则 <el-tag size="small" style="margin-left: 8px">{{ routes.length }} 条</el-tag></span>
-              <el-button type="primary" size="small" @click="router.push('/rules')">
-                管理所有规则 →
-              </el-button>
-            </div>
-          </template>
-
-          <el-empty v-if="!routes.length" description="暂无触发规则，点击上方按钮添加" />
-          <el-table v-else :data="paginatedRoutes" style="width: 100%">
-            <el-table-column prop="event" label="事件" width="120" />
-            <el-table-column prop="action" label="动作" width="100">
-              <template #default="{ row }">{{ row.action || '*' }}</template>
-            </el-table-column>
-            <el-table-column prop="label" label="Label" width="130">
-              <template #default="{ row }">
-                <el-tag v-if="row.label" size="small">{{ row.label }}</el-tag>
-                <span v-else>-</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="预计执行行为" min-width="200">
-              <template #default="{ row }">
-                <el-tag :type="getBehaviorTag(row).type" size="small">{{ getBehaviorTag(row).icon }}</el-tag>
-                <span style="margin-left: 6px">{{ getBehaviorTag(row).text }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="mention" label="Mention" width="120">
-              <template #default="{ row }">{{ row.mention || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="优先级" width="100">
-              <template #default="{ row }">
-                <el-tag v-if="row.priority > 0" size="small" type="warning">{{ row.priority }}</el-tag>
-                <span v-else class="text-muted">{{ row.priority }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="100">
-              <template #default="{ row }">
-                <el-button size="small" type="danger" @click="deleteRoute(row)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-          <div v-if="routes.length > 10" class="pagination-bar">
-            <el-pagination v-model:current-page="routePage" :page-size="10" :total="routes.length" layout="prev, pager, next" small />
-          </div>
-
-          <!-- 快捷规则 -->
-          <el-divider content-position="left">快捷配置</el-divider>
-          <el-space wrap>
-            <el-button size="small" @click="quickAddRoute('issues', 'labeled', 'ai:analyze')">Issue + ai:analyze</el-button>
-            <el-button size="small" @click="quickAddRoute('issues', 'labeled', 'ai:solve')">Issue + ai:solve</el-button>
-            <el-button size="small" @click="quickAddRoute('issues', 'labeled', 'ai:fix')">Issue + ai:fix</el-button>
-            <el-button size="small" @click="quickAddRoute('pull_request', 'labeled', 'ai:review')">PR + ai:review</el-button>
-            <el-button size="small" @click="quickAddRoute('issue_comment', '', '', '', agent?.gitea_username)">@mention 回复</el-button>
-            <el-button size="small" @click="quickAddRoute('issue_comment', '', 'ai:solve', '', agent?.gitea_username)">PR @mention + ai:solve</el-button>
-          </el-space>
+          <el-empty description="触发规则已弃用 — v2 使用 Assign Agent 模型触发工作流">
+            <template #description>
+              <p>v2 已弃用基于 Label 的触发规则。</p>
+              <p style="margin-top: 8px">请在 Issue/PR 上 <strong>Assign Agent</strong> 来触发工作流。</p>
+            </template>
+          </el-empty>
         </el-card>
       </el-tab-pane>
 
@@ -171,46 +129,6 @@
         </el-card>
       </el-tab-pane>
     </el-tabs>
-
-    <!-- 添加规则对话框 -->
-    <el-dialog v-model="showAddRoute" title="添加触发规则" width="500px" :close-on-click-modal="false">
-      <el-form :model="routeForm" label-width="100px">
-        <el-form-item label="事件类型">
-          <el-select v-model="routeForm.event" style="width: 100%">
-            <el-option label="Issues" value="issues" />
-            <el-option label="Pull Request" value="pull_request" />
-            <el-option label="Issue Comment" value="issue_comment" />
-            <el-option label="Push" value="push" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="动作">
-          <el-select v-model="routeForm.action" clearable style="width: 100%">
-            <el-option label="(任意)" value="" />
-            <el-option label="assigned" value="assigned" />
-            <el-option label="labeled" value="labeled" />
-            <el-option label="opened" value="opened" />
-            <el-option label="created" value="created" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="Label">
-          <el-input v-model="routeForm.label" placeholder="如 ai:analyze" />
-        </el-form-item>
-        <el-form-item label="Assignee">
-          <el-input v-model="routeForm.assignee" placeholder="指定分配人" />
-        </el-form-item>
-        <el-form-item label="Mention">
-          <el-input v-model="routeForm.mention" placeholder="@用户名" />
-        </el-form-item>
-        <el-form-item label="优先级">
-          <el-input-number v-model="routeForm.priority" :min="0" :max="100" />
-          <div class="form-tip">值越大越优先匹配。多条规则匹配时，优先级最高的生效</div>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showAddRoute = false">取消</el-button>
-        <el-button type="primary" @click="addRoute">添加</el-button>
-      </template>
-    </el-dialog>
 
     <!-- Prompt 详情对话框 -->
     <el-dialog v-model="showPromptDetail" title="Prompt 版本详情" width="700px" :close-on-click-modal="false">
@@ -246,34 +164,17 @@ const agentId = ref(route.params.id)
 
 const activeTab = ref('info')
 const agent = ref(null)
-const routes = ref([])
 const prompts = ref([])
 const repoList = ref([])
-const routePage = ref(1)
 const promptPage = ref(1)
-
-const paginatedRoutes = computed(() => {
-  const start = (routePage.value - 1) * 10
-  return routes.value.slice(start, start + 10)
-})
 
 const paginatedPrompts = computed(() => {
   const start = (promptPage.value - 1) * 10
   return prompts.value.slice(start, start + 10)
 })
 const saving = ref(false)
-const showAddRoute = ref(false)
 const showPromptDetail = ref(false)
 const viewingPrompt = ref(null)
-
-const routeForm = ref({
-  event: 'issues',
-  action: 'labeled',
-  label: '',
-  assignee: '',
-  mention: '',
-  priority: 0
-})
 
 const defaultLoopConfig = {
   max_iterations: 20,
@@ -285,6 +186,7 @@ const defaultLoopConfig = {
 const defaultForm = {
   name: '',
   gitea_username: '',
+  role: 'analyze',
   provider: 'deepseek',
   model: 'deepseek-chat',
   max_tokens: 4096,
@@ -296,31 +198,6 @@ const defaultForm = {
 }
 
 const form = ref({ ...defaultForm, loop_config: { ...defaultLoopConfig } })
-
-const getBehaviorTag = (route) => {
-  const label = route.label || ''
-  const event = route.event || ''
-  const action = route.action || ''
-
-  // Label-based overrides (highest priority)
-  if (label === 'ai:solve') return { text: '自动开发，写代码并提 PR', type: 'warning', icon: '🛠️' }
-  if (label === 'ai:fix') return { text: '自动修复 Bug 并提 PR', type: 'danger', icon: '🔧' }
-  if (label === 'ai:analyze') return { text: '分析 Issue，输出需求报告', type: 'primary', icon: '📋' }
-  if (label === 'ai:review') return { text: '审查 PR 代码，输出审查报告', type: 'primary', icon: '🔍' }
-
-  // Event-based
-  if (event === 'issue_comment' || event === 'pull_request_comment') {
-    return { text: '回复评论（只读）', type: 'success', icon: '💬' }
-  }
-
-  // Event-based
-  if (event === 'pull_request') return { text: '审查 PR，输出审查报告', type: 'primary', icon: '🔍' }
-  if (event === 'issue_comment' || event === 'pull_request_comment') return { text: '回复评论', type: 'success', icon: '💬' }
-  if (event === 'issues' && (action === 'assigned' || action === 'labeled')) return { text: '分析 Issue，输出需求报告', type: 'primary', icon: '📋' }
-  if (event === 'issues') return { text: '分析 Issue（默认行为）', type: 'info', icon: '📋' }
-
-  return { text: '分析事件并回复', type: 'info', icon: '🤖' }
-}
 
 const loadRepos = async () => {
   try {
@@ -342,15 +219,6 @@ const loadAgent = async () => {
   } catch (error) {
     ElMessage.error('加载 Agent 信息失败')
     router.push('/agents')
-  }
-}
-
-const loadRoutes = async () => {
-  try {
-    const data = await api.get(`/agents/${agentId.value}/routes`)
-    routes.value = Array.isArray(data) ? data : []
-  } catch {
-    routes.value = []
   }
 }
 
@@ -377,50 +245,6 @@ const saveAgent = async () => {
     ElMessage.error(error.response?.data?.error || '保存失败')
   } finally {
     saving.value = false
-  }
-}
-
-const addRoute = async () => {
-  try {
-    await api.post('/routes', {
-      ...routeForm.value,
-      agent_id: parseInt(agentId.value)
-    })
-    ElMessage.success('规则添加成功')
-    showAddRoute.value = false
-    routeForm.value = { event: 'issues', action: 'labeled', label: '', assignee: '', mention: '', priority: 0 }
-    await loadRoutes()
-  } catch (error) {
-    ElMessage.error(error.response?.data?.error || '添加失败')
-  }
-}
-
-const quickAddRoute = async (event, action, label, assignee, mention) => {
-  try {
-    await api.post('/routes', {
-      event,
-      action,
-      label: label || '',
-      assignee: assignee || '',
-      mention: mention || '',
-      agent_id: parseInt(agentId.value),
-      priority: 0
-    })
-    ElMessage.success('规则添加成功')
-    await loadRoutes()
-  } catch (error) {
-    ElMessage.error(error.response?.data?.error || '添加失败')
-  }
-}
-
-const deleteRoute = async (r) => {
-  try {
-    await ElMessageBox.confirm('确定删除这条规则？', '确认')
-    await api.delete(`/routes/${r.id}`)
-    ElMessage.success('删除成功')
-    await loadRoutes()
-  } catch (error) {
-    if (error !== 'cancel') ElMessage.error('删除失败')
   }
 }
 
@@ -451,8 +275,7 @@ const deletePrompt = async (prompt) => {
 
 // Reload data when tab changes
 watch(activeTab, (tab) => {
-  if (tab === 'routes') loadRoutes()
-  else if (tab === 'prompts') loadPrompts()
+  if (tab === 'prompts') loadPrompts()
 })
 
 onMounted(() => {

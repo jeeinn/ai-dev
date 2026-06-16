@@ -19,14 +19,16 @@
           </template>
         </el-table-column>
         <el-table-column prop="gitea_username" label="Gitea 用户" />
-        <el-table-column prop="provider" label="Provider" width="100" />
-        <el-table-column prop="model" label="模型" />
-        <el-table-column label="触发规则" width="90">
+        <el-table-column label="角色" width="100">
           <template #default="{ row }">
-            <el-tag v-if="agentRouteCounts[row.id] > 0" size="small">{{ agentRouteCounts[row.id] }} 条</el-tag>
-            <span v-else class="text-muted">未配置</span>
+            <el-tag v-if="row.role === 'analyze'" type="primary" size="small">分析</el-tag>
+            <el-tag v-else-if="row.role === 'coder'" type="success" size="small">开发</el-tag>
+            <el-tag v-else-if="row.role === 'review'" type="warning" size="small">审查</el-tag>
+            <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
+        <el-table-column prop="provider" label="Provider" width="100" />
+        <el-table-column prop="model" label="模型" />
         <el-table-column prop="status" label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">{{ row.status === 'active' ? '活跃' : '禁用' }}</el-tag>
@@ -63,6 +65,14 @@
         <el-form-item label="Gitea 用户名">
           <el-input v-model="form.gitea_username" :disabled="!!editingAgent" placeholder="自动创建 Gitea 账号" />
           <div v-if="editingAgent" class="form-tip">创建后不可修改</div>
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-select v-model="form.role" placeholder="选择角色" style="width: 100%">
+            <el-option label="分析 (analyze)" value="analyze" />
+            <el-option label="开发 (coder)" value="coder" />
+            <el-option label="审查 (review)" value="review" />
+          </el-select>
+          <div class="form-tip">角色决定 Assign 后的行为：分析=只读分析，开发=读写代码，审查=只读审查</div>
         </el-form-item>
         <el-form-item label="关联仓库">
           <el-select v-model="form.repos" multiple filterable placeholder="选择仓库（可多选）" style="width: 100%">
@@ -151,7 +161,6 @@ import TemplateHelp from '../components/TemplateHelp.vue'
 
 const router = useRouter()
 const agents = ref([])
-const agentRouteCounts = ref({})
 const currentPage = ref(1)
 const pageSize = ref(20)
 
@@ -170,6 +179,7 @@ const repoList = ref([])
 const defaultForm = {
   name: '',
   gitea_username: '',
+  role: 'analyze',
   provider: 'deepseek',
   model: 'deepseek-chat',
   max_tokens: 4096,
@@ -190,17 +200,6 @@ const form = ref({ ...defaultForm })
 
 const loadAgents = async () => {
   agents.value = await api.get('/agents')
-  // Load route counts for each agent
-  try {
-    const routes = await api.get('/routes')
-    const counts = {}
-    for (const route of routes) {
-      counts[route.agent_id] = (counts[route.agent_id] || 0) + 1
-    }
-    agentRouteCounts.value = counts
-  } catch {
-    // ignore
-  }
 }
 
 const loadTemplates = async () => {

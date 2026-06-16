@@ -19,10 +19,6 @@
           <el-icon><List /></el-icon>
           <span>任务列表</span>
         </el-menu-item>
-        <el-menu-item index="/rules">
-          <el-icon><Connection /></el-icon>
-          <span>触发规则</span>
-        </el-menu-item>
         <el-menu-item index="/agents">
           <el-icon><User /></el-icon>
           <span>Agent 管理</span>
@@ -73,7 +69,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { Monitor, User, List, UserFilled, Tools, Connection } from '@element-plus/icons-vue'
+import { Monitor, User, List, UserFilled, Tools } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

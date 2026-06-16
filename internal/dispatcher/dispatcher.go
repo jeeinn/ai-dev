@@ -27,10 +27,11 @@ type Dispatcher struct {
 	agentsCfg *config.AgentsConfig
 
 	// v2 components (optional; when set, new pipeline is used)
-	registry *agents.Registry
-	resolver *workflow.Resolver
-	wfMgr    *workflow.WorkflowManager
-	l1Gate   *workflow.L1Gate
+	registry   *agents.Registry
+	resolver   *workflow.Resolver
+	wfMgr      *workflow.WorkflowManager
+	l1Gate     *workflow.L1Gate
+	sessionSvc *workflow.SessionService
 
 	// In-flight lock: prevents concurrent tasks on the same (repo, issue)
 	inFlight sync.Map // map[string]bool — key is "repo#issueID"
@@ -83,13 +84,14 @@ func NewDispatcher(
 
 // SetWorkflowComponents sets the v2 workflow components.
 // When set, the dispatcher uses the new Assign-based pipeline instead of Router.Match.
-func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *workflow.Resolver, wfMgr *workflow.WorkflowManager, l1Gate *workflow.L1Gate) {
+func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *workflow.Resolver, wfMgr *workflow.WorkflowManager, l1Gate *workflow.L1Gate, sessionSvc *workflow.SessionService) {
 	d.registry = registry
 	d.resolver = resolver
 	d.wfMgr = wfMgr
 	d.l1Gate = l1Gate
+	d.sessionSvc = sessionSvc
 
-	// Wire task completion callback for WorkflowContext updates
+	// Wire task completion callback for WorkflowContext + Session updates
 	d.executor.SetOnComplete(func(task *store.Task) {
 		if wfMgr == nil || task == nil {
 			return
@@ -101,6 +103,16 @@ func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *
 		}
 		if err := wfMgr.OnTaskComplete(ctx, task.TaskType, 0, task.SessionID); err != nil {
 			log.Printf("[WARN] Failed to update workflow context after task %d: %v", task.ID, err)
+		}
+		// Update session state
+		if sessionSvc != nil && task.SessionID != "" {
+			if session, err := d.db.GetSession(task.SessionID); err == nil {
+				// Extract branch from task result (for DevRunner PR creation)
+				branch := session.Branch
+				if err := sessionSvc.CompleteTask(session, task.ID, branch, ""); err != nil {
+					log.Printf("[WARN] Failed to update session after task %d: %v", task.ID, err)
+				}
+			}
 		}
 		// Release in-flight lock
 		lockKey := fmt.Sprintf("%s#%d", task.Repo, task.IssueID)
@@ -174,6 +186,7 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 	}
 
 	// Step 4: WorkflowContext transition
+	var sessionID string
 	if d.wfMgr != nil {
 		ctx, err := d.db.GetOrCreateWorkflowContext(repo, issueID)
 		if err != nil {
@@ -210,8 +223,25 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 			return true
 		}
 
+		// Step 6b: Get or create session
+		var sessionID string
+		if d.sessionSvc != nil {
+			session, err := d.sessionSvc.GetOrCreate(repo, issueID, result.Agent.ID, result.Role)
+			if err != nil {
+				d.inFlight.Delete(lockKey)
+				log.Printf("[ERROR] Failed to get/create session: %v", err)
+				return false
+			}
+			sessionID = session.ID
+
+			// Set base branch from session for coder continuation
+			if result.Role == store.RoleCoder && session.Branch != "" {
+				// Will be used below for task.BaseBranch
+			}
+		}
+
 		// Apply transition to DB
-		if err := d.wfMgr.ApplyTransition(ctx, transition, result.Agent.ID, result.Role, ""); err != nil {
+		if err := d.wfMgr.ApplyTransition(ctx, transition, result.Agent.ID, result.Role, sessionID); err != nil {
 			d.inFlight.Delete(lockKey)
 			log.Printf("[ERROR] Failed to apply transition: %v", err)
 			return false
@@ -231,6 +261,7 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 		Status:     "pending",
 		Priority:   10, // Default priority for v2
 		Role:       result.Role,
+		SessionID:  sessionID,
 		DeliveryID: evt.DeliveryID,
 	}
 

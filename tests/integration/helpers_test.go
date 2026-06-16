@@ -219,8 +219,9 @@ func (e *TestEnv) EnableWorkflowV2(t *testing.T) *agents.Registry {
 	resolver := workflow.NewResolver(registry)
 	wfMgr := workflow.NewWorkflowManager(e.DB)
 	l1Gate := workflow.NewL1Gate(e.DB)
+	sessionSvc := workflow.NewSessionService(e.DB, "")
 
-	e.Dispatcher.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate)
+	e.Dispatcher.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate, sessionSvc)
 	return registry
 }
 

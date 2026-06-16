@@ -95,7 +95,7 @@ func main() {
 	// Initialize dispatcher (Router + TaskQueue + Executor)
 	d := dispatcher.NewDispatcher(db, &activeCfg.Gitea, &activeCfg.Dispatcher, llmRegistry, &activeCfg.Agents)
 
-	// Initialize v2 workflow components (Agent Registry + Event Resolver + State Machine + L1 Gate)
+	// Initialize v2 workflow components
 	registry := agents.NewRegistry()
 	if err := registry.LoadFromDB(db); err != nil {
 		log.Printf("[WARN] Failed to load agent registry: %v", err)
@@ -103,8 +103,9 @@ func main() {
 	resolver := workflow.NewResolver(registry)
 	wfMgr := workflow.NewWorkflowManager(db)
 	l1Gate := workflow.NewL1Gate(db)
-	d.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate)
-	log.Printf("[INFO] Workflow v2 components initialized")
+	sessionSvc := workflow.NewSessionService(db, activeCfg.Workspace.BaseDir)
+	d.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate, sessionSvc)
+	log.Printf("[INFO] Workflow v2 components initialized (with SessionService)")
 
 	// Start dispatcher (loads pending tasks and starts workers)
 	if err := d.Start(); err != nil {

@@ -7,19 +7,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"gitea-agent-gateway/internal/store"
 )
 
 func TestAgentCRUD(t *testing.T) {
 	env := NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Create agent
+	// Create agent with role
 	createReq := map[string]interface{}{
 		"name":           "test-agent",
 		"gitea_username": "ai-test",
 		"provider":       "mock",
 		"model":          "mock-model",
 		"system_prompt":  "You are a test agent.",
+		"role":           "analyze",
 	}
 
 	resp, err := env.APIRequest("POST", "/api/agents", createReq)
@@ -34,6 +37,7 @@ func TestAgentCRUD(t *testing.T) {
 	require.True(t, ok, "response should contain 'agent' field")
 	assert.Equal(t, "test-agent", agent["name"])
 	assert.Equal(t, "ai-test", agent["gitea_username"])
+	assert.Equal(t, "analyze", agent["role"])
 
 	// Get agent
 	resp, err = env.APIRequest("GET", "/api/agents/1", nil)
@@ -54,6 +58,7 @@ func TestAgentCRUD(t *testing.T) {
 	updateReq := map[string]interface{}{
 		"name":          "updated-agent",
 		"system_prompt": "Updated prompt.",
+		"role":          "coder",
 	}
 	resp, err = env.APIRequest("PUT", "/api/agents/1", updateReq)
 	require.NoError(t, err)
@@ -91,61 +96,19 @@ func TestAgentTokenHidden(t *testing.T) {
 	assert.False(t, hasToken, "gitea_token should not be in API response")
 }
 
-func TestRouteCRUD(t *testing.T) {
-	env := NewTestEnv(t)
-	defer env.Cleanup()
-
-	// Create agent first
-	agent := env.CreateTestAgent(t)
-
-	// Create route
-	createReq := map[string]interface{}{
-		"event":    "issues",
-		"action":   "assigned",
-		"agent_id": agent.ID,
-		"priority": 10,
-	}
-
-	resp, err := env.APIRequest("POST", "/api/routes", createReq)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// List routes
-	resp, err = env.APIRequest("GET", "/api/routes", nil)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	var routes []map[string]interface{}
-	err = parseJSON(resp, &routes)
-	require.NoError(t, err)
-	assert.Len(t, routes, 1)
-
-	// Delete route
-	resp, err = env.APIRequest("DELETE", "/api/routes/1", nil)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Verify deleted
-	resp, err = env.APIRequest("GET", "/api/routes", nil)
-	require.NoError(t, err)
-	err = parseJSON(resp, &routes)
-	require.NoError(t, err)
-	assert.Len(t, routes, 0)
-}
-
 func TestTaskList(t *testing.T) {
 	env := NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Create agent and task
-	agent := env.CreateTestAgent(t)
-	env.CreateTestRoute(t, agent.ID, "issues", "assigned")
+	// Create agent with role and enable v2
+	env.CreateTestAgentWithRole(t, "ai-agent", "ai-agent", store.RoleAnalyze)
+	env.EnableWorkflowV2(t)
 
 	// Start dispatcher
 	err := env.Dispatcher.Start()
 	require.NoError(t, err)
 
-	// Send webhook to create a task
+	// Send webhook to create a task (v2 uses assignee)
 	payload := map[string]interface{}{
 		"action": "assigned",
 		"repository": map[string]interface{}{
@@ -159,7 +122,8 @@ func TestTaskList(t *testing.T) {
 			"title":  "Test",
 			"user":   map[string]interface{}{"id": 1, "login": "user1"},
 		},
-		"sender": map[string]interface{}{"id": 1, "login": "user1"},
+		"assignee": map[string]interface{}{"id": 100, "login": "ai-agent"},
+		"sender":   map[string]interface{}{"id": 1, "login": "user1"},
 	}
 
 	err = env.SendWebhook("issues", "task-list-test", payload)

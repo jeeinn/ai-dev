@@ -193,6 +193,7 @@ func (db *DB) migrate() error {
 		`ALTER TABLE agents ADD COLUMN role TEXT NOT NULL DEFAULT 'analyze'`,
 		`ALTER TABLE tasks ADD COLUMN session_id TEXT DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN role TEXT DEFAULT ''`,
+		`DROP TABLE IF EXISTS routes`, // v2: routes table removed (Assign model replaces Label trigger)
 	}
 
 	for _, m := range additionalMigrations {

@@ -6,21 +6,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"gitea-agent-gateway/internal/store"
 )
 
 func TestWebhookIssueAssigned(t *testing.T) {
 	env := NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Create agent and route
-	agent := env.CreateTestAgent(t)
-	env.CreateTestRoute(t, agent.ID, "issues", "assigned")
+	// Create agent with role and enable v2 pipeline
+	env.CreateTestAgentWithRole(t, "ai-agent", "ai-agent", store.RoleAnalyze)
+	env.EnableWorkflowV2(t)
 
-	// Start dispatcher
 	err := env.Dispatcher.Start()
 	require.NoError(t, err)
 
-	// Send webhook event
+	// Send webhook event (v2 uses assignee field)
 	payload := map[string]interface{}{
 		"action": "assigned",
 		"repository": map[string]interface{}{
@@ -38,7 +39,8 @@ func TestWebhookIssueAssigned(t *testing.T) {
 			"state":  "open",
 			"user":   map[string]interface{}{"id": 1, "login": "user1"},
 		},
-		"sender": map[string]interface{}{"id": 1, "login": "user1"},
+		"assignee": map[string]interface{}{"id": 100, "login": "ai-agent"},
+		"sender":   map[string]interface{}{"id": 1, "login": "user1"},
 	}
 
 	err = env.SendWebhook("issues", "test-delivery-001", payload)
@@ -51,7 +53,6 @@ func TestWebhookIssueAssigned(t *testing.T) {
 	assert.Equal(t, "issues", task.Event)
 	assert.Equal(t, "owner/repo", task.Repo)
 	assert.Equal(t, 1, task.IssueID)
-	assert.Equal(t, agent.ID, task.AgentID)
 	assert.Equal(t, "analyze_issue", task.TaskType)
 	assert.NotEmpty(t, task.Result)
 }
@@ -60,11 +61,9 @@ func TestWebhookDuplicateDelivery(t *testing.T) {
 	env := NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Create agent and route
-	agent := env.CreateTestAgent(t)
-	env.CreateTestRoute(t, agent.ID, "issues", "assigned")
+	env.CreateTestAgentWithRole(t, "ai-agent", "ai-agent", store.RoleAnalyze)
+	env.EnableWorkflowV2(t)
 
-	// Start dispatcher
 	err := env.Dispatcher.Start()
 	require.NoError(t, err)
 
@@ -81,7 +80,8 @@ func TestWebhookDuplicateDelivery(t *testing.T) {
 			"title":  "Test",
 			"user":   map[string]interface{}{"id": 1, "login": "user1"},
 		},
-		"sender": map[string]interface{}{"id": 1, "login": "user1"},
+		"assignee": map[string]interface{}{"id": 100, "login": "ai-agent"},
+		"sender":   map[string]interface{}{"id": 1, "login": "user1"},
 	}
 
 	// Send same delivery twice
@@ -101,21 +101,19 @@ func TestWebhookDuplicateDelivery(t *testing.T) {
 	assert.Len(t, tasks, 1)
 }
 
-func TestWebhookNoMatchingRoute(t *testing.T) {
+func TestWebhookNoMatchingAgent(t *testing.T) {
 	env := NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Create agent but no route for "pull_request"
-	agent := env.CreateTestAgent(t)
-	env.CreateTestRoute(t, agent.ID, "issues", "assigned")
+	env.CreateTestAgentWithRole(t, "ai-agent", "ai-agent", store.RoleAnalyze)
+	env.EnableWorkflowV2(t)
 
-	// Start dispatcher
 	err := env.Dispatcher.Start()
 	require.NoError(t, err)
 
-	// Send PR event (no matching route)
+	// Send PR event with unknown reviewer (no match)
 	payload := map[string]interface{}{
-		"action": "opened",
+		"action": "review_requested",
 		"repository": map[string]interface{}{
 			"id":        1,
 			"name":      "repo",
@@ -125,7 +123,11 @@ func TestWebhookNoMatchingRoute(t *testing.T) {
 			"id":     1,
 			"number": 1,
 			"title":  "Test PR",
+			"state":  "open",
 			"user":   map[string]interface{}{"id": 1, "login": "user1"},
+			"requested_reviewers": []map[string]interface{}{
+				{"id": 999, "login": "unknown-reviewer"},
+			},
 		},
 		"sender": map[string]interface{}{"id": 1, "login": "user1"},
 	}

@@ -66,13 +66,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/agents/{id}", h.auth.Wrap(h.getAgent))
 	mux.HandleFunc("PUT /api/agents/{id}", h.auth.Wrap(h.updateAgent))
 	mux.HandleFunc("DELETE /api/agents/{id}", h.auth.Wrap(h.deleteAgent))
-	mux.HandleFunc("GET /api/agents/{id}/routes", h.auth.Wrap(h.listAgentRoutes))
 	mux.HandleFunc("GET /api/agents/{id}/tasks", h.auth.Wrap(h.listAgentTasks))
 	mux.HandleFunc("GET /api/tasks", h.auth.Wrap(h.listTasks))
 	mux.HandleFunc("GET /api/tasks/{id}", h.auth.Wrap(h.getTask))
-	mux.HandleFunc("GET /api/routes", h.auth.Wrap(h.listRoutes))
-	mux.HandleFunc("POST /api/routes", h.auth.Wrap(h.createRoute))
-	mux.HandleFunc("DELETE /api/routes/{id}", h.auth.Wrap(h.deleteRoute))
 	mux.HandleFunc("GET /api/logs", h.auth.Wrap(h.listLogs))
 	mux.HandleFunc("GET /api/stats", h.auth.Wrap(h.getStats))
 	mux.HandleFunc("GET /api/templates", h.auth.Wrap(h.listTemplates))
@@ -451,20 +447,6 @@ func (h *Handler) deleteAgent(w http.ResponseWriter, r *http.Request) {
 
 // --- Task endpoints ---
 
-func (h *Handler) listAgentRoutes(w http.ResponseWriter, r *http.Request) {
-	agentID, err := parseID(r, "id")
-	if err != nil {
-		writeError(w, 400, "invalid agent id")
-		return
-	}
-	routes, err := h.db.ListRoutesByAgentID(agentID)
-	if err != nil {
-		writeError(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, 200, routes)
-}
-
 func (h *Handler) listAgentTasks(w http.ResponseWriter, r *http.Request) {
 	agentID, err := parseID(r, "id")
 	if err != nil {
@@ -532,43 +514,6 @@ func (h *Handler) getTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, task)
-}
-
-// --- Route endpoints ---
-
-func (h *Handler) listRoutes(w http.ResponseWriter, r *http.Request) {
-	routes, err := h.db.ListRoutes()
-	if err != nil {
-		writeError(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, 200, routes)
-}
-
-func (h *Handler) createRoute(w http.ResponseWriter, r *http.Request) {
-	var route store.Route
-	if err := json.NewDecoder(r.Body).Decode(&route); err != nil {
-		writeError(w, 400, "invalid request body")
-		return
-	}
-	if err := h.db.CreateRoute(&route); err != nil {
-		writeError(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, 201, route)
-}
-
-func (h *Handler) deleteRoute(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r, "id")
-	if err != nil {
-		writeError(w, 400, "invalid id")
-		return
-	}
-	if err := h.db.DeleteRoute(id); err != nil {
-		writeError(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, 200, map[string]string{"status": "deleted"})
 }
 
 // --- Log endpoints ---

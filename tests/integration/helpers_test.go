@@ -248,21 +248,6 @@ func (e *TestEnv) CreateTestAgentWithRole(t *testing.T, name, username, role str
 	return agent
 }
 
-// CreateTestRoute creates a test route in the database.
-func (e *TestEnv) CreateTestRoute(t *testing.T, agentID int64, event, action string) {
-	t.Helper()
-
-	route := &store.Route{
-		Event:    event,
-		Action:   action,
-		AgentID:  agentID,
-		Priority: 10,
-	}
-
-	err := e.DB.CreateRoute(route)
-	require.NoError(t, err)
-}
-
 // WaitForTask waits for a task to reach the given status.
 func (e *TestEnv) WaitForTask(t *testing.T, taskID int64, status string, timeout time.Duration) *store.Task {
 	t.Helper()

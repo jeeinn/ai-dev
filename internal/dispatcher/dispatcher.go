@@ -19,14 +19,13 @@ import (
 // Dispatcher orchestrates the event processing pipeline:
 // WebhookEvent → EventResolver → Gate checks → WorkflowContext → TaskQueue.Enqueue → Executor.execute
 type Dispatcher struct {
-	router    *Router // Legacy router (Phase 16.9 will remove)
 	queue     *TaskQueue
 	executor  *Executor
 	db        *store.DB
 	giteaCfg  *config.GiteaConfig
 	agentsCfg *config.AgentsConfig
 
-	// v2 components (optional; when set, new pipeline is used)
+	// v2 components
 	registry   *agents.Registry
 	resolver   *workflow.Resolver
 	wfMgr      *workflow.WorkflowManager
@@ -47,7 +46,6 @@ func NewDispatcher(
 	llmRegistry *llm.Registry,
 	agentsCfg *config.AgentsConfig,
 ) *Dispatcher {
-	router := NewRouter(db)
 	queue := NewTaskQueue(db, dispatcherCfg.QueueSize)
 	defaultMaxTokens := 4096
 	defaultTemp := 0.3
@@ -70,7 +68,6 @@ func NewDispatcher(
 	)
 
 	d := &Dispatcher{
-		router:    router,
 		queue:     queue,
 		executor:  executor,
 		db:        db,
@@ -141,20 +138,19 @@ func (d *Dispatcher) Start() error {
 	return nil
 }
 
-// HandleEvent processes a webhook event through the pipeline.
+// HandleEvent processes a webhook event through the v2 pipeline.
 // This is the callback function passed to webhook.Handler.
 // Returns true if the event was successfully processed (or intentionally skipped).
 func (d *Dispatcher) HandleEvent(evt *webhook.WebhookEvent) bool {
 	log.Printf("[INFO] Processing event: %s/%s repo=%s sender=%s",
 		evt.Event, evt.Action, evt.Repo.FullName, evt.Sender.Login)
 
-	// v2 pipeline: use Resolver if workflow components are configured
-	if d.resolver != nil {
-		return d.handleEventV2(evt)
+	if d.resolver == nil {
+		log.Printf("[WARN] No resolver configured, ignoring event")
+		return true
 	}
 
-	// Legacy pipeline: Router.Match
-	return d.handleEventLegacy(evt)
+	return d.handleEventV2(evt)
 }
 
 // handleEventV2 processes events through the new Assign-based pipeline.
@@ -392,61 +388,6 @@ func (d *Dispatcher) postGateComment(agent *store.Agent, repo string, issueID in
 	}
 }
 
-// handleEventLegacy processes events through the old Router.Match pipeline (pre-v2).
-func (d *Dispatcher) handleEventLegacy(evt *webhook.WebhookEvent) bool {
-	// Match event to an agent via routes
-	match := d.router.Match(evt)
-	if match == nil {
-		log.Printf("[DEBUG] No matching route for event %s/%s in repo %s",
-			evt.Event, evt.Action, evt.Repo.FullName)
-		return true // Not an error, just no matching route
-	}
-
-	log.Printf("[INFO] Matched agent %q (id=%d) via route %d",
-		match.Agent.Name, match.Agent.ID, match.Route.ID)
-
-	// Determine task type based on event
-	taskType := determineTaskType(evt)
-
-	// Build task context from event (uses templates if configured)
-	taskContext := d.buildTaskContext(evt, match.Agent, taskType)
-
-	// Get issue number for the task
-	issueID := 0
-	if evt.Issue != nil {
-		issueID = evt.Issue.Number
-	} else if evt.PR != nil {
-		issueID = evt.PR.Number
-	}
-
-	// Create and enqueue task
-	task := &store.Task{
-		Event:      evt.Event,
-		Repo:       evt.Repo.FullName,
-		IssueID:    issueID,
-		AgentID:    match.Agent.ID,
-		TaskType:   taskType,
-		Context:    taskContext,
-		Status:     "pending",
-		Priority:   match.Route.Priority,
-		DeliveryID: evt.DeliveryID,
-	}
-
-	// For PR events, capture the head branch so runners can update the existing PR
-	if evt.PR != nil && evt.PR.Head.Ref != "" {
-		task.BaseBranch = evt.PR.Head.Ref
-	}
-
-	if err := d.queue.Enqueue(task); err != nil {
-		log.Printf("[ERROR] Failed to enqueue task: %v", err)
-		return false
-	}
-
-	log.Printf("[INFO] Task %d enqueued for agent %s on %s#%d",
-		task.ID, match.Agent.Name, task.Repo, task.IssueID)
-	return true
-}
-
 // buildTaskContext constructs the context string for the task from the event.
 // If the agent has a user_template, it renders it with the event data.
 // Otherwise, it falls back to the default context builder.
@@ -521,24 +462,6 @@ func (d *Dispatcher) buildDefaultContext(evt *webhook.WebhookEvent) string {
 	sb.WriteString(fmt.Sprintf("Sender: %s\n", evt.Sender.Login))
 
 	return sb.String()
-}
-
-// determineTaskType returns the task type based on the event (legacy pipeline).
-// v2: Label-based task type override removed. Task type is determined by Agent.role + event.
-func determineTaskType(evt *webhook.WebhookEvent) string {
-	switch evt.Event {
-	case "issues":
-		if evt.Action == "assigned" {
-			return "analyze_issue"
-		}
-		return "trigger"
-	case "pull_request":
-		return "review_pr"
-	case "issue_comment", "pull_request_comment":
-		return "reply_comment"
-	default:
-		return "trigger"
-	}
 }
 
 // GetGiteaClient creates a Gitea client using agent's token for writeback.

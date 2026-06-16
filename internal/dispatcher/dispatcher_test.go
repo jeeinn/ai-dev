@@ -9,10 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"gitea-agent-gateway/internal/agents"
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
+	"gitea-agent-gateway/internal/workflow"
 )
 
 // mockLLMProvider returns a fixed response for testing.
@@ -66,6 +68,7 @@ func createTestAgent(t *testing.T, db *store.DB) *store.Agent {
 		MaxTokens:     1024,
 		Temperature:   0.3,
 		SystemPrompt:  "You are a helpful AI assistant.",
+		Role:          store.RoleAnalyze,
 		Status:        "active",
 	}
 
@@ -76,29 +79,12 @@ func createTestAgent(t *testing.T, db *store.DB) *store.Agent {
 	return agent
 }
 
-// createTestRoute creates a test route in the database.
-func createTestRoute(t *testing.T, db *store.DB, agentID int64) {
-	t.Helper()
-
-	route := &store.Route{
-		Event:    "issues",
-		Action:   "assigned",
-		AgentID:  agentID,
-		Priority: 10,
-	}
-
-	if err := db.CreateRoute(route); err != nil {
-		t.Fatalf("Failed to create route: %v", err)
-	}
-}
-
 func TestDispatcherHandleEvent(t *testing.T) {
 	// Setup
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	agent := createTestAgent(t, db)
-	createTestRoute(t, db, agent.ID)
 
 	// Create mock Gitea server
 	giteaServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -119,13 +105,21 @@ func TestDispatcherHandleEvent(t *testing.T) {
 	}
 
 	llmRegistry := &llm.Registry{}
-	// Register mock provider
 	llmRegistry.Register("mock", &mockLLMProvider{})
 
 	agentsCfg := &config.AgentsConfig{}
 	d := NewDispatcher(db, giteaCfg, dispatcherCfg, llmRegistry, agentsCfg)
 
-	// Create test event
+	// Wire v2 components
+	registry := agents.NewRegistry()
+	registry.Refresh(agent)
+	resolver := workflow.NewResolver(registry)
+	wfMgr := workflow.NewWorkflowManager(db)
+	l1Gate := workflow.NewL1Gate(db)
+	sessionSvc := workflow.NewSessionService(db, "")
+	d.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate, sessionSvc, nil, nil)
+
+	// Create test event (v2 uses assignee field)
 	evt := &webhook.WebhookEvent{
 		DeliveryID: "test-delivery-001",
 		Event:      "issues",
@@ -138,11 +132,9 @@ func TestDispatcherHandleEvent(t *testing.T) {
 			Title:  "Test Issue",
 			Body:   "This is a test issue",
 			User:   webhook.User{Login: "admin"},
-			Assignees: []webhook.User{
-				{Login: "ai-agent"},
-			},
 		},
-		Sender: webhook.User{Login: "admin"},
+		Assignee: &webhook.User{Login: "ai-agent"},
+		Sender:   webhook.User{Login: "admin"},
 	}
 
 	// Test HandleEvent
@@ -182,7 +174,6 @@ func TestDispatcherDuplicateDelivery(t *testing.T) {
 	defer cleanup()
 
 	agent := createTestAgent(t, db)
-	createTestRoute(t, db, agent.ID)
 
 	giteaCfg := &config.GiteaConfig{URL: "http://localhost:0"}
 	dispatcherCfg := &config.DispatcherConfig{
@@ -193,18 +184,24 @@ func TestDispatcherDuplicateDelivery(t *testing.T) {
 
 	d := NewDispatcher(db, giteaCfg, dispatcherCfg, nil, nil)
 
+	// Wire v2 components
+	registry := agents.NewRegistry()
+	registry.Refresh(agent)
+	resolver := workflow.NewResolver(registry)
+	d.SetWorkflowComponents(registry, resolver, nil, nil, nil, nil, nil)
+
 	evt := &webhook.WebhookEvent{
 		DeliveryID: "test-delivery-dup",
 		Event:      "issues",
 		Action:     "assigned",
 		Repo:       webhook.Repository{FullName: "admin/test-repo"},
 		Issue: &webhook.Issue{
-			Number:    1,
-			Title:     "Test",
-			User:      webhook.User{Login: "admin"},
-			Assignees: []webhook.User{{Login: "ai-agent"}},
+			Number: 1,
+			Title:  "Test",
+			User:   webhook.User{Login: "admin"},
 		},
-		Sender: webhook.User{Login: "admin"},
+		Assignee: &webhook.User{Login: "ai-agent"},
+		Sender:   webhook.User{Login: "admin"},
 	}
 
 	// First call should succeed

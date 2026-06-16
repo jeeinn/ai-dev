@@ -211,7 +211,7 @@ func TestResolveLabeledIgnored(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-func TestResolveCommentIgnoredForNow(t *testing.T) {
+func TestResolveCommentWithMention(t *testing.T) {
 	reg := setupRegistry()
 	resolver := NewResolver(reg)
 
@@ -219,11 +219,30 @@ func TestResolveCommentIgnoredForNow(t *testing.T) {
 		Event:   "issue_comment",
 		Action:  "created",
 		Repo:    webhook.Repository{FullName: "owner/repo"},
+		Issue:   &webhook.Issue{Number: 5},
 		Comment: &webhook.Comment{Body: "@coder-ds please fix this"},
 		Sender:  webhook.User{Login: "human"},
 	}
 	result := resolver.Resolve(evt)
-	assert.Nil(t, result) // Phase 17 will handle this
+	require.NotNil(t, result)
+	assert.Equal(t, "coder-ds", result.Agent.GiteaUsername)
+	assert.Equal(t, "solve_comment", result.TaskType)
+}
+
+func TestResolveCommentNoMention(t *testing.T) {
+	reg := setupRegistry()
+	resolver := NewResolver(reg)
+
+	evt := &webhook.WebhookEvent{
+		Event:   "issue_comment",
+		Action:  "created",
+		Repo:    webhook.Repository{FullName: "owner/repo"},
+		Issue:   &webhook.Issue{Number: 5},
+		Comment: &webhook.Comment{Body: "just a regular comment"},
+		Sender:  webhook.User{Login: "human"},
+	}
+	result := resolver.Resolve(evt)
+	assert.Nil(t, result) // No @mention → ignore
 }
 
 func TestResolveLinkedIssueFromPRBody(t *testing.T) {

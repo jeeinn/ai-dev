@@ -4,6 +4,7 @@ import (
 	"log"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"gitea-agent-gateway/internal/agents"
 	"gitea-agent-gateway/internal/store"
@@ -32,6 +33,9 @@ func NewResolver(registry *agents.Registry) *Resolver {
 // linkedIssuePattern matches "Fixes #N", "Closes #N", "Resolves #N" in PR bodies.
 var linkedIssuePattern = regexp.MustCompile(`(?i)(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?)\s+#(\d+)`)
 
+// mentionPattern matches @username in comment bodies.
+var mentionPattern = regexp.MustCompile(`@(\w[\w-]*)`)
+
 // Resolve determines what to do with a webhook event.
 // Returns nil if the event should be ignored.
 func (r *Resolver) Resolve(evt *webhook.WebhookEvent) *ResolveResult {
@@ -41,8 +45,7 @@ func (r *Resolver) Resolve(evt *webhook.WebhookEvent) *ResolveResult {
 	case "pull_request":
 		return r.resolvePullRequest(evt)
 	case "issue_comment", "pull_request_comment":
-		// Phase 17: @mention resolution
-		return nil
+		return r.resolveComment(evt)
 	default:
 		return nil
 	}
@@ -180,4 +183,99 @@ func (r *Resolver) resolveLinkedIssue(evt *webhook.WebhookEvent) int {
 // IsAgentSender checks if the event sender is any active agent (to prevent self-trigger loops).
 func (r *Resolver) IsAgentSender(evt *webhook.WebhookEvent) bool {
 	return r.registry.GetByGiteaUsername(evt.Sender.Login) != nil
+}
+
+// resolveComment handles issue_comment / pull_request_comment events with @mention resolution.
+func (r *Resolver) resolveComment(evt *webhook.WebhookEvent) *ResolveResult {
+	if evt.Comment == nil {
+		return nil
+	}
+
+	body := evt.Comment.Body
+
+	// Skip agent comments (loop prevention)
+	if IsAgentComment(body) {
+		return nil
+	}
+
+	// Check for force mode commands
+	forceDev := strings.Contains(body, "/dev")
+	forceReply := strings.Contains(body, "/reply")
+
+	// Parse @mentions from comment body
+	agent := r.findMentionedAgent(body)
+
+	// If no explicit @mention, we can't resolve (Phase 17 doesn't support fallback yet)
+	if agent == nil {
+		return nil
+	}
+
+	// Determine issue ID
+	issueID := 0
+	if evt.Issue != nil {
+		issueID = evt.Issue.Number
+	}
+
+	// Determine PR ID (for pull_request_comment events)
+	prID := 0
+	if evt.PR != nil {
+		prID = evt.PR.Number
+	} else if evt.Issue != nil {
+		// Try to infer from issue (comments on issues that have PRs)
+		// This is handled by the WorkflowContext
+	}
+
+	// Determine task type based on role and force commands
+	taskType := r.commentTaskType(agent, forceDev, forceReply, evt)
+
+	return &ResolveResult{
+		Agent:    agent,
+		TaskType: taskType,
+		Role:     agent.Role,
+		IssueID:  issueID,
+		PRID:     prID,
+	}
+}
+
+// findMentionedAgent finds the first @mentioned agent in the comment body.
+func (r *Resolver) findMentionedAgent(body string) *store.Agent {
+	matches := mentionPattern.FindAllStringSubmatch(body, -1)
+	for _, match := range matches {
+		if len(match) >= 2 {
+			username := match[1]
+			agent := r.registry.GetByGiteaUsername(username)
+			if agent != nil {
+				return agent
+			}
+		}
+	}
+	return nil
+}
+
+// commentTaskType determines the task type for a comment-based continuation.
+func (r *Resolver) commentTaskType(agent *store.Agent, forceDev, forceReply bool, evt *webhook.WebhookEvent) string {
+	// Force modes override role-based logic
+	if forceDev {
+		return "solve_comment"
+	}
+	if forceReply {
+		return "reply_comment"
+	}
+
+	// Role-based routing
+	switch agent.Role {
+	case store.RoleAnalyze:
+		return "reply_comment" // Analyze is read-only
+	case store.RoleCoder:
+		// If it's a PR comment, likely continuation → solve_comment
+		if evt.PR != nil {
+			return "solve_comment"
+		}
+		// Issue comment → solve_comment (will create PR if no existing one)
+		return "solve_comment"
+	case store.RoleReview:
+		return "reply_comment" // Review discussion is read-only
+	default:
+		return "reply_comment"
+	}
 }

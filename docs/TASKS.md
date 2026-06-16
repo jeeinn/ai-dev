@@ -9,8 +9,11 @@
 | Phase 1-13 | 项目骨架 → 集成收尾 | [20260604-TASKS.md](20260604-TASKS.md) |
 | Phase 14.5 | Agent 迭代控制配置化 | [sandbox-roadmap.md](sandbox-roadmap.md) |
 | Phase 15 | Web UI 优化 | [20260605-TASKS.md](20260605-TASKS.md) |
+| Phase 16 | Assign 工作流 v2 — P0 主路径 | 见下方 Phase 16 归档说明 |
 
 端到端测试报告：[20260605-e2e-test-report.md](20260605-e2e-test-report.md)
+
+**Phase 16 归档说明**（2026-06-16）：`internal/workflow/`、`workflow_contexts` / `agent_sessions` 表、Event Resolver 主路径、L1 门禁、Label 触发移除、51+ 新测试已落地。遗留项见 Phase 16 各节 `[~]` 标记，不阻塞 Phase 17。
 
 ---
 
@@ -37,93 +40,92 @@
 
 | 阶段 | 代号 | 交付物概要 | 依赖 |
 |------|------|------------|------|
-| Phase 16 | P0 | Assign 主路径 + 数据模型 + L1 门禁 | — |
+| Phase 16 | P0 | ~~Assign 主路径 + 数据模型 + L1 门禁~~ ✅ | — |
 | Phase 17 | P1 | Session 续作 + WorkflowPolicy L2/L3 | Phase 16 |
 | Phase 18 | P2 | 生命周期回收 + Web UI + **routes/Label 触发移除** | Phase 17 |
 | Phase 19 | P3 | 运维增强 + Agent 向导 + 多仓库 | Phase 18 |
 
 ---
 
-### Phase 16（P0）：状态机与 Assign 主路径
+### Phase 16（P0）：状态机与 Assign 主路径 ✅
 
 **交付标准**：Issue Assign 功能性 Agent → 按 role 入队执行；PR Request Reviewer → review；L1 违规有评论拒绝；无 Agent 自触发、无同 issue 并发双 Task；**Label / labeled 事件不触发 Task**。**不含 @mention 续作**（Phase 17）。
 
 #### 16.1 数据模型与迁移
 
-- [ ] `agents` 表增加 `role` 字段：`analyze` | `coder` | `review`（NOT NULL，默认 `analyze` 或迁移时按名称推断）
-- [ ] 新建 `workflow_contexts` 表：`repo`, `issue_id`, `pr_id`, `stage`, `active_agent_id`, `active_role`, `session_id`, `updated_at`；唯一索引 `(repo, issue_id)`（纯 PR 场景见设计 §5.2.1）
-- [ ] 新建 `agent_sessions` 表：见设计文档 §6.2；唯一索引 `(repo, issue_id, agent_id, role)` 或 `(session_id)` PK
-- [ ] `tasks` 表增加可选字段：`session_id`, `role`（便于追溯）
-- [ ] `internal/store`：CRUD + 单元测试
-- [ ] API：`GET/PUT` Agent 含 `role`；可选 `GET /api/workflow-context?repo=&issue=`
+- [x] `agents` 表增加 `role` 字段：`analyze` | `coder` | `review`（NOT NULL，默认 `analyze` 或迁移时按名称推断）
+- [x] 新建 `workflow_contexts` 表：`repo`, `issue_id`, `pr_id`, `stage`, `active_agent_id`, `active_role`, `session_id`, `updated_at`；唯一索引 `(repo, issue_id)`（纯 PR 场景见设计 §5.2.1）
+- [x] 新建 `agent_sessions` 表：见设计文档 §6.2；唯一索引 `(repo, issue_id, agent_id, role)` 或 `(session_id)` PK
+- [x] `tasks` 表增加可选字段：`session_id`, `role`（便于追溯）
+- [x] `internal/store`：CRUD + 单元测试
+- [~] API：`GET/PUT` Agent 含 `role` ✅；`GET /api/workflow-context?repo=&issue=` **未实现**（Phase 18 UI 前补）
 
 #### 16.2 Agent 注册与 API / UI
 
-- [ ] `CreateAgentRequest` / `Agent` 增加 `role`
-- [ ] Web UI：创建/编辑 Agent 时选择 role；列表展示 role 徽章
-- [ ] 文档/README：功能性 Agent 命名示例（`analyze-007`, `coder-ds`, `reviewer-gpt`）
+- [x] `CreateAgentRequest` / `Agent` 增加 `role`（API + `internal/agents/manager.go`）
+- [~] Web UI：创建/编辑 Agent 时选择 role；列表展示 role 徽章 **未实现**（Phase 18.3）
+- [~] 文档/README：功能性 Agent 命名示例 **未更新**（Phase 16.9 / 19.4）
 
 #### 16.3 Event Resolver（新包 `internal/workflow` 或扩展 `dispatcher`）
 
-- [ ] 新建 `EventResolver`，替代/包装现有 `Router.Match` 作为 Assign 主路径
-- [ ] 解析 `issues.assigned`：**仅**使用 payload 中本次 `assignee.login`，不匹配 assignees 全列表
-- [ ] assignee → `GetAgentByGiteaUsername`；非 Registry 用户 → 忽略
-- [ ] 由 `agent.role` 映射 `task_type`；Issue 含业务标签 `bug` → `fix_bug`，否则 coder → `solve_issue`
-- [ ] 解析 `pull_request` + `review_requested` / opened + bot 在 reviewers → review Agent；**解析 PR 关联 Issue** 更新同一 WorkflowContext
-- [ ] `issues.unassigned` → 忽略（不触发、不回退 stage）
-- [ ] `HandleEvent` 流水线：sender 过滤 → delivery 去重 → repo 范围 → Resolver → **L1/L2 Gate** → 更新 Context/Session → in-flight 锁 → 入队 → 进度评论
-- [ ] **移除 Label 触发路径**：删除/绕过 `Router.Match` 的 label 条件；`issues.labeled` / `pull_request.labeled` 直接 return
-- [ ] 删除 `determineTaskType()` 内 `ai:solve` / `ai:fix` 等 label 分支；task_type 仅来自 role + 事件
+- [x] 新建 `EventResolver`，`SetWorkflowComponents` 启用 v2 流水线
+- [x] 解析 `issues.assigned`：**仅**使用 payload 中本次 `assignee.login`
+- [x] assignee → `GetAgentByGiteaUsername`；非 Registry 用户 → 忽略
+- [x] 由 `agent.role` 映射 `task_type`；Issue 含 `bug` → `fix_bug`
+- [x] 解析 `pull_request` + `review_requested` / opened；PR 关联 Issue（`Fixes #N`）
+- [x] `issues.unassigned` → 忽略
+- [~] 流水线含 L1 + in-flight + 进度评论；**L2 / Session GetOrCreate → Phase 17**
+- [x] Label 触发路径已移除（Resolver 忽略 `labeled`；Router 无 label 匹配）
+- [x] `determineTaskType()` label 分支已删除
 
 #### 16.4 WorkflowContext 状态机
 
-- [ ] `Transition(ctx, assignee, role)`：更新 stage / active_agent / session_id
-- [ ] stage 枚举：`idle | analyzing | analyzed | developing | reviewing | done`
-- [ ] Assign analyze：idle/analyzed/done → analyzing
-- [ ] Assign coder：idle/analyzed → developing
-- [ ] PR review_requested → reviewing
-- [ ] Task 成功回调：analyzing → analyzed；coder 提 PR 后写 `pr_id`；review 完成保持 reviewing
-- [ ] PR merged / Issue closed → done（与 18.1 生命周期衔接）
-- [ ] 单元测试：各 stage 转换 + Task 回调 + unassigned 无 effect
+- [x] `Transition(ctx, assignee, role)` + `ApplyTransition`
+- [x] stage 枚举：`idle | analyzing | analyzed | developing | reviewing | done`
+- [x] Assign analyze / coder；PR review_requested → reviewing
+- [x] Task 成功回调：analyzing → analyzed；coder 写 `pr_id`
+- [~] PR merged / Issue closed → done（**Phase 18.1**）
+- [x] 单元测试（`context_test.go`）
 
 #### 16.5 L1 结构性门禁
 
-- [ ] `internal/workflow/gate_l1.go`：`CheckL1(ctx, event, role)` 
-- [ ] `l1.review_requires_pr`：无 open PR → hard，Gitea 评论模板
-- [ ] `l1.review_on_closed_pr`：PR 已关闭 → hard
-- [ ] `l1.dev_push_requires_branch`：预留（P1 @mention 续作时完整实现）
-- [ ] `l1.assign_unknown_agent`：已在 Resolver 忽略
-- [ ] 评论工具：`PostAgentComment(agent, issue/pr, body)` + 隐藏标记 `<!-- gateway-agent -->`
+- [x] `internal/workflow/gate_l1.go`：`CheckL1`
+- [x] `l1.review_requires_pr` / `l1.review_on_closed_pr`
+- [~] `l1.dev_push_requires_branch`：预留（**Phase 17.3**）
+- [x] `l1.assign_unknown_agent`：Resolver 忽略
+- [x] `postGateComment` + `FormatAgentComment`（`<!-- gateway-agent -->`）
 
 #### 16.6 并发与自触发防护
 
-- [ ] sender == 任意 active Agent 的 `gitea_username` → 跳过
-- [ ] in-flight 锁：内存 `(repo, issue_id)` Set + RAII（参考 wshm）；持锁期间重复 Assign 评论「处理中」
-- [ ] 同 `repo#issue` 存在 pending/running Task → 跳过入队
+- [x] sender == 任意 active Agent → 跳过
+- [x] in-flight 锁：`sync.Map` `(repo, issue_id)`
+- [x] pending/running Task 去重
 
 #### 16.7 集成测试
 
-- [ ] `TestWebhookIssueAssignedAnalyze`：Assign analyze Agent → task_type=analyze_issue
-- [ ] `TestWebhookIssueAssignedCoder`：Assign coder Agent → solve_issue
-- [ ] `TestWebhookAssignUnknownUser`：无 Task
-- [ ] `TestWebhookAssignSelfTrigger`：Agent 自己触发 → 忽略
-- [ ] `TestWebhookReviewRequested`：PR review → review_pr
-- [ ] `TestL1ReviewNoPR`：Issue 上 assign review Agent → 无 Task + 有评论
-- [ ] `TestLabeledNoTask`：`labeled` + `ai:*` → 无 Task
-- [ ] `TestBugLabelFixBug`：Assign coder + Issue 标签 `bug` → task_type=fix_bug
+- [x] `TestWebhookIssueAssignedAnalyze`
+- [x] `TestWebhookIssueAssignedCoder`
+- [x] `TestWebhookAssignUnknownUser`
+- [x] `TestWebhookAssignSelfTrigger`
+- [x] `TestWebhookReviewRequested`
+- [x] `TestL1ReviewNoPR`
+- [x] `TestLabeledNoTask`
+- [x] `TestBugLabelFixBug`
 
 #### 16.8 弃用 Label 触发（v2 Breaking，与 16.3 同步）
 
-- [ ] `internal/dispatcher/router.go`：移除 `label` 匹配逻辑；Phase 18 删除整包 Router 对 routes 表的依赖
-- [ ] `internal/webhook/parser.go`：`HasLabel` 若仅服务 Route → 删除；业务 Label 改由 Issue/PR payload 直读
-- [ ] 集成测试：删除/改写依赖 `labeled` + `ai:*` 的用例；新增「labeled 事件不产生 Task」断言
-- [ ] CHANGELOG：Breaking — Label 触发与 routes API 移除
+- [x] `router.go` 移除 label 匹配（Phase 18 删 routes 表）
+- [~] `HasLabel` 仍保留于 parser（legacy 测试）
+- [x] 集成测试：`TestLabeledNoTask`
+- [x] CHANGELOG Breaking
 
 #### 16.9 文档
 
-- [ ] 更新 [ARCHITECTURE.md](ARCHITECTURE.md)：Event Resolver 流程图；删除 Label 触发说明
-- [ ] `config.example.yaml`：预留 `workflow:` / `session:` 段注释；删除 Label 触发示例
-- [ ] README Quick Start：仅 Assign，移除 `ai:*` 标签说明
+- [~] [ARCHITECTURE.md](ARCHITECTURE.md) **未更新**
+- [~] `config.example.yaml` **未更新**
+- [~] README Quick Start 仍引用 `ai:analyze` **未更新**
+
+> 详见 [phase16-completion.md](phase16-completion.md)
 
 ---
 

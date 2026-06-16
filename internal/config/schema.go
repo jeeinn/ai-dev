@@ -12,6 +12,22 @@ type Config struct {
 	API        APIConfig        `yaml:"api"`
 	Auth       AuthConfig       `yaml:"auth"`
 	Agents     AgentsConfig     `yaml:"agents"`
+	Workflow   WorkflowConfig   `yaml:"workflow"`
+}
+
+// WorkflowConfig contains workflow policy configuration.
+type WorkflowConfig struct {
+	Preset string            `yaml:"preset"` // free | standard | strict
+	Gates  map[string]string `yaml:"gates"`  // gate_id → off|soft|hard
+	Notify NotifyConfig      `yaml:"notify"`
+}
+
+// NotifyConfig controls L3 comment notifications.
+type NotifyConfig struct {
+	OnAnalyzeDone   bool `yaml:"on_analyze_done"`
+	OnCoderPROpened bool `yaml:"on_coder_pr_opened"`
+	OnGateSoft      bool `yaml:"on_gate_soft"`
+	OnGateHard      bool `yaml:"on_gate_hard"`
 }
 
 type ServerConfig struct {

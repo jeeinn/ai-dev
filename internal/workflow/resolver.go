@@ -18,6 +18,7 @@ type ResolveResult struct {
 	Role     string
 	IssueID  int
 	PRID     int
+	Force    bool // /force detected — skip soft gate warnings
 }
 
 // Resolver resolves webhook events to agent + task type via the Assign model.
@@ -228,12 +229,16 @@ func (r *Resolver) resolveComment(evt *webhook.WebhookEvent) *ResolveResult {
 	// Determine task type based on role and force commands
 	taskType := r.commentTaskType(agent, forceDev, forceReply, evt)
 
+	// Detect /force for soft gate bypass
+	force := strings.Contains(body, "/force") && !forceDev && !forceReply
+
 	return &ResolveResult{
 		Agent:    agent,
 		TaskType: taskType,
 		Role:     agent.Role,
 		IssueID:  issueID,
 		PRID:     prID,
+		Force:    force,
 	}
 }
 

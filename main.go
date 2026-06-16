@@ -104,7 +104,8 @@ func main() {
 	wfMgr := workflow.NewWorkflowManager(db)
 	l1Gate := workflow.NewL1Gate(db)
 	sessionSvc := workflow.NewSessionService(db, activeCfg.Workspace.BaseDir)
-	d.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate, sessionSvc)
+	wfPolicy := workflow.GetPreset(activeCfg.Workflow.Preset)
+	d.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate, sessionSvc, wfPolicy)
 	log.Printf("[INFO] Workflow v2 components initialized (with SessionService)")
 
 	// Start dispatcher (loads pending tasks and starts workers)

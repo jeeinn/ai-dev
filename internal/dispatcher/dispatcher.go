@@ -32,6 +32,7 @@ type Dispatcher struct {
 	wfMgr      *workflow.WorkflowManager
 	l1Gate     *workflow.L1Gate
 	sessionSvc *workflow.SessionService
+	wfPolicy   *workflow.WorkflowPolicy
 
 	// In-flight lock: prevents concurrent tasks on the same (repo, issue)
 	inFlight sync.Map // map[string]bool — key is "repo#issueID"
@@ -84,12 +85,13 @@ func NewDispatcher(
 
 // SetWorkflowComponents sets the v2 workflow components.
 // When set, the dispatcher uses the new Assign-based pipeline instead of Router.Match.
-func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *workflow.Resolver, wfMgr *workflow.WorkflowManager, l1Gate *workflow.L1Gate, sessionSvc *workflow.SessionService) {
+func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *workflow.Resolver, wfMgr *workflow.WorkflowManager, l1Gate *workflow.L1Gate, sessionSvc *workflow.SessionService, wfPolicy *workflow.WorkflowPolicy) {
 	d.registry = registry
 	d.resolver = resolver
 	d.wfMgr = wfMgr
 	d.l1Gate = l1Gate
 	d.sessionSvc = sessionSvc
+	d.wfPolicy = wfPolicy
 
 	// Wire task completion callback for WorkflowContext + Session updates
 	d.executor.SetOnComplete(func(task *store.Task) {
@@ -201,6 +203,31 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 			return true
 		}
 
+		// Step 4b: L2 gate evaluation (if policy is configured)
+		if d.wfPolicy != nil {
+			// Check relevant gates based on the transition
+			gatesToCheck := d.gatesForTransition(ctx, result.Role)
+			for _, gateID := range gatesToCheck {
+				gateResult := workflow.EvaluateGate(d.wfPolicy, gateID, ctx, result.Role)
+				if !gateResult.Allowed {
+					if result.Force && gateResult.Level == "soft" {
+						// /force bypasses soft gates
+						log.Printf("[INFO] /force bypassing soft gate: %s", gateID)
+						d.postGateComment(result.Agent, repo, issueID, "⚡ /force 已跳过软门禁: "+gateResult.Message)
+						continue
+					}
+					// Hard gate or no /force — block
+					log.Printf("[INFO] L2 gate rejected: %s — %s", gateID, gateResult.Message)
+					d.postGateComment(result.Agent, repo, issueID, gateResult.Message)
+					return true
+				}
+				if gateResult.Level == "soft" && d.wfPolicy.Notify.OnGateSoft {
+					// Soft gate passed — post warning
+					d.postGateComment(result.Agent, repo, issueID, gateResult.Message)
+				}
+			}
+		}
+
 		// Step 5: In-flight lock
 		lockKey := fmt.Sprintf("%s#%d", repo, issueID)
 		if _, loaded := d.inFlight.LoadOrStore(lockKey, true); loaded {
@@ -286,6 +313,30 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 		fmt.Sprintf("🔄 %s 已开始处理（task #%d）", result.Agent.Name, task.ID))
 
 	return true
+}
+
+// gatesForTransition returns the L2 gate IDs to check for the given transition.
+func (d *Dispatcher) gatesForTransition(ctx *store.WorkflowContext, role string) []string {
+	var gates []string
+
+	switch role {
+	case store.RoleCoder:
+		if ctx.Stage == store.StageIdle || ctx.Stage == store.StageDone {
+			gates = append(gates, workflow.GateCoderRequiresAnalyzed)
+		}
+		if ctx.Stage == store.StageDeveloping {
+			gates = append(gates, workflow.GateRerunSameStage)
+		}
+	case store.RoleAnalyze:
+		if ctx.Stage == store.StageDeveloping {
+			gates = append(gates, workflow.GateReanalyzeWhileDev)
+		}
+		if ctx.Stage == store.StageAnalyzing {
+			gates = append(gates, workflow.GateRerunSameStage)
+		}
+	}
+
+	return gates
 }
 
 // postGateComment posts a comment on the issue/PR using the agent's Gitea token.

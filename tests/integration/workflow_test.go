@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gitea-agent-gateway/internal/store"
+	"gitea-agent-gateway/internal/workflow"
 )
 
 func TestWebhookIssueAssignedAnalyze(t *testing.T) {
@@ -298,6 +299,170 @@ func TestBugLabelFixBug(t *testing.T) {
 	assert.Equal(t, store.RoleCoder, task.Role)
 	assert.Equal(t, "owner/repo", task.Repo)
 	assert.Equal(t, 40, task.IssueID)
+}
+
+func TestSessionCreatedOnAssign(t *testing.T) {
+	env := NewTestEnv(t)
+	defer env.Cleanup()
+
+	env.CreateTestAgentWithRole(t, "analyze-007", "analyze-007", store.RoleAnalyze)
+	env.EnableWorkflowV2(t)
+
+	err := env.Dispatcher.Start()
+	require.NoError(t, err)
+
+	payload := map[string]interface{}{
+		"action":   "assigned",
+		"issue":    buildIssuePayload(50, "Session test", nil),
+		"assignee": map[string]interface{}{"id": 100, "login": "analyze-007"},
+		"repository": map[string]interface{}{
+			"id": 1, "name": "repo", "full_name": "owner/repo",
+		},
+		"sender": map[string]interface{}{"id": 1, "login": "human"},
+	}
+
+	err = env.SendWebhook("issues", "wf-session-001", payload)
+	require.NoError(t, err)
+
+	// Wait for task to complete
+	task := env.WaitForTask(t, 1, "success", 10*time.Second)
+
+	// Verify task has session_id
+	assert.NotEmpty(t, task.SessionID, "Task should have a session_id")
+
+	// Verify session was created
+	session, err := env.DB.GetSession(task.SessionID)
+	require.NoError(t, err)
+	assert.Equal(t, "owner/repo", session.Repo)
+	assert.Equal(t, 50, session.IssueID)
+	assert.Equal(t, store.RoleAnalyze, session.Role)
+	assert.Equal(t, store.SessionIdle, session.Status) // Completed → idle
+}
+
+func TestMentionCommentTriggersTask(t *testing.T) {
+	env := NewTestEnv(t)
+	defer env.Cleanup()
+
+	env.CreateTestAgentWithRole(t, "coder-ds", "coder-ds", store.RoleCoder)
+	env.EnableWorkflowV2(t)
+
+	err := env.Dispatcher.Start()
+	require.NoError(t, err)
+
+	// Send issue_comment with @mention
+	payload := map[string]interface{}{
+		"action": "created",
+		"issue":  buildIssuePayload(60, "Follow-up", nil),
+		"comment": map[string]interface{}{
+			"id":   1,
+			"body": "@coder-ds 请继续修改",
+			"user": map[string]interface{}{"id": 1, "login": "human"},
+		},
+		"repository": map[string]interface{}{
+			"id": 1, "name": "repo", "full_name": "owner/repo",
+		},
+		"sender": map[string]interface{}{"id": 1, "login": "human"},
+	}
+
+	err = env.SendWebhook("issue_comment", "wf-mention-001", payload)
+	require.NoError(t, err)
+
+	// Wait for task to be created
+	time.Sleep(2 * time.Second)
+
+	tasks, err := env.DB.ListTasks(10, 0)
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+
+	task := tasks[0]
+	assert.Equal(t, "solve_comment", task.TaskType)
+	assert.Equal(t, store.RoleCoder, task.Role)
+}
+
+func TestL2StrictBlocksCoderWithoutAnalyze(t *testing.T) {
+	env := NewTestEnv(t)
+	defer env.Cleanup()
+
+	env.CreateTestAgentWithRole(t, "coder-ds", "coder-ds", store.RoleCoder)
+	registry := env.EnableWorkflowV2(t)
+
+	// Set strict policy
+	policy := workflow.PresetStrict()
+	env.Dispatcher.SetWorkflowComponents(registry,
+		workflow.NewResolver(registry),
+		workflow.NewWorkflowManager(env.DB),
+		workflow.NewL1Gate(env.DB),
+		workflow.NewSessionService(env.DB, ""),
+		policy,
+	)
+
+	err := env.Dispatcher.Start()
+	require.NoError(t, err)
+
+	// Assign coder to a fresh issue (idle stage, no analyze done)
+	payload := map[string]interface{}{
+		"action":   "assigned",
+		"issue":    buildIssuePayload(70, "No analyze", nil),
+		"assignee": map[string]interface{}{"id": 200, "login": "coder-ds"},
+		"repository": map[string]interface{}{
+			"id": 1, "name": "repo", "full_name": "owner/repo",
+		},
+		"sender": map[string]interface{}{"id": 1, "login": "human"},
+	}
+
+	err = env.SendWebhook("issues", "wf-strict-001", payload)
+	require.NoError(t, err)
+
+	// Wait for processing
+	time.Sleep(2 * time.Second)
+
+	// No task should be created (strict L2 blocks coder without analyze)
+	tasks, err := env.DB.ListTasks(10, 0)
+	require.NoError(t, err)
+	assert.Len(t, tasks, 0)
+}
+
+func TestStandardAllowsSkipAnalyze(t *testing.T) {
+	env := NewTestEnv(t)
+	defer env.Cleanup()
+
+	env.CreateTestAgentWithRole(t, "coder-ds", "coder-ds", store.RoleCoder)
+	registry := env.EnableWorkflowV2(t)
+
+	// Set standard policy (default — allows skip analyze)
+	policy := workflow.PresetStandard()
+	env.Dispatcher.SetWorkflowComponents(registry,
+		workflow.NewResolver(registry),
+		workflow.NewWorkflowManager(env.DB),
+		workflow.NewL1Gate(env.DB),
+		workflow.NewSessionService(env.DB, ""),
+		policy,
+	)
+
+	err := env.Dispatcher.Start()
+	require.NoError(t, err)
+
+	payload := map[string]interface{}{
+		"action":   "assigned",
+		"issue":    buildIssuePayload(80, "Skip analyze", nil),
+		"assignee": map[string]interface{}{"id": 200, "login": "coder-ds"},
+		"repository": map[string]interface{}{
+			"id": 1, "name": "repo", "full_name": "owner/repo",
+		},
+		"sender": map[string]interface{}{"id": 1, "login": "human"},
+	}
+
+	err = env.SendWebhook("issues", "wf-standard-001", payload)
+	require.NoError(t, err)
+
+	// Wait for task to be created
+	time.Sleep(2 * time.Second)
+
+	// Task should be created (standard allows skip)
+	tasks, err := env.DB.ListTasks(10, 0)
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, "solve_issue", tasks[0].TaskType)
 }
 
 // buildIssuePayload is a helper to build issue webhook payloads.

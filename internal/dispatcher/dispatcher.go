@@ -251,7 +251,6 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 		}
 
 		// Step 6b: Get or create session
-		var sessionID string
 		if d.sessionSvc != nil {
 			session, err := d.sessionSvc.GetOrCreate(repo, issueID, result.Agent.ID, result.Role)
 			if err != nil {

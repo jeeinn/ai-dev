@@ -185,7 +185,8 @@ go vet ./...
 │   ├── api/                # 管理 REST API + 认证中间件
 │   ├── auth/               # JWT + bcrypt
 │   ├── config/             # YAML 配置加载 + 环境变量展开
-│   ├── dispatcher/         # Router + TaskQueue + Executor
+│   ├── dispatcher/         # TaskQueue + Executor + v2 流水线
+│   ├── workflow/           # Event Resolver + 状态机 + 门禁 + Session + 生命周期
 │   ├── gitea/              # Gitea API 客户端
 │   ├── llm/                # LLM Provider 接口 + 实现
 │   ├── sandbox/            # 沙箱（目录隔离 + 命令执行 + Git 操作）
@@ -197,20 +198,27 @@ go vet ./...
 └── scripts/                # 工具脚本
 ```
 
-## Agent 类型
+## Agent 角色（v2 Assign 模型）
 
-| 类型 | 触发方式 | 说明 |
+在 Gateway 中注册多个功能性 Agent，每个 Agent 设置 `role` 并在 Gitea 上作为协作者：
+
+| role | 触发方式 | 说明 |
 |------|----------|------|
-| `analyze` | Issue 添加 `ai:analyze` 标签 | 需求分析，输出可行性报告 |
-| `review` | PR 添加 `ai:review` 标签 | 代码审查，输出审查报告 |
-| `interaction` | @提及 Agent 用户名 | 评论互动，上下文回复 |
-| `solve` | Issue 添加 `ai:solve` 标签 | Tool-Use Agent 读 Issue → 写代码 → 提 PR |
-| `fix` | Issue 添加 `ai:fix` 标签 | Tool-Use Agent 定位 Bug → 修复 → 提 PR |
+| `analyze` | Issue 上 **Assign** analyze Agent | 需求/Bug 分析，输出评论报告 |
+| `coder` | Issue 上 **Assign** coder Agent | 实现或修复（Issue 带 `bug` 标签时用 fix 系 Prompt），提 PR |
+| `review` | PR 上 **Request Reviewer** review Agent | 代码审查，输出审查评论 |
+
+**续作**：在 Issue/PR 评论中 **@Agent用户名**；`/dev`、`/reply`、`/force` 控制行为。  
+**重置**：评论 `/gateway reset` 或 `POST /api/sessions/reset?repo=&issue=`。
+
+> v2 已弃用 `ai:analyze` / `ai:solve` 等 Label 触发及 routes 配置。迁移见 [设计文档 §11.2](docs/trigger-rules-and-workflow-improvement.md#112-从-label-触发迁移到-assign)。
 
 ## 文档
 
 - [Agent 开发决策](docs/agent-development-decisions.md)
 - [任务清单](docs/TASKS.md)
+- [Assign 工作流 v2 设计](docs/trigger-rules-and-workflow-improvement.md)
+- [v2 完成总览](docs/assign-workflow-progress.md)
 - [Web UI 设计](docs/web-ui-design.md)
 - [部署指南](docs/DEPLOYMENT.md)
 - [测试指南](scripts/TESTING.md)

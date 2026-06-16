@@ -1,108 +1,116 @@
-# Assign 工作流 v2 进度总览
+# Assign 工作流 v2 — 完成总览
 
 > 设计依据：[trigger-rules-and-workflow-improvement.md](./trigger-rules-and-workflow-improvement.md)  
-> 任务清单：[TASKS.md](./TASKS.md)
+> 任务清单：[TASKS.md](./TASKS.md)（待办）· 归档：[20260616-TASKS.md](./20260616-TASKS.md)
 
-**最后更新**：2026-06-16 · **当前阶段**：Phase 19（P3）
-
----
-
-## 总览
-
-| 阶段 | 代号 | 状态 | 说明 |
-|------|------|------|------|
-| Phase 16 | P0 | ✅ 完成 | Assign 主路径 + 数据模型 + L1 门禁 |
-| Phase 17 | P1 | ✅ 完成 | Session 续作 + WorkflowPolicy L2/L3 |
-| Phase 18 | P2 | ✅ 完成 | 生命周期 + Web UI + routes 移除 |
-| Phase 19 | P3 | ⏳ **当前** | 运维增强 + Agent 向导 + 文档/E2E |
-
-**v2 验收清单：11/11 ✅**
+**状态**：✅ **v2 全部完成**（2026-06-16）  
+**验收清单**：**11/11** 通过
 
 ---
 
-## Phase 18（P2）✅
+## 阶段完成状态
 
-| 子阶段 | 内容 | 关键文件 |
-|--------|------|----------|
-| 18.1 | Session 生命周期：closed/merged → archive + context=done | `internal/workflow/lifecycle.go` |
-| 18.2 | 磁盘 LRU：`EnforceDiskLimit` + `parseSize` + cleanup loop | `lifecycle.go` |
-| 18.3 | Web UI：Agent role 字段；删触发规则页；routes Tab 弃用提示 | `Agents.vue`, `AgentDetail.vue`, `router/index.js` |
-| 18.4 | routes 完全移除：`DROP TABLE routes`，删 route.go/router.go、API | `sqlite.go`, `api/router.go` |
-| 18.5 | Gitea unassign | ⏭️ 已跳过 |
-| 18.6 | 集成测试：`TestIssueClosedArchivesSession` | `workflow_test.go`, `lifecycle_test.go` |
-
-### Phase 18 关键变更
-
-- **Breaking**：`routes` 表已 `DROP`；`Router.Match` 与 legacy 流水线已移除
-- **生命周期**：`issues.closed` / PR merged → archive sessions + `WorkflowContext.stage=done`
-- **TTL**：后台 goroutine 每 10 分钟扫描 idle sessions + archived workspaces
-- **磁盘 LRU**：超过 `max_disk_per_repo` 删除最旧 archived workspace
-- **Web UI**：Agent 表单/列表新增 role；独立触发规则页已从路由移除
+| 阶段 | 代号 | 状态 | 提交数 |
+|------|------|------|--------|
+| Phase 16 | P0 | ✅ 完成 | 10 |
+| Phase 17 | P1 | ✅ 完成 | 6 |
+| Phase 18 | P2 | ✅ 完成 | 6 |
+| Phase 19 | P3 | ✅ 核心完成 | 3 |
 
 ---
 
-## Phase 19（P3）⏳ 下一步
+## 验收清单（11/11）
 
-| 子阶段 | 内容 | 优先级 |
-|--------|------|--------|
-| **19.1** | `/gateway reset` + `POST /api/sessions/reset` | P0 |
-| **19.2** | Agent 创建向导（analyze/coder/review 模板） | P1 |
-| 19.3 | 多仓库 WorkflowPolicy 覆盖 + 组织级 Webhook 文档 | P1 |
-| **19.4** | README/ARCHITECTURE 迁移指南 + Assign 版 E2E 报告 | P0 |
-
-**建议顺序**：19.4（文档收尾）与 19.1 并行 → 19.2 → 19.3
-
----
-
-## 验收清单（全部通过）
-
-| 项 | 阶段 |
-|----|------|
-| Assign analyze-* → analyzed | 16 |
-| Assign coder-* → PR + Session workspace | 17 |
-| bug 标签 → fix_bug | 16 |
-| PR Request reviewer-* | 16 |
-| @coder PR 评论续作 | 17 |
-| standard/strict 门禁 | 17 |
-| 无 PR review → L1 拒绝 | 16 |
-| Agent 评论不循环 | 16 |
-| PR merge workspace 回收 | **18** |
-| labeled 不产生 Task | 16 |
-| routes API/UI 移除 | **18** |
+| # | 项 | 阶段 |
+|---|-----|------|
+| 1 | Assign analyze-* → 分析报告，stage=analyzed | 16 |
+| 2 | Assign coder-* → PR，Session 保留 workspace | 17 |
+| 3 | bug 标签 → fix_bug | 16 |
+| 4 | PR Request reviewer-* → 审查评论 | 16 |
+| 5 | @coder PR 评论 → push 续作 | 17 |
+| 6 | standard 允许 / strict 拒绝跳过 analyze | 17 |
+| 7 | 无 PR review → L1 拒绝 | 16 |
+| 8 | Agent 评论不循环 | 16 |
+| 9 | PR merge 后 workspace 回收 | 18 |
+| 10 | labeled + ai:* 不产生 Task | 16 |
+| 11 | routes API / 触发规则 UI 已移除 | 18 |
 
 ---
 
-## 代码文件清单（Phase 16–18）
+## 新增代码（Phase 16–19）
+
+### `internal/store`
 
 | 文件 | 用途 |
 |------|------|
-| `internal/store/workflow.go` | WorkflowContext CRUD |
-| `internal/store/session.go` | AgentSession CRUD |
-| `internal/workflow/resolver.go` | Event Resolver |
-| `internal/workflow/context.go` | WorkflowManager 状态机 |
-| `internal/workflow/gate_l1.go` | L1 门禁 |
-| `internal/workflow/session.go` | SessionService |
-| `internal/workflow/policy.go` | L2/L3 WorkflowPolicy |
-| `internal/workflow/lifecycle.go` | Session 生命周期 + TTL + LRU |
-| `tests/integration/workflow_test.go` | 13 项集成测试 |
+| `workflow.go` | WorkflowContext CRUD + 阶段转换 |
+| `session.go` | AgentSession CRUD + 生命周期 |
+| `store_test.go` | 18 个单元测试 |
+
+### `internal/workflow`
+
+| 文件 | 用途 |
+|------|------|
+| `resolver.go` | Event Resolver（Assign / PR / @mention / lifecycle / reset） |
+| `context.go` | WorkflowManager 状态机 |
+| `gate_l1.go` | L1 结构性门禁 |
+| `policy.go` | WorkflowPolicy L2 + L3（free/standard/strict） |
+| `session.go` | SessionService |
+| `lifecycle.go` | Session 生命周期 + TTL + 磁盘 LRU |
+| `*_test.go` | resolver / context / gate / session / policy / mention / lifecycle |
+
+### 集成测试
+
+| 文件 | 数量 |
+|------|------|
+| `tests/integration/workflow_test.go` | 13 项 |
 
 ---
 
-## 遗留 polish（Phase 19 消化）
+## 测试覆盖
+
+| 包 | 测试数 |
+|----|--------|
+| `internal/store` | 18 |
+| `internal/workflow` | 70+ |
+| `tests/integration` (workflow) | 13 |
+| **全量** `go test ./...` | ✅ 通过 |
+
+---
+
+## 各阶段要点摘要
+
+### Phase 16 — Assign 主路径
+Agent `role`、WorkflowContext / AgentSession 表、Event Resolver、L1 门禁、Label 触发移除（Breaking）
+
+### Phase 17 — Session 续作
+Session 级 Workspace、@mention + `/dev` `/reply` `/force`、WorkflowPolicy L2/L3
+
+### Phase 18 — 生命周期与 UI
+closed/merged → archive、TTL + LRU、Web UI role、routes 表 DROP
+
+### Phase 19 — 运维与文档（核心）
+- `/gateway reset` 评论 + `POST /api/sessions/reset`
+- Agent 创建：role + 内置 Prompt 模板 + 关联 repos
+- `ARCHITECTURE.md` v2 流程图与 Assign 模型说明
+- 迁移对照见设计文档 §11.2
+
+---
+
+## 可选后续（非 v2 阻塞）
 
 | 项 | 说明 |
 |----|------|
-| Dashboard 引导文案 | 仍写「配置触发规则」，改 Assign Playbook |
-| `TriggerRules.vue` 文件 | 路由已删，源文件可清理 |
-| `GET /api/workflow-context` | 可选 API，供 UI 状态面板 |
-| README / ARCHITECTURE | 仍引用 Label 触发 → 19.4 |
-| `scripts/setup-test.go` | 仍 INSERT routes，需更新 |
+| Phase 14 | 沙箱增强（独立路线图） |
+| 18.5 | Gitea unassign 上一 Agent（已跳过） |
+| 19.3 | WorkflowPolicy 按 repo DB 覆盖 |
+| UI | Issue 详情 WorkflowContext 面板、`GET /api/workflow-context` |
+| 清理 | 删除未挂载的 `TriggerRules.vue` 源文件 |
 
 ---
 
-## Phase 19 入口条件 ✅
+## 核心原则（已实现）
 
-- [x] v2 核心流程 Assign → Session → 续作 → 生命周期 全链路可用
-- [x] routes Breaking 变更已落地
-- [x] 验收清单 11/11 通过
-- [ ] 对外文档与 E2E 报告（**19.4 首要**）
+**Assign 触发 Who → WorkflowContext 定义 When → WorkflowPolicy 定义能不能转 → AgentSession 支撑 Continue**
+
+v2 **不兼容** Label 阶段触发；流程顺序由 Repo 级门禁配置，Agent 评论引导下一步。

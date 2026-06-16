@@ -653,41 +653,15 @@ v2 以 **Event Resolver + Agent Registry（role）** 完全替代基于 `routes`
 
 ## 十三、实现路线图
 
-### P0 — 状态机与 Assign 主路径
+> **状态**：Phase 16–19 已全部交付（2026-06-16）。详见 [assign-workflow-progress.md](./assign-workflow-progress.md)。
 
-- [ ] Agent 表增加 `role`（analyze / coder / review）
-- [ ] 新增 `workflow_contexts`、`agent_sessions` 表及 CRUD
-- [ ] Event Resolver：`issues.assigned` 只认本次 assignee → role → Task
-- [ ] sender 过滤 + `(repo, issue_id)` in-flight 锁
-- [ ] PR `review_requested` → review Agent
-- [ ] PR 关联 Issue 解析；业务标签 `bug` → `fix_bug` task_type
-- [ ] **L1 结构性门禁**（review 需 PR、closed PR 拒绝等）+ hard 失败评论
-- [ ] **弃用 Label 触发**：删除 `determineTaskType` label 分支；忽略 `labeled` 事件；移除 Router label 匹配
+### P0 — 状态机与 Assign 主路径 ✅
 
-### P1 — Session 续作与 WorkflowPolicy
+### P1 — Session 续作与 WorkflowPolicy ✅
 
-- [ ] DevRunner：Session 级 Workspace，Task 结束不 Cleanup
-- [ ] @mention 解析 + Session 查找 + 行为判定（reply vs dev）
-- [ ] WorkflowContext 与 Session 在 Task 完成后更新
-- [ ] 进度评论（开始/完成）
-- [ ] **WorkflowPolicy L2**：config + `EvaluateGate`；预设 free / standard / strict
-- [ ] **L3 建议评论**：on_analyze_done、on_gate_soft/hard 模板
-- [ ] 可选 `/force` 绕过 soft 门禁
+### P2 — 生命周期与运维 ✅
 
-### P2 — 生命周期与运维
-
-- [ ] Issue closed / PR merged → archive Session + 延迟删 Workspace
-- [ ] idle_ttl、workspace_retention 配置
-- [ ] Web UI：Issue/PR 工作流状态面板；**删除**触发规则页
-- [ ] 可选：阶段切换时 Gitea unassign 上一 Agent
-- [ ] **routes 表/API/UI 完全移除**；DB 迁移 DROP routes；CHANGELOG Breaking
-
-### P3 — 增强
-
-- [ ] `/gateway reset`、force 重跑 policy
-- [ ] 磁盘 LRU、max_disk_per_repo
-- [ ] 创建 Agent 向导（按 role 模板）
-- [ ] 组织级 / 多仓库 global 配置
+### P3 — 增强 ✅（核心；18.5 unassign 已跳过）
 
 ---
 

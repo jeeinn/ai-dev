@@ -467,6 +467,62 @@ func TestStandardAllowsSkipAnalyze(t *testing.T) {
 	assert.Equal(t, "solve_issue", tasks[0].TaskType)
 }
 
+func TestIssueClosedArchivesSession(t *testing.T) {
+	env := NewTestEnv(t)
+	defer env.Cleanup()
+
+	env.CreateTestAgentWithRole(t, "analyze-007", "analyze-007", store.RoleAnalyze)
+	env.EnableWorkflowV2(t)
+
+	err := env.Dispatcher.Start()
+	require.NoError(t, err)
+
+	// First: assign agent to create a session
+	assignPayload := map[string]interface{}{
+		"action":   "assigned",
+		"issue":    buildIssuePayload(100, "Will be closed", nil),
+		"assignee": map[string]interface{}{"id": 100, "login": "analyze-007"},
+		"repository": map[string]interface{}{
+			"id": 1, "name": "repo", "full_name": "owner/repo",
+		},
+		"sender": map[string]interface{}{"id": 1, "login": "human"},
+	}
+	err = env.SendWebhook("issues", "lifecycle-assign-001", assignPayload)
+	require.NoError(t, err)
+	env.WaitForTask(t, 1, "success", 10*time.Second)
+
+	// Verify session exists
+	sessions, err := env.DB.ListSessionsByIssue("owner/repo", 100)
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	sessionID := sessions[0].ID
+
+	// Now close the issue
+	closePayload := map[string]interface{}{
+		"action": "closed",
+		"issue":  buildIssuePayload(100, "Will be closed", nil),
+		"repository": map[string]interface{}{
+			"id": 1, "name": "repo", "full_name": "owner/repo",
+		},
+		"sender": map[string]interface{}{"id": 1, "login": "human"},
+	}
+	err = env.SendWebhook("issues", "lifecycle-close-001", closePayload)
+	require.NoError(t, err)
+
+	// Wait for processing
+	time.Sleep(1 * time.Second)
+
+	// Verify session archived
+	session, err := env.DB.GetSession(sessionID)
+	require.NoError(t, err)
+	assert.Equal(t, store.SessionArchived, session.Status)
+
+	// Verify context → done
+	ctx, err := env.DB.GetWorkflowContext("owner/repo", 100)
+	require.NoError(t, err)
+	assert.Equal(t, store.StageDone, ctx.Stage)
+}
+
 // buildIssuePayload is a helper to build issue webhook payloads.
 func buildIssuePayload(number int, title string, labels []map[string]interface{}) map[string]interface{} {
 	if labels == nil {

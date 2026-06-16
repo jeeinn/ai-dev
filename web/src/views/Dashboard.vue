@@ -22,9 +22,9 @@
               <el-button size="small" type="primary" @click="router.push('/agents')">去创建</el-button>
             </template>
           </el-step>
-          <el-step title="配置触发规则" description="在 Agent 详情页设置 Label 触发条件">
+          <el-step title="Assign Agent 触发" description="在 Issue/PR 上 Assign Agent 即可触发工作流">
             <template #icon>
-              <el-icon><Connection /></el-icon>
+              <el-icon><Promotion /></el-icon>
             </template>
           </el-step>
         </el-steps>
@@ -140,7 +140,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
-import { User, List, Clock, CircleCheck, Setting, Connection } from '@element-plus/icons-vue'
+import { User, List, Clock, CircleCheck, Setting, Promotion } from '@element-plus/icons-vue'
 
 const router = useRouter()
 

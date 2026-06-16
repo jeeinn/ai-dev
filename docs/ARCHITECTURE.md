@@ -2,45 +2,49 @@
 
 ## 概述
 
-Gitea Agent Gateway 是一个 Go 服务，接收 Gitea Webhook 事件，通过路由规则匹配 AI Agent，执行 LLM 驱动的任务（分析、审查、开发、修复），并将结果写回 Gitea（评论或创建 PR）。
+Gitea Agent Gateway 是一个 Go 服务，接收 Gitea Webhook 事件，通过 **Assign Agent** 模型触发 AI Agent，执行 LLM 驱动的任务（分析、审查、开发、修复），并将结果写回 Gitea（评论或创建 PR）。
 
 核心设计原则：
-- **事件驱动** — 所有任务由 Gitea Webhook 触发，无轮询
-- **策略模式** — 5 种 Runners 对应 5 种任务类型，各自封装执行逻辑
-- **沙箱隔离** — Dev/Bugfix 在目录隔离沙箱中执行，命令白名单安全控制
-- **持久化队列** — SQLite 作为任务持久化层，崩溃恢复不丢任务
+- **Assign 触发** — 在 Issue/PR 上 Assign Agent 即可触发工作流（v2 弃用 Label 触发）
+- **功能性 Agent + Role** — 每个 Agent 有 role（analyze/coder/review），决定执行行为
+- **WorkflowContext 状态机** — Gateway 维护阶段真相，不从 Gitea 快照推断
+- **Session 续作** — @mention 可复用 Session 和 Workspace，支持 PR 上改代码
+- **三层门禁** — L1 结构性（内置）、L2 流程性（可配）、L3 建议性（评论）
 
-## 请求流
+## 请求流（v2 Assign 模型）
 
 ```mermaid
 sequenceDiagram
     participant G as Gitea Webhook
     participant H as webhook.Handler
     participant D as Dispatcher
-    participant R as Router
+    participant R as EventResolver
+    participant G1 as L1 Gate
+    participant G2 as L2 Gate
+    participant WF as WorkflowContext
     participant Q as TaskQueue
     participant E as Executor
-    participant RF as RunnerFactory
     participant Run as Runner
     participant LLM as LLM Provider
-    participant Git as Gitea API
 
     G->>H: POST /webhook/gitea
     H->>H: 验签 + 去重 + 解析事件
     H->>D: callback(event)
-    D->>R: Match(event)
-    R-->>D: {Agent, Route}
-    D->>D: determineTaskType(event)
+    D->>D: Sender 过滤（防自触发）
+    D->>R: Resolve(event)
+    R-->>D: {Agent, TaskType, Role}
+    D->>G1: CheckL1(event, role)
+    G1-->>D: pass / hard reject
+    D->>G2: EvaluateGate(policy, from, to)
+    G2-->>D: pass / soft warn / hard reject
+    D->>WF: Transition(ctx, role)
+    D->>D: In-flight 锁 + pending 检查
     D->>Q: Enqueue(task)
-    Q->>Q: 写入 SQLite + 投递 chan
     E->>Q: Worker 消费
-    E->>RF: GetRunner(taskType)
-    RF-->>E: Runner
     E->>Run: Run(ctx, task, agent)
     Run->>LLM: ChatCompletion
     LLM-->>Run: Response
-    Run-->>E: Result
-    E->>Git: IssueComment / CreatePR
+    E->>WF: OnTaskComplete(stage 更新)
 ```
 
 ## 组件架构
@@ -53,32 +57,36 @@ graph TB
 
     subgraph Gateway["Gitea Agent Gateway (Go)"]
         WH[webhook.Handler<br/>验签 / 去重 / 解析]
-        DISP[Dispatcher<br/>Router + Queue + Executor]
+        RES[workflow.Resolver<br/>Assign → Agent → TaskType]
+        WF[workflow.WorkflowManager<br/>阶段状态机]
+        GATE[workflow.L1Gate + L2Policy<br/>三层门禁]
+        LIFECYCLE[workflow.SessionLifecycle<br/>TTL 清理 / 磁盘 LRU]
+        DISP[Dispatcher<br/>Sender 过滤 + 入队 + Executor]
         RUNNERS[agents.Runners<br/>Analyze / Review / Interaction / Dev / Bugfix]
         AL[agent.AgentLoop<br/>多轮工具调用]
-        TOOLS[agent.Tools<br/>read_file / write_file / search_code / run_command / apply_diff / tree / git_log / git_blame]
         LLM[llm.Registry<br/>OpenAI Compatible / Anthropic]
-        SB[sandbox.Sandbox<br/>目录隔离 / 命令白名单 / Git 操作]
+        SB[sandbox.Sandbox<br/>目录隔离 / Session 级 Workspace]
         STORE[store.DB<br/>SQLite WAL]
         API[api.Handler<br/>管理 REST API]
-        CFG[config.ConfigManager<br/>YAML + DB 覆盖]
         WEB[Vue 3 前端<br/>go:embed 打包]
     end
 
     GITEA -->|Webhook| WH
     WH --> DISP
+    DISP --> RES
+    RES --> GATE
+    GATE --> WF
+    WF --> DISP
     DISP --> RUNNERS
     RUNNERS --> AL
-    AL --> TOOLS
     AL --> LLM
     RUNNERS --> SB
     RUNNERS --> LLM
     DISP --> STORE
+    LIFECYCLE --> STORE
     RUNNERS -->|写回评论/PR| GITEA
     API --> STORE
-    API --> CFG
     WEB -->|HTTP| API
-    CFG --> STORE
 ```
 
 ## 组件详解
@@ -104,57 +112,63 @@ flowchart LR
 
 ### 2. `internal/dispatcher` — 调度核心
 
-**文件**: `dispatcher.go`, `router.go`, `queue.go`, `executor.go`, `template.go`
+**文件**: `dispatcher.go`, `queue.go`, `executor.go`, `template.go`
 
-#### Router — 事件到 Agent 的匹配
+#### Dispatcher.HandleEvent — v2 事件处理流水线
 
-```go
-// 按 priority DESC, id ASC 排序，遍历所有 routes
-// 第一条满足所有条件的即命中（first-match-wins）
-type Route struct {
-    Event    string  // "issues" | "pull_request" | "issue_comment"
-    Action   string  // "assigned" | "labeled" | ""(通配)
-    Label    string  // Issue 必须有此 label
-    Assignee string  // Issue 必须分配给此人
-    Mention  string  // 评论必须 @此人
-    AgentID  int64   // → 目标 Agent
-    Priority int     // 越大越优先
-}
+```
+WebhookEvent
+  → Sender 过滤（sender == 任意 Agent → 忽略，防自触发）
+  → /gateway reset 检测
+  → EventResolver.Resolve(event)
+  → L1 结构性门禁（review 需 PR 等）
+  → L2 流程性门禁（coder_requires_analyzed 等）
+  → WorkflowContext.Transition(stage)
+  → In-flight 锁 + pending Task 检查
+  → GetOrCreateSession
+  → Enqueue(task)
 ```
 
-匹配顺序：event → action → label → assignee → mention。Agent 必须是 `active` 状态才命中。
+#### EventResolver — Assign 模型解析（`internal/workflow/resolver.go`）
+
+| 事件 | 解析逻辑 | Task Type |
+|---|---|---|
+| `issues.assigned` | `assignee.login` → Registry → role | analyze: `analyze_issue`, coder: `solve_issue`/`fix_bug`(bug标签), review: 忽略 |
+| `pull_request.review_requested` | reviewers 中找 review Agent | `review_pr` |
+| `issue_comment` + @mention | 解析 @username → Registry → role | analyze: `reply_comment`, coder: `solve_comment` |
+| `issues.closed` | — | 生命周期：archive sessions |
+| `pull_request.closed` | merged → archive | 生命周期 |
+| `issues.labeled` | **忽略**（v2 弃用 Label 触发） | — |
+
+#### WorkflowContext — 阶段状态机（`internal/workflow/context.go`）
+
+```
+idle → analyzing → analyzed → developing → reviewing → done
+```
+
+- Assign analyze: idle/analyzed/done → analyzing
+- Assign coder: idle/analyzed → developing
+- PR review_requested → reviewing
+- Task 完成回调：analyze→analyzed, solve→developing(写 PR ID)
+- Issue closed → done
+
+#### WorkflowPolicy — 三层门禁（`internal/workflow/policy.go`）
+
+| 层级 | 说明 | 配置 |
+|---|---|---|
+| L1 结构性 | 无 PR 不能 review 等 | 内置，不可关闭 |
+| L2 流程性 | coder_requires_analyzed 等 | off/soft/hard，预设 free/standard/strict |
+| L3 建议性 | 完成后建议下一步 | Agent 评论模板 |
 
 #### TaskQueue — 持久化队列
 
-- **内存 buffer**: buffered chan（容量由 `queue_size` 配置）
-- **持久化**: 每次 Enqueue 先写入 SQLite，再投递到 chan
-- **崩溃恢复**: `LoadPending()` 在启动时将 DB 中 `status=pending` 的任务重新入队
-- **Scanner**: 后台协程每 60s 扫描 pending 任务 + 重置超时的 running 任务（10 分钟阀值）
+- 内存 buffer + SQLite 持久化，崩溃恢复
+- Scanner: 每 60s 扫描 pending + 重置超时 running（10min）
 
 #### Executor — 并发执行器
 
-- `MaxConcurrent` 个 goroutine workers，通过 semaphore chan 控制并发
-- 每次 `execute` 从队列取 task → 更新状态为 `running` → `runTask` → 更新状态为 `success/failed`
-- 失败后按 `retry_count` 重试（间隔 5s）
-- 成功后调用 `writeBackToGitea` 将结果以 Agent 身份评论到 Issue/PR
-
-#### determineTaskType — 事件到任务类型的硬编码映射
-
-| 事件 | 条件 | Task Type | Runner |
-|---|---|---|---|
-| `issues` | label `ai:solve` | `solve_issue` | DevRunner |
-| `issues` | label `ai:fix` | `fix_bug` | BugfixRunner |
-| `issues` | action `assigned` / `labeled` | `analyze_issue` | AnalyzeRunner |
-| `issues` | 其他 | `trigger` | AnalyzeRunner |
-| `pull_request` | — | `review_pr` | ReviewRunner |
-| `issue_comment` | — | `reply_comment` | InteractionRunner |
-| `pull_request_comment` | — | `reply_comment` | InteractionRunner |
-
-#### Template — 上下文模板
-
-- 支持 Go `text/template` 语法
-- 优先级：Agent 自己的 `user_template` > 配置文件的 `templates[taskType].user_template` > 默认上下文构建器
-- 模板数据包含 `Event`, `Issue`, `PR`, `Comment`, `Repo`, `Sender`, `Task` 等字段
+- semaphore 控制并发，失败重试
+- OnComplete 回调：更新 WorkflowContext + Session 状态
 
 ### 3. `internal/agents` — Runner 策略层
 
@@ -200,20 +214,24 @@ type RunnerFactory struct {
 
 ```mermaid
 flowchart TD
-    A[获取 repo 信息] --> B[创建 Sandbox]
-    B --> C[克隆仓库]
-    C --> D[创建分支 ai/dev/task-N]
-    D --> E[加载代码上下文]
-    E --> F[构建 Agent Loop]
-    F --> G{多轮工具调用}
-    G -->|Tool Call| H[执行工具]
-    H --> G
-    G -->|无 Tool Call| I{有 Git 变更?}
-    I -->|是| J[commit + push + 创建 PR]
-    I -->|否| K[只评论]
-    J --> L[writeBackToGitea]
-    K --> L
+    A[获取 repo 信息] --> B{Session Workspace?}
+    B -->|有| C[fetch + checkout branch]
+    B -->|无| D[克隆仓库]
+    C --> E[创建分支]
+    D --> E
+    E --> F[加载代码上下文]
+    F --> G[构建 Agent Loop]
+    G --> H{多轮工具调用}
+    H -->|Tool Call| I[执行工具]
+    I --> H
+    H -->|无 Tool Call| J{有 Git 变更?}
+    J -->|是| K[commit + push + 创建 PR]
+    J -->|否| L[只评论]
+    K --> M[更新 Session branch]
+    L --> M
 ```
+
+**Session 级 Workspace**：coder Task 结束后不 Cleanup，workspace 保留在 `sessions/{session_id}/repo/`。下次 Task 时 fetch + checkout 而非全量 clone，实现续作。
 
 #### Agent Manager
 

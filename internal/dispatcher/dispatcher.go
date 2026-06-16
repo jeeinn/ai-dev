@@ -33,6 +33,7 @@ type Dispatcher struct {
 	l1Gate     *workflow.L1Gate
 	sessionSvc *workflow.SessionService
 	wfPolicy   *workflow.WorkflowPolicy
+	lifecycle  *workflow.SessionLifecycle
 
 	// In-flight lock: prevents concurrent tasks on the same (repo, issue)
 	inFlight sync.Map // map[string]bool — key is "repo#issueID"
@@ -85,13 +86,14 @@ func NewDispatcher(
 
 // SetWorkflowComponents sets the v2 workflow components.
 // When set, the dispatcher uses the new Assign-based pipeline instead of Router.Match.
-func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *workflow.Resolver, wfMgr *workflow.WorkflowManager, l1Gate *workflow.L1Gate, sessionSvc *workflow.SessionService, wfPolicy *workflow.WorkflowPolicy) {
+func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *workflow.Resolver, wfMgr *workflow.WorkflowManager, l1Gate *workflow.L1Gate, sessionSvc *workflow.SessionService, wfPolicy *workflow.WorkflowPolicy, lifecycle *workflow.SessionLifecycle) {
 	d.registry = registry
 	d.resolver = resolver
 	d.wfMgr = wfMgr
 	d.l1Gate = l1Gate
 	d.sessionSvc = sessionSvc
 	d.wfPolicy = wfPolicy
+	d.lifecycle = lifecycle
 
 	// Wire task completion callback for WorkflowContext + Session updates
 	d.executor.SetOnComplete(func(task *store.Task) {
@@ -170,11 +172,24 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 		return true // Not an error, just not handled
 	}
 
-	log.Printf("[INFO] Resolved: agent=%q role=%s taskType=%s issueID=%d prID=%d",
-		result.Agent.Name, result.Role, result.TaskType, result.IssueID, result.PRID)
-
 	repo := evt.Repo.FullName
 	issueID := result.IssueID
+
+	// Handle lifecycle events (archive, done) — no agent required
+	if result.Lifecycle != "" {
+		log.Printf("[INFO] Lifecycle event: %s issueID=%d prID=%d merged=%v",
+			result.Lifecycle, result.IssueID, result.PRID, result.Merged)
+		return d.handleLifecycleEvent(result, repo)
+	}
+
+	// Task-creating events require an agent
+	if result.Agent == nil {
+		log.Printf("[DEBUG] No agent resolved for %s/%s, ignoring", evt.Event, evt.Action)
+		return true
+	}
+
+	log.Printf("[INFO] Resolved: agent=%q role=%s taskType=%s issueID=%d prID=%d",
+		result.Agent.Name, result.Role, result.TaskType, result.IssueID, result.PRID)
 
 	// Step 3: L1 gate check
 	if d.l1Gate != nil {
@@ -311,6 +326,29 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 	d.postGateComment(result.Agent, repo, issueID,
 		fmt.Sprintf("🔄 %s 已开始处理（task #%d）", result.Agent.Name, task.ID))
 
+	return true
+}
+
+// handleLifecycleEvent handles lifecycle events (archive, done) from the Resolver.
+func (d *Dispatcher) handleLifecycleEvent(result *workflow.ResolveResult, repo string) bool {
+	if d.lifecycle == nil {
+		return true
+	}
+
+	switch result.Lifecycle {
+	case "archive":
+		if result.PRID > 0 {
+			// PR closed
+			if err := d.lifecycle.OnPRClosed(repo, result.PRID, result.IssueID, result.Merged); err != nil {
+				log.Printf("[WARN] PR lifecycle error: %v", err)
+			}
+		} else if result.IssueID > 0 {
+			// Issue closed
+			if err := d.lifecycle.OnIssueClosed(repo, result.IssueID); err != nil {
+				log.Printf("[WARN] Issue lifecycle error: %v", err)
+			}
+		}
+	}
 	return true
 }
 

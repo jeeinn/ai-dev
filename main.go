@@ -105,8 +105,18 @@ func main() {
 	l1Gate := workflow.NewL1Gate(db)
 	sessionSvc := workflow.NewSessionService(db, activeCfg.Workspace.BaseDir)
 	wfPolicy := workflow.GetPreset(activeCfg.Workflow.Preset)
-	d.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate, sessionSvc, wfPolicy)
-	log.Printf("[INFO] Workflow v2 components initialized (with SessionService)")
+	sessionCfg := &activeCfg.Session
+	if sessionCfg.IdleTTL == "" {
+		defaultSessionCfg := config.DefaultSessionConfig()
+		sessionCfg = &defaultSessionCfg
+	}
+	lifecycle := workflow.NewSessionLifecycle(db, wfMgr, sessionSvc, sessionCfg, activeCfg.Workspace.BaseDir)
+	d.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate, sessionSvc, wfPolicy, lifecycle)
+
+	// Start session cleanup loop (every 10 minutes)
+	lifecycle.StartCleanupLoop(10 * time.Minute)
+
+	log.Printf("[INFO] Workflow v2 components initialized (with SessionService + Lifecycle)")
 
 	// Start dispatcher (loads pending tasks and starts workers)
 	if err := d.Start(); err != nil {

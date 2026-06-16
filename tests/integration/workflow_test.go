@@ -394,6 +394,7 @@ func TestL2StrictBlocksCoderWithoutAnalyze(t *testing.T) {
 		workflow.NewL1Gate(env.DB),
 		workflow.NewSessionService(env.DB, ""),
 		policy,
+		nil,
 	)
 
 	err := env.Dispatcher.Start()
@@ -437,6 +438,7 @@ func TestStandardAllowsSkipAnalyze(t *testing.T) {
 		workflow.NewL1Gate(env.DB),
 		workflow.NewSessionService(env.DB, ""),
 		policy,
+		nil,
 	)
 
 	err := env.Dispatcher.Start()

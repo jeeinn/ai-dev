@@ -19,6 +19,10 @@ type ResolveResult struct {
 	IssueID  int
 	PRID     int
 	Force    bool // /force detected — skip soft gate warnings
+
+	// Lifecycle events (not task-creating)
+	Lifecycle string // "archive" — archive sessions and update context to done
+	Merged    bool   // true if PR was merged (not just closed)
 }
 
 // Resolver resolves webhook events to agent + task type via the Assign model.
@@ -57,6 +61,8 @@ func (r *Resolver) resolveIssue(evt *webhook.WebhookEvent) *ResolveResult {
 	switch evt.Action {
 	case "assigned":
 		return r.resolveAssigned(evt)
+	case "closed":
+		return r.resolveIssueClosed(evt)
 	case "unassigned":
 		// v2: unassigned does not trigger tasks or revert stage
 		return nil
@@ -65,6 +71,18 @@ func (r *Resolver) resolveIssue(evt *webhook.WebhookEvent) *ResolveResult {
 		return nil
 	default:
 		return nil
+	}
+}
+
+// resolveIssueClosed handles issues.closed events — archive sessions, set context to done.
+func (r *Resolver) resolveIssueClosed(evt *webhook.WebhookEvent) *ResolveResult {
+	issueID := 0
+	if evt.Issue != nil {
+		issueID = evt.Issue.Number
+	}
+	return &ResolveResult{
+		IssueID:   issueID,
+		Lifecycle: "archive",
 	}
 }
 
@@ -114,11 +132,18 @@ func (r *Resolver) resolvePullRequest(evt *webhook.WebhookEvent) *ResolveResult 
 		return nil
 	}
 
-	// Only handle review_requested action (and opened with reviewers for convenience)
-	if evt.Action != "review_requested" && evt.Action != "opened" {
+	switch evt.Action {
+	case "review_requested", "opened":
+		return r.resolveReviewRequested(evt)
+	case "closed":
+		return r.resolvePRClosed(evt)
+	default:
 		return nil
 	}
+}
 
+// resolveReviewRequested handles pull_request review_requested events.
+func (r *Resolver) resolveReviewRequested(evt *webhook.WebhookEvent) *ResolveResult {
 	// Find a review agent among requested reviewers
 	if evt.PR.RequestedReviewers == nil || len(evt.PR.RequestedReviewers) == 0 {
 		return nil
@@ -141,6 +166,28 @@ func (r *Resolver) resolvePullRequest(evt *webhook.WebhookEvent) *ResolveResult 
 	}
 
 	return nil
+}
+
+// resolvePRClosed handles pull_request.closed events.
+// Merged PR → archive sessions; closed without merge → retain for pr_closed_retention.
+func (r *Resolver) resolvePRClosed(evt *webhook.WebhookEvent) *ResolveResult {
+	// Check if PR was merged (Gitea sends "merged" field or action="closed" with merged=true)
+	merged := false
+	if evt.PR != nil {
+		// Gitea sets the "merged" field in the PR object
+		// For now, we'll check the action — in Gitea, a merged PR sends action="closed"
+		// The actual merge detection will be done via the WorkflowContext.PRID
+		merged = evt.PR.State == "merged"
+	}
+
+	issueID := r.resolveLinkedIssue(evt)
+
+	return &ResolveResult{
+		IssueID:   issueID,
+		PRID:      evt.PR.Number,
+		Lifecycle: "archive",
+		Merged:    merged,
+	}
 }
 
 // taskTypeForRole determines the task type based on agent role and event context.

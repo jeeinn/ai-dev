@@ -13,6 +13,7 @@ type Config struct {
 	Auth       AuthConfig       `yaml:"auth"`
 	Agents     AgentsConfig     `yaml:"agents"`
 	Workflow   WorkflowConfig   `yaml:"workflow"`
+	Session    SessionConfig    `yaml:"session"`
 }
 
 // WorkflowConfig contains workflow policy configuration.
@@ -28,6 +29,24 @@ type NotifyConfig struct {
 	OnCoderPROpened bool `yaml:"on_coder_pr_opened"`
 	OnGateSoft      bool `yaml:"on_gate_soft"`
 	OnGateHard      bool `yaml:"on_gate_hard"`
+}
+
+// SessionConfig contains session lifecycle configuration.
+type SessionConfig struct {
+	IdleTTL            string `yaml:"idle_ttl"`            // Duration string, e.g. "168h" (7 days)
+	WorkspaceRetention string `yaml:"workspace_retention"` // Duration string, e.g. "24h"
+	PRClosedRetention  string `yaml:"pr_closed_retention"` // Duration string, e.g. "168h"
+	MaxDiskPerRepo     string `yaml:"max_disk_per_repo"`   // e.g. "5GB"
+}
+
+// DefaultSessionConfig returns default session configuration.
+func DefaultSessionConfig() SessionConfig {
+	return SessionConfig{
+		IdleTTL:            "168h", // 7 days
+		WorkspaceRetention: "24h",  // 24 hours
+		PRClosedRetention:  "168h", // 7 days
+		MaxDiskPerRepo:     "5GB",
+	}
 }
 
 type ServerConfig struct {

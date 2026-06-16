@@ -79,6 +79,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/agents/{id}/prompts/active", h.auth.Wrap(h.getActivePrompt))
 	mux.HandleFunc("POST /api/prompts/{id}/activate", h.auth.Wrap(h.activatePrompt))
 	mux.HandleFunc("DELETE /api/prompts/{id}", h.auth.Wrap(h.deletePrompt))
+
+	// Session reset endpoint
+	mux.HandleFunc("POST /api/sessions/reset", h.auth.Wrap(h.resetSession))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
@@ -671,4 +674,52 @@ func (h *Handler) deletePrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"status": "deleted"})
+}
+
+// --- Session reset endpoint ---
+
+func (h *Handler) resetSession(w http.ResponseWriter, r *http.Request) {
+	repo := r.URL.Query().Get("repo")
+	issueStr := r.URL.Query().Get("issue")
+
+	if repo == "" || issueStr == "" {
+		writeError(w, 400, "repo and issue query parameters are required")
+		return
+	}
+
+	issueID, err := strconv.Atoi(issueStr)
+	if err != nil {
+		writeError(w, 400, "invalid issue number")
+		return
+	}
+
+	// 1. Archive all sessions for this issue
+	sessions, err := h.db.ListSessionsByIssue(repo, issueID)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	archived := 0
+	for _, sess := range sessions {
+		if err := h.db.ArchiveSession(sess.ID); err == nil {
+			archived++
+		}
+	}
+
+	// 2. Reset workflow context to idle
+	ctx, err := h.db.GetWorkflowContext(repo, issueID)
+	if err == nil {
+		ctx.Stage = "idle"
+		ctx.ActiveAgentID = 0
+		ctx.ActiveRole = ""
+		ctx.SessionID = ""
+		h.db.UpdateWorkflowContext(ctx)
+	}
+
+	writeJSON(w, 200, map[string]interface{}{
+		"status":            "reset",
+		"repo":              repo,
+		"issue_id":          issueID,
+		"sessions_archived": archived,
+	})
 }

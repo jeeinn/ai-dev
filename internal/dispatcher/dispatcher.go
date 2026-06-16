@@ -161,6 +161,19 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 		return true
 	}
 
+	// Step 1b: Check for /gateway reset command in comments
+	if evt.Comment != nil && strings.Contains(evt.Comment.Body, "/gateway reset") {
+		issueID := 0
+		if evt.Issue != nil {
+			issueID = evt.Issue.Number
+		}
+		if issueID > 0 {
+			log.Printf("[INFO] /gateway reset command detected for %s#%d", evt.Repo.FullName, issueID)
+			d.resetIssue(evt.Repo.FullName, issueID)
+			return true
+		}
+	}
+
 	// Step 2: Resolve event via EventResolver
 	result := d.resolver.Resolve(evt)
 	if result == nil {
@@ -323,6 +336,30 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 		fmt.Sprintf("🔄 %s 已开始处理（task #%d）", result.Agent.Name, task.ID))
 
 	return true
+}
+
+// resetIssue archives all sessions and resets the workflow context to idle.
+func (d *Dispatcher) resetIssue(repo string, issueID int) {
+	// Archive sessions
+	if d.sessionSvc != nil {
+		d.sessionSvc.ArchiveByIssue(repo, issueID)
+	}
+
+	// Reset context
+	ctx, err := d.db.GetWorkflowContext(repo, issueID)
+	if err == nil {
+		ctx.Stage = store.StageIdle
+		ctx.ActiveAgentID = 0
+		ctx.ActiveRole = ""
+		ctx.SessionID = ""
+		d.db.UpdateWorkflowContext(ctx)
+	}
+
+	// Release in-flight lock
+	lockKey := fmt.Sprintf("%s#%d", repo, issueID)
+	d.inFlight.Delete(lockKey)
+
+	log.Printf("[INFO] Reset %s#%d: sessions archived, context=idle", repo, issueID)
 }
 
 // handleLifecycleEvent handles lifecycle events (archive, done) from the Resolver.

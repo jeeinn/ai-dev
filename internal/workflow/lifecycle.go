@@ -168,6 +168,9 @@ func (sl *SessionLifecycle) StartCleanupLoop(interval time.Duration) {
 			if _, err := sl.CleanupArchivedWorkspaces(); err != nil {
 				log.Printf("[WARN] Workspace cleanup error: %v", err)
 			}
+			if _, err := sl.EnforceDiskLimit(); err != nil {
+				log.Printf("[WARN] Disk limit enforcement error: %v", err)
+			}
 		}
 	}()
 }
@@ -186,6 +189,88 @@ func (sl *SessionLifecycle) scheduleWorkspaceDeletion(repo string, issueID int, 
 			log.Printf("[WARN] Scheduled workspace deletion failed for %s#%d: %v", repo, issueID, err)
 		}
 	}()
+}
+
+// EnforceDiskLimit checks if the total workspace size exceeds the limit
+// and deletes the oldest archived workspaces until within budget.
+func (sl *SessionLifecycle) EnforceDiskLimit() (int, error) {
+	if sl.cfg.MaxDiskPerRepo == "" || sl.baseDir == "" {
+		return 0, nil
+	}
+
+	// Parse max disk limit (e.g. "5GB")
+	maxBytes, err := parseSize(sl.cfg.MaxDiskPerRepo)
+	if err != nil {
+		return 0, fmt.Errorf("parse max_disk_per_repo: %w", err)
+	}
+
+	// Get current size
+	currentSize, err := sl.GetRepoWorkspaceSize("")
+	if err != nil {
+		return 0, err
+	}
+
+	if currentSize <= maxBytes {
+		return 0, nil
+	}
+
+	log.Printf("[INFO] Workspace size %d bytes exceeds limit %d bytes, cleaning up", currentSize, maxBytes)
+
+	// Get archived sessions with workspaces, sorted by last_active_at (oldest first)
+	sessions, err := sl.db.ListArchivedSessionsWithWorkspace()
+	if err != nil {
+		return 0, err
+	}
+
+	cleaned := 0
+	for _, session := range sessions {
+		if currentSize <= maxBytes {
+			break
+		}
+		if session.WorkspacePath == "" {
+			continue
+		}
+
+		// Get size of this workspace
+		size, _ := dirSize(session.WorkspacePath)
+
+		// Delete workspace
+		if err := os.RemoveAll(session.WorkspacePath); err != nil {
+			log.Printf("[WARN] Failed to delete workspace %s: %v", session.WorkspacePath, err)
+			continue
+		}
+
+		session.WorkspacePath = ""
+		sl.db.UpdateSession(session)
+		currentSize -= size
+		cleaned++
+		log.Printf("[INFO] LRU deleted workspace for session %s (freed %d bytes)", session.ID, size)
+	}
+
+	if cleaned > 0 {
+		log.Printf("[INFO] LRU cleanup: deleted %d workspaces, now using %d bytes", cleaned, currentSize)
+	}
+	return cleaned, nil
+}
+
+// parseSize parses a human-readable size string (e.g. "5GB", "100MB") to bytes.
+func parseSize(s string) (int64, error) {
+	var size int64
+	var unit string
+	_, err := fmt.Sscanf(s, "%d%s", &size, &unit)
+	if err != nil {
+		return 0, fmt.Errorf("invalid size format: %s", s)
+	}
+	switch unit {
+	case "GB", "gb":
+		return size * 1024 * 1024 * 1024, nil
+	case "MB", "mb":
+		return size * 1024 * 1024, nil
+	case "KB", "kb":
+		return size * 1024, nil
+	default:
+		return size, nil
+	}
 }
 
 // GetRepoWorkspaceSize returns the total size of session workspaces for a repo.

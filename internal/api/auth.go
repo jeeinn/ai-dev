@@ -16,6 +16,19 @@ func NewAuthMiddleware(token string) *AuthMiddleware {
 	return &AuthMiddleware{token: token}
 }
 
+// ValidAPIToken returns true when API token auth is disabled or the token matches.
+func (a *AuthMiddleware) ValidAPIToken(token string) bool {
+	if a.token == "" {
+		return true
+	}
+	return token == a.token
+}
+
+// TokenConfigured returns true when a static API token is configured.
+func (a *AuthMiddleware) TokenConfigured() bool {
+	return a.token != ""
+}
+
 // Wrap wraps an http.HandlerFunc with authentication.
 func (a *AuthMiddleware) Wrap(next http.HandlerFunc) http.HandlerFunc {
 	// If no token configured, skip auth

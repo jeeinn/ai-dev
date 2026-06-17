@@ -56,32 +56,32 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/config/{key}", h.jwtWrap(h.deleteConfigEntry))
 
 	// Prompt template endpoints
-	mux.HandleFunc("GET /api/prompt-templates", h.auth.Wrap(h.listPromptTemplates))
+	mux.HandleFunc("GET /api/prompt-templates", h.authorizeWrap(h.listPromptTemplates))
 	mux.HandleFunc("PUT /api/prompt-templates", h.jwtWrap(h.updatePromptTemplates))
 	mux.HandleFunc("DELETE /api/prompt-templates/{name}", h.jwtWrap(h.deletePromptTemplate))
 
 	// Agent endpoints
-	mux.HandleFunc("GET /api/agents", h.auth.Wrap(h.listAgents))
-	mux.HandleFunc("POST /api/agents", h.auth.Wrap(h.createAgent))
-	mux.HandleFunc("GET /api/agents/{id}", h.auth.Wrap(h.getAgent))
-	mux.HandleFunc("PUT /api/agents/{id}", h.auth.Wrap(h.updateAgent))
-	mux.HandleFunc("DELETE /api/agents/{id}", h.auth.Wrap(h.deleteAgent))
-	mux.HandleFunc("GET /api/agents/{id}/tasks", h.auth.Wrap(h.listAgentTasks))
-	mux.HandleFunc("GET /api/tasks", h.auth.Wrap(h.listTasks))
-	mux.HandleFunc("GET /api/tasks/{id}", h.auth.Wrap(h.getTask))
-	mux.HandleFunc("GET /api/logs", h.auth.Wrap(h.listLogs))
-	mux.HandleFunc("GET /api/stats", h.auth.Wrap(h.getStats))
-	mux.HandleFunc("GET /api/templates", h.auth.Wrap(h.listTemplates))
+	mux.HandleFunc("GET /api/agents", h.authorizeWrap(h.listAgents))
+	mux.HandleFunc("POST /api/agents", h.authorizeWrap(h.createAgent))
+	mux.HandleFunc("GET /api/agents/{id}", h.authorizeWrap(h.getAgent))
+	mux.HandleFunc("PUT /api/agents/{id}", h.authorizeWrap(h.updateAgent))
+	mux.HandleFunc("DELETE /api/agents/{id}", h.authorizeWrap(h.deleteAgent))
+	mux.HandleFunc("GET /api/agents/{id}/tasks", h.authorizeWrap(h.listAgentTasks))
+	mux.HandleFunc("GET /api/tasks", h.authorizeWrap(h.listTasks))
+	mux.HandleFunc("GET /api/tasks/{id}", h.authorizeWrap(h.getTask))
+	mux.HandleFunc("GET /api/logs", h.authorizeWrap(h.listLogs))
+	mux.HandleFunc("GET /api/stats", h.authorizeWrap(h.getStats))
+	mux.HandleFunc("GET /api/templates", h.authorizeWrap(h.listTemplates))
 
 	// Prompt management endpoints
-	mux.HandleFunc("GET /api/agents/{id}/prompts", h.auth.Wrap(h.listPrompts))
-	mux.HandleFunc("POST /api/agents/{id}/prompts", h.auth.Wrap(h.createPrompt))
-	mux.HandleFunc("GET /api/agents/{id}/prompts/active", h.auth.Wrap(h.getActivePrompt))
-	mux.HandleFunc("POST /api/prompts/{id}/activate", h.auth.Wrap(h.activatePrompt))
-	mux.HandleFunc("DELETE /api/prompts/{id}", h.auth.Wrap(h.deletePrompt))
+	mux.HandleFunc("GET /api/agents/{id}/prompts", h.authorizeWrap(h.listPrompts))
+	mux.HandleFunc("POST /api/agents/{id}/prompts", h.authorizeWrap(h.createPrompt))
+	mux.HandleFunc("GET /api/agents/{id}/prompts/active", h.authorizeWrap(h.getActivePrompt))
+	mux.HandleFunc("POST /api/prompts/{id}/activate", h.authorizeWrap(h.activatePrompt))
+	mux.HandleFunc("DELETE /api/prompts/{id}", h.authorizeWrap(h.deletePrompt))
 
 	// Session reset endpoint
-	mux.HandleFunc("POST /api/sessions/reset", h.auth.Wrap(h.resetSession))
+	mux.HandleFunc("POST /api/sessions/reset", h.authorizeWrap(h.resetSession))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
@@ -124,6 +124,38 @@ func (h *Handler) jwtWrap(next http.HandlerFunc) http.HandlerFunc {
 
 		ctx := context.WithValue(r.Context(), claimsKey, claims)
 		next(w, r.WithContext(ctx))
+	}
+}
+
+// authorizeWrap accepts JWT (web UI login) or the configured static API token.
+func (h *Handler) authorizeWrap(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := extractBearerToken(r.Header.Get("Authorization"))
+
+		if h.jwtManager != nil && token != "" {
+			if claims, err := h.jwtManager.ValidateToken(token); err == nil {
+				ctx := context.WithValue(r.Context(), claimsKey, claims)
+				next(w, r.WithContext(ctx))
+				return
+			}
+		}
+
+		if !h.auth.TokenConfigured() {
+			next(w, r)
+			return
+		}
+
+		if token == "" {
+			writeError(w, 401, "missing authorization header")
+			return
+		}
+
+		if !h.auth.ValidAPIToken(token) {
+			writeError(w, 401, "invalid token")
+			return
+		}
+
+		next(w, r)
 	}
 }
 

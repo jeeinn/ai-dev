@@ -445,6 +445,12 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	isExistingBranch := branchName != ""
 	if !isExistingBranch {
 		branchName = sandbox.GenerateBranchName(taskSubType, task.IssueID)
+		// Check if this branch already exists locally (from previous task in session workspace)
+		checkResult := sb.Execute("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
+		if checkResult.Error == nil {
+			isExistingBranch = true
+			log.Printf("[INFO] Branch %s already exists locally, reusing", branchName)
+		}
 	}
 
 	if isExistingBranch {
@@ -453,10 +459,15 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		sb.Execute("git", "remote", "set-branches", "--add", "origin", branchName)
 		fetchResult := sb.Execute("git", "fetch", "--depth", "1", "origin", branchName)
 		audit.LogCommand("git", []string{"fetch", "origin", branchName}, fetchResult)
-		checkoutResult := sb.Execute("git", "checkout", "-b", branchName, "origin/"+branchName)
-		audit.LogCommand("git", []string{"checkout", "-b", branchName, "origin/" + branchName}, checkoutResult)
+		// Try checkout first (if local branch exists), then create tracking branch
+		checkoutResult := sb.Execute("git", "checkout", branchName)
+		audit.LogCommand("git", []string{"checkout", branchName}, checkoutResult)
 		if checkoutResult.Error != nil {
-			return nil, fmt.Errorf("checkout branch %s: %s", branchName, checkoutResult.Stderr)
+			checkoutResult = sb.Execute("git", "checkout", "-b", branchName, "origin/"+branchName)
+			audit.LogCommand("git", []string{"checkout", "-b", branchName, "origin/" + branchName}, checkoutResult)
+			if checkoutResult.Error != nil {
+				return nil, fmt.Errorf("checkout branch %s: %s", branchName, checkoutResult.Stderr)
+			}
 		}
 		log.Printf("[INFO] Checked out existing branch: %s", branchName)
 	} else {

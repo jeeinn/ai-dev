@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 
+	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
 )
@@ -106,9 +107,12 @@ func CommentOnIssue(giteaURL, agentToken, repo string, issueID int, body string)
 		return fmt.Errorf("invalid repo format: %s", repo)
 	}
 
-	// Use the gitea client to post comment
-	// We create a temporary client here since we don't have a factory
-	log.Printf("[INFO] Would post comment on %s#%d: %s", repo, issueID, truncate(body, 100))
+	client := gitea.NewClient(giteaURL, agentToken)
+	commentBody := FormatAgentComment(body)
+	if err := client.IssueComment(parts[0], parts[1], issueID, commentBody); err != nil {
+		return fmt.Errorf("post comment on %s#%d: %w", repo, issueID, err)
+	}
+	log.Printf("[INFO] Posted gate comment on %s#%d: %s", repo, issueID, truncate(body, 100))
 	return nil
 }
 

@@ -82,6 +82,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 	// Session reset endpoint
 	mux.HandleFunc("POST /api/sessions/reset", h.authorizeWrap(h.resetSession))
+
+	// Workflow context endpoints
+	mux.HandleFunc("GET /api/workflow-context", h.authorizeWrap(h.listWorkflowContexts))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
@@ -706,6 +709,41 @@ func (h *Handler) deletePrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"status": "deleted"})
+}
+
+// --- Workflow context endpoint ---
+
+func (h *Handler) listWorkflowContexts(w http.ResponseWriter, r *http.Request) {
+	repo := r.URL.Query().Get("repo")
+	if repo == "" {
+		writeError(w, 400, "repo query parameter is required")
+		return
+	}
+
+	issueStr := r.URL.Query().Get("issue")
+	if issueStr != "" {
+		// Single context lookup
+		issueID, err := strconv.Atoi(issueStr)
+		if err != nil {
+			writeError(w, 400, "invalid issue number")
+			return
+		}
+		ctx, err := h.db.GetWorkflowContext(repo, issueID)
+		if err != nil {
+			writeError(w, 404, "workflow context not found")
+			return
+		}
+		writeJSON(w, 200, ctx)
+		return
+	}
+
+	// List all contexts for the repo
+	contexts, err := h.db.ListWorkflowContextsByRepo(repo)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, contexts)
 }
 
 // --- Session reset endpoint ---

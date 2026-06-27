@@ -231,8 +231,10 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 		if d.wfPolicy != nil {
 			// Check relevant gates based on the transition
 			gatesToCheck := d.gatesForTransition(ctx, result.Role)
+			// Determine if PR is a draft (for review_warn_if_draft gate)
+			isDraftPR := evt.PR != nil && evt.PR.Draft
 			for _, gateID := range gatesToCheck {
-				gateResult := workflow.EvaluateGate(d.wfPolicy, gateID, ctx, result.Role)
+				gateResult := workflow.EvaluateGate(d.wfPolicy, gateID, ctx, result.Role, result.Agent.ID, isDraftPR)
 				if !gateResult.Allowed {
 					if result.Force && gateResult.Level == "soft" {
 						// /force bypasses soft gates
@@ -398,6 +400,10 @@ func (d *Dispatcher) gatesForTransition(ctx *store.WorkflowContext, role string)
 		if ctx.Stage == store.StageDeveloping {
 			gates = append(gates, workflow.GateRerunSameStage)
 		}
+		// Check if switching to a different coder agent
+		if ctx.ActiveAgentID != 0 {
+			gates = append(gates, workflow.GateCoderSwitchAgent)
+		}
 	case store.RoleAnalyze:
 		if ctx.Stage == store.StageDeveloping {
 			gates = append(gates, workflow.GateReanalyzeWhileDev)
@@ -405,6 +411,9 @@ func (d *Dispatcher) gatesForTransition(ctx *store.WorkflowContext, role string)
 		if ctx.Stage == store.StageAnalyzing {
 			gates = append(gates, workflow.GateRerunSameStage)
 		}
+	case store.RoleReview:
+		// Draft PR warning for review tasks
+		gates = append(gates, workflow.GateReviewWarnIfDraft)
 	}
 
 	return gates

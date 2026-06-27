@@ -58,7 +58,7 @@ func TestEvaluateGateOff(t *testing.T) {
 	p := PresetFree()
 	ctx := &store.WorkflowContext{Stage: store.StageIdle}
 
-	result := EvaluateGate(p, GateCoderRequiresAnalyzed, ctx, store.RoleCoder)
+	result := EvaluateGate(p, GateCoderRequiresAnalyzed, ctx, store.RoleCoder, 0, false)
 	assert.True(t, result.Allowed)
 	assert.Equal(t, "pass", result.Level)
 }
@@ -67,7 +67,7 @@ func TestEvaluateGateCoderRequiresAnalyzedIdle(t *testing.T) {
 	p := PresetStrict()
 	ctx := &store.WorkflowContext{Stage: store.StageIdle}
 
-	result := EvaluateGate(p, GateCoderRequiresAnalyzed, ctx, store.RoleCoder)
+	result := EvaluateGate(p, GateCoderRequiresAnalyzed, ctx, store.RoleCoder, 0, false)
 	assert.False(t, result.Allowed)
 	assert.Equal(t, "hard", result.Level)
 	assert.Contains(t, result.Message, "需求分析")
@@ -77,7 +77,7 @@ func TestEvaluateGateCoderRequiresAnalyzedAnalyzed(t *testing.T) {
 	p := PresetStrict()
 	ctx := &store.WorkflowContext{Stage: store.StageAnalyzed}
 
-	result := EvaluateGate(p, GateCoderRequiresAnalyzed, ctx, store.RoleCoder)
+	result := EvaluateGate(p, GateCoderRequiresAnalyzed, ctx, store.RoleCoder, 0, false)
 	assert.True(t, result.Allowed)
 	assert.Equal(t, "pass", result.Level)
 }
@@ -86,7 +86,7 @@ func TestEvaluateGateReanalyzeWhileDev(t *testing.T) {
 	p := PresetStandard()
 	ctx := &store.WorkflowContext{Stage: store.StageDeveloping}
 
-	result := EvaluateGate(p, GateReanalyzeWhileDev, ctx, store.RoleAnalyze)
+	result := EvaluateGate(p, GateReanalyzeWhileDev, ctx, store.RoleAnalyze, 0, false)
 	assert.True(t, result.Allowed) // Soft allows
 	assert.Equal(t, "soft", result.Level)
 	assert.Contains(t, result.Message, "开发阶段")
@@ -96,7 +96,7 @@ func TestEvaluateGateReanalyzeWhileDevStrict(t *testing.T) {
 	p := PresetStrict()
 	ctx := &store.WorkflowContext{Stage: store.StageDeveloping}
 
-	result := EvaluateGate(p, GateReanalyzeWhileDev, ctx, store.RoleAnalyze)
+	result := EvaluateGate(p, GateReanalyzeWhileDev, ctx, store.RoleAnalyze, 0, false)
 	assert.False(t, result.Allowed) // Hard blocks
 	assert.Equal(t, "hard", result.Level)
 }
@@ -105,19 +105,61 @@ func TestEvaluateGateRerunSameStage(t *testing.T) {
 	p := PresetStandard()
 	ctx := &store.WorkflowContext{Stage: store.StageDeveloping}
 
-	result := EvaluateGate(p, GateRerunSameStage, ctx, store.RoleCoder)
+	result := EvaluateGate(p, GateRerunSameStage, ctx, store.RoleCoder, 0, false)
 	assert.True(t, result.Allowed) // Soft allows
 	assert.Equal(t, "soft", result.Level)
 }
 
-func TestEvaluateGateCoderSwitchAgent(t *testing.T) {
+func TestEvaluateGateCoderSwitchAgentDifferentAgent(t *testing.T) {
 	p := PresetStandard()
-	ctx := &store.WorkflowContext{Stage: store.StageDeveloping}
+	ctx := &store.WorkflowContext{Stage: store.StageDeveloping, ActiveAgentID: 1}
 
-	result := EvaluateGate(p, GateCoderSwitchAgent, ctx, store.RoleCoder)
+	// Different agent (ID=2) triggers the gate
+	result := EvaluateGate(p, GateCoderSwitchAgent, ctx, store.RoleCoder, 2, false)
 	assert.True(t, result.Allowed) // Soft allows
 	assert.Equal(t, "soft", result.Level)
 	assert.Contains(t, result.Message, "切换 Agent")
+}
+
+func TestEvaluateGateCoderSwitchAgentSameAgent(t *testing.T) {
+	p := PresetStandard()
+	ctx := &store.WorkflowContext{Stage: store.StageDeveloping, ActiveAgentID: 1}
+
+	// Same agent (ID=1) does NOT trigger the gate
+	result := EvaluateGate(p, GateCoderSwitchAgent, ctx, store.RoleCoder, 1, false)
+	assert.True(t, result.Allowed)
+	assert.Equal(t, "pass", result.Level)
+}
+
+func TestEvaluateGateCoderSwitchAgentNoActiveAgent(t *testing.T) {
+	p := PresetStandard()
+	ctx := &store.WorkflowContext{Stage: store.StageDeveloping, ActiveAgentID: 0}
+
+	// No active agent — gate does not trigger
+	result := EvaluateGate(p, GateCoderSwitchAgent, ctx, store.RoleCoder, 1, false)
+	assert.True(t, result.Allowed)
+	assert.Equal(t, "pass", result.Level)
+}
+
+func TestEvaluateGateReviewWarnIfDraft(t *testing.T) {
+	p := PresetStrict() // strict has review_warn_if_draft = soft
+	ctx := &store.WorkflowContext{Stage: store.StageReviewing}
+
+	// Draft PR triggers warning
+	result := EvaluateGate(p, GateReviewWarnIfDraft, ctx, store.RoleReview, 0, true)
+	assert.True(t, result.Allowed) // Soft allows
+	assert.Equal(t, "soft", result.Level)
+	assert.Contains(t, result.Message, "Draft")
+}
+
+func TestEvaluateGateReviewWarnIfNotDraft(t *testing.T) {
+	p := PresetStrict()
+	ctx := &store.WorkflowContext{Stage: store.StageReviewing}
+
+	// Non-draft PR — gate passes
+	result := EvaluateGate(p, GateReviewWarnIfDraft, ctx, store.RoleReview, 0, false)
+	assert.True(t, result.Allowed)
+	assert.Equal(t, "pass", result.Level)
 }
 
 func TestGateEvaluateResultMessages(t *testing.T) {
@@ -125,18 +167,21 @@ func TestGateEvaluateResultMessages(t *testing.T) {
 	p := PresetStrict()
 
 	tests := []struct {
-		gateID string
-		stage  string
+		gateID     string
+		stage      string
+		agentID    int64
+		isDraftPR  bool
 	}{
-		{GateCoderRequiresAnalyzed, store.StageIdle},
-		{GateReanalyzeWhileDev, store.StageDeveloping},
-		{GateRerunSameStage, store.StageDeveloping},
-		{GateCoderSwitchAgent, store.StageDeveloping},
+		{GateCoderRequiresAnalyzed, store.StageIdle, 0, false},
+		{GateReanalyzeWhileDev, store.StageDeveloping, 0, false},
+		{GateRerunSameStage, store.StageDeveloping, 0, false},
+		{GateCoderSwitchAgent, store.StageDeveloping, 2, false},   // agentID=2, active=1 → triggers
+		{GateReviewWarnIfDraft, store.StageReviewing, 0, true},    // draft → triggers
 	}
 
 	for _, tt := range tests {
-		ctx := &store.WorkflowContext{Stage: tt.stage}
-		result := EvaluateGate(p, tt.gateID, ctx, store.RoleCoder)
+		ctx := &store.WorkflowContext{Stage: tt.stage, ActiveAgentID: 1}
+		result := EvaluateGate(p, tt.gateID, ctx, store.RoleCoder, tt.agentID, tt.isDraftPR)
 		assert.NotEmpty(t, result.Message, "gate %s should have message", tt.gateID)
 	}
 }

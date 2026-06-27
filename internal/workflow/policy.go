@@ -146,7 +146,9 @@ type GateEvaluateResult struct {
 
 // EvaluateGate evaluates an L2 workflow gate.
 // Returns GateEvaluateResult with Allowed=true if the transition should proceed.
-func EvaluateGate(policy *WorkflowPolicy, gateID string, ctx *store.WorkflowContext, agentRole string) GateEvaluateResult {
+// agentID is the incoming agent's ID (used by coder_switch_agent to detect agent changes).
+// isDraftPR indicates the PR is a draft (used by review_warn_if_draft).
+func EvaluateGate(policy *WorkflowPolicy, gateID string, ctx *store.WorkflowContext, agentRole string, agentID int64, isDraftPR bool) GateEvaluateResult {
 	level := policy.GetGateLevel(gateID)
 
 	if level == GateOff {
@@ -162,9 +164,9 @@ func EvaluateGate(policy *WorkflowPolicy, gateID string, ctx *store.WorkflowCont
 	case GateRerunSameStage:
 		return evalRerunSameStage(level, ctx)
 	case GateCoderSwitchAgent:
-		return evalCoderSwitchAgent(level, ctx)
+		return evalCoderSwitchAgent(level, ctx, agentID)
 	case GateReviewWarnIfDraft:
-		return evalReviewWarnIfDraft(level)
+		return evalReviewWarnIfDraft(level, isDraftPR)
 	default:
 		return GateEvaluateResult{Allowed: true, Level: "pass", Code: gateID}
 	}
@@ -221,7 +223,11 @@ func evalRerunSameStage(level GateLevel, ctx *store.WorkflowContext) GateEvaluat
 	}
 }
 
-func evalCoderSwitchAgent(level GateLevel, ctx *store.WorkflowContext) GateEvaluateResult {
+func evalCoderSwitchAgent(level GateLevel, ctx *store.WorkflowContext, incomingAgentID int64) GateEvaluateResult {
+	// Only fire when there's an active agent and it's a different one
+	if ctx.ActiveAgentID == 0 || ctx.ActiveAgentID == incomingAgentID {
+		return GateEvaluateResult{Allowed: true, Level: "pass", Code: GateCoderSwitchAgent}
+	}
 	msg := "切换 Agent 可能导致上下文丢失。"
 	if level == GateHard {
 		return GateEvaluateResult{
@@ -235,9 +241,21 @@ func evalCoderSwitchAgent(level GateLevel, ctx *store.WorkflowContext) GateEvalu
 	}
 }
 
-func evalReviewWarnIfDraft(level GateLevel) GateEvaluateResult {
-	// Draft PR detection would need PR state — placeholder for now
-	return GateEvaluateResult{Allowed: true, Level: "pass", Code: GateReviewWarnIfDraft}
+func evalReviewWarnIfDraft(level GateLevel, isDraftPR bool) GateEvaluateResult {
+	if !isDraftPR {
+		return GateEvaluateResult{Allowed: true, Level: "pass", Code: GateReviewWarnIfDraft}
+	}
+	msg := "此 PR 为 Draft 状态，审查可能尚未准备好。"
+	if level == GateHard {
+		return GateEvaluateResult{
+			Allowed: false, Level: "hard", Code: GateReviewWarnIfDraft,
+			Message: "❌ " + msg,
+		}
+	}
+	return GateEvaluateResult{
+		Allowed: true, Level: "soft", Code: GateReviewWarnIfDraft,
+		Message: "⚠️ " + msg,
+	}
 }
 
 // FormatL3Comment formats an L3 notification comment by replacing {{key}} placeholders.

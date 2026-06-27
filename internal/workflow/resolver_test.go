@@ -295,3 +295,73 @@ func TestResolveMultipleReviewersFirstMatch(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, "reviewer-gpt", result.Agent.GiteaUsername)
 }
+
+// --- P0: PR close / merge detection tests ---
+
+func buildPRClosedEvent(merged bool, prNumber int, body string) *webhook.WebhookEvent {
+	return &webhook.WebhookEvent{
+		Event:  "pull_request",
+		Action: "closed",
+		Repo:   webhook.Repository{FullName: "owner/repo"},
+		PR: &webhook.PullRequest{
+			Number: prNumber,
+			State:  "closed",
+			Merged: merged,
+			Body:   body,
+		},
+		Sender: webhook.User{ID: 1, Login: "coder-ds"},
+	}
+}
+
+func TestResolvePRClosedMerged(t *testing.T) {
+	reg := setupRegistry()
+	resolver := NewResolver(reg)
+
+	evt := buildPRClosedEvent(true, 10, "Fixes #5")
+	result := resolver.Resolve(evt)
+
+	require.NotNil(t, result)
+	assert.Equal(t, "archive", result.Lifecycle)
+	assert.Equal(t, 10, result.PRID)
+	assert.Equal(t, 5, result.IssueID) // From "Fixes #5"
+	assert.True(t, result.Merged, "merged PR should set Merged=true")
+}
+
+func TestResolvePRClosedNotMerged(t *testing.T) {
+	reg := setupRegistry()
+	resolver := NewResolver(reg)
+
+	evt := buildPRClosedEvent(false, 10, "Fixes #5")
+	result := resolver.Resolve(evt)
+
+	require.NotNil(t, result)
+	assert.Equal(t, "archive", result.Lifecycle)
+	assert.Equal(t, 10, result.PRID)
+	assert.False(t, result.Merged, "closed-without-merge should set Merged=false")
+}
+
+func TestResolvePRClosedStateClosedMergedTrue(t *testing.T) {
+	// P0 fix: Gitea sends state="closed" + merged=true, NOT state="merged"
+	// The old code checked state=="merged" which was always false
+	reg := setupRegistry()
+	resolver := NewResolver(reg)
+
+	evt := &webhook.WebhookEvent{
+		Event:  "pull_request",
+		Action: "closed",
+		Repo:   webhook.Repository{FullName: "owner/repo"},
+		PR: &webhook.PullRequest{
+			Number: 15,
+			State:  "closed", // Gitea sends "closed", never "merged"
+			Merged: true,     // This is the correct field
+			Body:   "Fixes #8",
+		},
+		Sender: webhook.User{ID: 1, Login: "coder-ds"},
+	}
+	result := resolver.Resolve(evt)
+
+	require.NotNil(t, result)
+	assert.True(t, result.Merged, "state=closed + merged=true must be detected as merged")
+	assert.Equal(t, 15, result.PRID)
+	assert.Equal(t, 8, result.IssueID)
+}

@@ -194,6 +194,7 @@ func TestWebhookReviewRequested(t *testing.T) {
 
 	assert.Equal(t, "review_pr", task.TaskType)
 	assert.Equal(t, store.RoleReview, task.Role)
+	assert.Equal(t, 10, task.PRID, "review_pr task should store PR number")
 }
 
 func TestL1ReviewNoPR(t *testing.T) {
@@ -521,6 +522,109 @@ func TestIssueClosedArchivesSession(t *testing.T) {
 	ctx, err := env.DB.GetWorkflowContext("owner/repo", 100)
 	require.NoError(t, err)
 	assert.Equal(t, store.StageDone, ctx.Stage)
+}
+
+// --- P0: PR merge detection integration test ---
+
+func TestWebhookPRClosedMerged(t *testing.T) {
+	env := NewTestEnv(t)
+	defer env.Cleanup()
+
+	env.CreateTestAgentWithRole(t, "coder-ds", "coder-ds", store.RoleCoder)
+	env.EnableWorkflowV2(t)
+
+	err := env.Dispatcher.Start()
+	require.NoError(t, err)
+
+	// Pre-create a workflow context in reviewing stage (as if coder completed)
+	ctx, err := env.DB.GetOrCreateWorkflowContext("owner/repo", 5)
+	require.NoError(t, err)
+	ctx.Stage = store.StageReviewing
+	ctx.PRID = 10
+	require.NoError(t, env.DB.UpdateWorkflowContext(ctx))
+
+	// Send PR closed event with merged=true (Gitea payload: state=closed, merged=true)
+	payload := map[string]interface{}{
+		"action": "closed",
+		"pull_request": map[string]interface{}{
+			"id":     10,
+			"number": 10,
+			"title":  "AI Solution",
+			"state":  "closed",
+			"merged": true,
+			"body":   "Fixes #5",
+			"user":   map[string]interface{}{"id": 1, "login": "coder-ds"},
+			"head":   map[string]interface{}{"ref": "ai-fix-5", "repo": map[string]interface{}{"full_name": "owner/repo"}},
+			"base":   map[string]interface{}{"ref": "main", "repo": map[string]interface{}{"full_name": "owner/repo"}},
+		},
+		"repository": map[string]interface{}{
+			"id": 1, "name": "repo", "full_name": "owner/repo",
+			"clone_url": "http://localhost:3000/owner/repo.git",
+		},
+		"sender": map[string]interface{}{"id": 1, "login": "human"},
+	}
+
+	err = env.SendWebhook("pull_request", "wf-pr-merged-001", payload)
+	require.NoError(t, err)
+
+	// Wait for lifecycle processing
+	time.Sleep(2 * time.Second)
+
+	// Verify context → done (merged PR should archive to done)
+	got, err := env.DB.GetWorkflowContext("owner/repo", 5)
+	require.NoError(t, err)
+	assert.Equal(t, store.StageDone, got.Stage, "merged PR should transition context to done")
+}
+
+func TestWebhookPRClosedNotMerged(t *testing.T) {
+	env := NewTestEnv(t)
+	defer env.Cleanup()
+
+	env.CreateTestAgentWithRole(t, "coder-ds", "coder-ds", store.RoleCoder)
+	env.EnableWorkflowV2(t)
+
+	err := env.Dispatcher.Start()
+	require.NoError(t, err)
+
+	// Pre-create a workflow context in reviewing stage
+	// PR body has "Fixes #6" so issueID=6 from the resolver
+	ctx, err := env.DB.GetOrCreateWorkflowContext("owner/repo", 6)
+	require.NoError(t, err)
+	ctx.Stage = store.StageReviewing
+	ctx.PRID = 11
+	require.NoError(t, env.DB.UpdateWorkflowContext(ctx))
+
+	// Send PR closed event with merged=false (closed without merge)
+	payload := map[string]interface{}{
+		"action": "closed",
+		"pull_request": map[string]interface{}{
+			"id":     11,
+			"number": 11,
+			"title":  "WIP: Not ready",
+			"state":  "closed",
+			"merged": false,
+			"body":   "Fixes #6",
+			"user":   map[string]interface{}{"id": 1, "login": "coder-ds"},
+			"head":   map[string]interface{}{"ref": "wip-branch", "repo": map[string]interface{}{"full_name": "owner/repo"}},
+			"base":   map[string]interface{}{"ref": "main", "repo": map[string]interface{}{"full_name": "owner/repo"}},
+		},
+		"repository": map[string]interface{}{
+			"id": 1, "name": "repo", "full_name": "owner/repo",
+			"clone_url": "http://localhost:3000/owner/repo.git",
+		},
+		"sender": map[string]interface{}{"id": 1, "login": "human"},
+	}
+
+	err = env.SendWebhook("pull_request", "wf-pr-closed-001", payload)
+	require.NoError(t, err)
+
+	// Wait for lifecycle processing
+	time.Sleep(2 * time.Second)
+
+	// Verify context stays in reviewing (closed without merge → retain)
+	got, err := env.DB.GetWorkflowContext("owner/repo", 6)
+	require.NoError(t, err)
+	assert.Equal(t, store.StageReviewing, got.Stage, "PR closed without merge should NOT transition to done")
 }
 
 // buildIssuePayload is a helper to build issue webhook payloads.

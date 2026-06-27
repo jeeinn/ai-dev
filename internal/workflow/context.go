@@ -110,9 +110,15 @@ func (m *WorkflowManager) OnTaskComplete(ctx *store.WorkflowContext, taskType st
 			ctx.PRID = prID
 		}
 	case "review_pr":
-		// Stay in reviewing
+		// Stay in reviewing; write PR ID if available (for L1 gate check)
+		if prID > 0 {
+			ctx.PRID = prID
+		}
 	case "reply_comment", "solve_comment":
-		// No stage change
+		// No stage change; write PR ID if available
+		if prID > 0 {
+			ctx.PRID = prID
+		}
 	default:
 		log.Printf("[WARN] Unknown task type %s for stage update", taskType)
 	}

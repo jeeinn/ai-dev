@@ -164,6 +164,26 @@ func TestOnTaskCompleteReview(t *testing.T) {
 	got, err := db.GetWorkflowContext("owner/repo", 3)
 	require.NoError(t, err)
 	assert.Equal(t, store.StageReviewing, got.Stage) // Stays reviewing
+	assert.Equal(t, 0, got.PRID)                     // No PRID passed
+}
+
+func TestOnTaskCompleteReviewWithPRID(t *testing.T) {
+	db := newTestDB(t)
+	mgr := NewWorkflowManager(db)
+
+	ctx, err := db.GetOrCreateWorkflowContext("owner/repo", 30)
+	require.NoError(t, err)
+	ctx.Stage = store.StageReviewing
+	require.NoError(t, db.UpdateWorkflowContext(ctx))
+
+	// Complete review_pr with PR ID (P0 fix: PRID should be written)
+	err = mgr.OnTaskComplete(ctx, "review_pr", 42, "sess-30")
+	require.NoError(t, err)
+
+	got, err := db.GetWorkflowContext("owner/repo", 30)
+	require.NoError(t, err)
+	assert.Equal(t, store.StageReviewing, got.Stage) // Stays reviewing
+	assert.Equal(t, 42, got.PRID)                     // PR ID written
 }
 
 func TestApplyTransition(t *testing.T) {

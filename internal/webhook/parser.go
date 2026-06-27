@@ -46,6 +46,7 @@ type PullRequest struct {
 	Title              string `json:"title"`
 	Body               string `json:"body"`
 	State              string `json:"state"`
+	Merged             bool   `json:"merged"` // Gitea sets this to true when PR is merged (even with state="closed")
 	User               User   `json:"user"`
 	Head               Branch `json:"head"`
 	Base               Branch `json:"base"`

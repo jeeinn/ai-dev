@@ -11,6 +11,7 @@ type Task struct {
 	Event      string     `json:"event"`
 	Repo       string     `json:"repo"`
 	IssueID    int        `json:"issue_id"`
+	PRID       int        `json:"pr_id"`  // PR number for review_pr / solve_issue tasks (0 = no PR)
 	AgentID    int64      `json:"agent_id"`
 	TaskType   string     `json:"task_type"`
 	Context    string     `json:"context"`
@@ -40,9 +41,9 @@ func (db *DB) CreateTask(t *Task) error {
 		}
 	}
 
-	result, err := db.Exec(`INSERT INTO tasks (event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, base_branch, session_id, role)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.Event, t.Repo, t.IssueID, t.AgentID, t.TaskType, t.Context, t.Status, t.Priority, t.DeliveryID, t.BaseBranch, t.SessionID, t.Role)
+	result, err := db.Exec(`INSERT INTO tasks (event, repo, issue_id, pr_id, agent_id, task_type, context, status, priority, delivery_id, base_branch, session_id, role)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.Event, t.Repo, t.IssueID, t.PRID, t.AgentID, t.TaskType, t.Context, t.Status, t.Priority, t.DeliveryID, t.BaseBranch, t.SessionID, t.Role)
 	if err != nil {
 		return fmt.Errorf("insert task: %w", err)
 	}
@@ -78,11 +79,11 @@ func (db *DB) UpdateTaskStatus(id int64, status, result, errMsg string) error {
 }
 
 // taskColumns is the common SELECT column list for tasks.
-const taskColumns = `id, event, repo, issue_id, agent_id, task_type, context, status, priority, delivery_id, base_branch, session_id, role, created_at, started_at, finished_at, result, error`
+const taskColumns = `id, event, repo, issue_id, pr_id, agent_id, task_type, context, status, priority, delivery_id, base_branch, session_id, role, created_at, started_at, finished_at, result, error`
 
 // taskScanFields returns scan targets for a Task row.
 func taskScanFields(t *Task) []interface{} {
-	return []interface{}{&t.ID, &t.Event, &t.Repo, &t.IssueID, &t.AgentID, &t.TaskType, &t.Context, &t.Status, &t.Priority, &t.DeliveryID, &t.BaseBranch, &t.SessionID, &t.Role, &t.CreatedAt, &t.StartedAt, &t.FinishedAt, &t.Result, &t.Error}
+	return []interface{}{&t.ID, &t.Event, &t.Repo, &t.IssueID, &t.PRID, &t.AgentID, &t.TaskType, &t.Context, &t.Status, &t.Priority, &t.DeliveryID, &t.BaseBranch, &t.SessionID, &t.Role, &t.CreatedAt, &t.StartedAt, &t.FinishedAt, &t.Result, &t.Error}
 }
 
 // ListPendingTasks returns all pending tasks ordered by priority and creation time.

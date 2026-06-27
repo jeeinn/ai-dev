@@ -30,6 +30,7 @@ type Runner interface {
 type Result struct {
 	Content    string                 // Main content (comment body)
 	Action     string                 // Optional action: "comment", "label", "pr"
+	PRID       int                    // PR number created by DevRunner (0 if no PR created)
 	ActionData map[string]interface{} // Additional data for the action
 }
 
@@ -169,23 +170,30 @@ func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 	}
 	owner, repo := parts[0], parts[1]
 
+	// Use PRID for PR API calls; fall back to IssueID for backward compatibility
+	prID := task.PRID
+	if prID == 0 {
+		prID = task.IssueID
+		log.Printf("[WARN] Task %d has no PRID, falling back to IssueID=%d for PR API calls", task.ID, prID)
+	}
+
 	// Get Gitea client
 	client := r.factory.giteaFactory.GetGiteaClient(agent.GiteaToken)
 
 	// Get PR diff
-	diff, err := client.PRDiff(owner, repo, task.IssueID)
+	diff, err := client.PRDiff(owner, repo, prID)
 	if err != nil {
 		return nil, fmt.Errorf("get PR diff: %w", err)
 	}
 
 	// Get PR details
-	pr, err := client.PRGet(owner, repo, task.IssueID)
+	pr, err := client.PRGet(owner, repo, prID)
 	if err != nil {
 		return nil, fmt.Errorf("get PR: %w", err)
 	}
 
 	// Get PR files
-	files, err := client.PRFiles(owner, repo, task.IssueID)
+	files, err := client.PRFiles(owner, repo, prID)
 	if err != nil {
 		log.Printf("[WARN] Failed to get PR files: %v", err)
 	}
@@ -193,7 +201,7 @@ func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 	// Build context with diff
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Repository: %s\n", task.Repo))
-	sb.WriteString(fmt.Sprintf("PR #%d: %v\n", task.IssueID, pr["title"]))
+	sb.WriteString(fmt.Sprintf("PR #%d: %v\n", prID, pr["title"]))
 	sb.WriteString(fmt.Sprintf("Description: %v\n\n", pr["body"]))
 	sb.WriteString("## Changed Files\n")
 	for _, f := range files {
@@ -616,10 +624,11 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		return nil, fmt.Errorf("create PR: %w", err)
 	}
 
-	log.Printf("[INFO] Task %d PR created: %s", task.ID, pr.HTMLURL)
+	log.Printf("[INFO] Task %d PR created: %s (PR #%d)", task.ID, pr.HTMLURL, pr.Number)
 
 	return &Result{
 		Content: fmt.Sprintf("PR created: %s\n\n%s", pr.HTMLURL, result),
 		Action:  "pr",
+		PRID:    pr.Number,
 	}, nil
 }

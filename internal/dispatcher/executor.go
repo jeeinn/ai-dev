@@ -146,6 +146,11 @@ func (e *Executor) runTask(ctx context.Context, task *store.Task) error {
 	}
 
 	task.Result = result.Content
+	// Capture PRID from runner result (e.g., DevRunner creates a PR)
+	if result.PRID > 0 {
+		task.PRID = result.PRID
+		log.Printf("[INFO] Task %d created PR #%d", task.ID, result.PRID)
+	}
 	log.Printf("[INFO] Task %d completed, action=%s", task.ID, result.Action)
 	return nil
 }
@@ -186,8 +191,14 @@ func (e *Executor) writeBackToGitea(task *store.Task) error {
 	// Format the comment body
 	commentBody := formatComment(task)
 
+	// Determine target: PR review comments go on the PR; everything else on the issue
+	targetID := task.IssueID
+	if task.TaskType == "review_pr" && task.PRID > 0 {
+		targetID = task.PRID
+	}
+
 	// Post comment
-	if err := client.IssueComment(owner, repo, task.IssueID, commentBody); err != nil {
+	if err := client.IssueComment(owner, repo, targetID, commentBody); err != nil {
 		return fmt.Errorf("post comment: %w", err)
 	}
 

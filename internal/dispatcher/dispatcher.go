@@ -102,7 +102,7 @@ func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *
 			log.Printf("[WARN] Failed to get workflow context for task %d completion: %v", task.ID, err)
 			return
 		}
-		if err := wfMgr.OnTaskComplete(ctx, task.TaskType, 0, task.SessionID); err != nil {
+		if err := wfMgr.OnTaskComplete(ctx, task.TaskType, task.PRID, task.SessionID); err != nil {
 			log.Printf("[WARN] Failed to update workflow context after task %d: %v", task.ID, err)
 		}
 		// Update session state
@@ -305,6 +305,7 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 		Event:      evt.Event,
 		Repo:       repo,
 		IssueID:    issueID,
+		PRID:       result.PRID,
 		AgentID:    result.Agent.ID,
 		TaskType:   result.TaskType,
 		Context:    taskContext,

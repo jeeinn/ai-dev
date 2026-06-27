@@ -171,14 +171,9 @@ func (r *Resolver) resolveReviewRequested(evt *webhook.WebhookEvent) *ResolveRes
 // resolvePRClosed handles pull_request.closed events.
 // Merged PR → archive sessions; closed without merge → retain for pr_closed_retention.
 func (r *Resolver) resolvePRClosed(evt *webhook.WebhookEvent) *ResolveResult {
-	// Check if PR was merged (Gitea sends "merged" field or action="closed" with merged=true)
-	merged := false
-	if evt.PR != nil {
-		// Gitea sets the "merged" field in the PR object
-		// For now, we'll check the action — in Gitea, a merged PR sends action="closed"
-		// The actual merge detection will be done via the WorkflowContext.PRID
-		merged = evt.PR.State == "merged"
-	}
+	// Gitea sends state="closed" with merged=true when a PR is merged.
+	// The state field is NEVER "merged" — that was the old bug.
+	merged := evt.PR != nil && evt.PR.Merged
 
 	issueID := r.resolveLinkedIssue(evt)
 

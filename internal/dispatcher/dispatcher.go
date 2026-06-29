@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -115,6 +116,8 @@ func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *
 				}
 			}
 		}
+		// L3 notification (if policy configured)
+		d.postL3Notification(task)
 		// Release in-flight lock
 		lockKey := fmt.Sprintf("%s#%d", task.Repo, task.IssueID)
 		d.inFlight.Delete(lockKey)
@@ -519,4 +522,54 @@ func (d *Dispatcher) GetGiteaClient(agentToken string) *gitea.Client {
 // GetAdminGiteaClient creates a Gitea client using admin token.
 func (d *Dispatcher) GetAdminGiteaClient() *gitea.Client {
 	return gitea.NewClient(d.giteaCfg.URL, d.giteaCfg.AdminToken)
+}
+
+// prURLPattern matches PR URLs in task results (e.g. "PR created: http://...").
+var prURLPattern = regexp.MustCompile(`PR created: (https?://\S+)`)
+
+// postL3Notification posts an L3 comment notification after task completion,
+// if the workflow policy has the corresponding notification enabled.
+func (d *Dispatcher) postL3Notification(task *store.Task) {
+	if d.wfPolicy == nil || d.giteaCfg == nil {
+		return
+	}
+
+	// Load agent for token and name
+	agent, err := d.db.GetAgent(task.AgentID)
+	if err != nil || agent.GiteaToken == "" {
+		return
+	}
+
+	switch task.TaskType {
+	case "analyze_issue":
+		if !d.wfPolicy.Notify.OnAnalyzeDone {
+			return
+		}
+		body := workflow.FormatL3Comment(workflow.L3AnalyzeDone, map[string]string{
+			"task_id":    fmt.Sprintf("%d", task.ID),
+			"agent_name": agent.GiteaUsername,
+		})
+		d.postGateComment(agent, task.Repo, task.IssueID, body)
+
+	case "solve_issue", "fix_bug", "solve_comment":
+		if !d.wfPolicy.Notify.OnCoderPROpened {
+			return
+		}
+		// Only notify when a PR was actually created
+		if task.PRID == 0 {
+			return
+		}
+		// Extract PR URL from result
+		prURL := ""
+		if matches := prURLPattern.FindStringSubmatch(task.Result); len(matches) >= 2 {
+			prURL = matches[1]
+		}
+		if prURL == "" {
+			return
+		}
+		body := workflow.FormatL3Comment(workflow.L3CoderPROpened, map[string]string{
+			"pr_url": prURL,
+		})
+		d.postGateComment(agent, task.Repo, task.IssueID, body)
+	}
 }

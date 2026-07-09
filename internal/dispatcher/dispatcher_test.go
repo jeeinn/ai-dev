@@ -65,7 +65,8 @@ func createTestAgent(t *testing.T, db *store.DB) *store.Agent {
 		GiteaToken:    "test-token",
 		Provider:      "mock",
 		Model:         "mock-model",
-		MaxTokens:     1024,
+		MaxOutputTokens: 1024,
+		MaxInputTokens:  8192,
 		Temperature:   0.3,
 		SystemPrompt:  "You are a helpful AI assistant.",
 		Role:          store.RoleAnalyze,
@@ -98,11 +99,10 @@ func TestDispatcherHandleEvent(t *testing.T) {
 		URL: giteaServer.URL,
 	}
 	dispatcherCfg := &config.DispatcherConfig{
-		MaxConcurrent: 1,
-		Timeout:       30,
-		RetryCount:    0,
-		QueueSize:     10,
-	}
+			MaxConcurrent: 1,
+			RetryCount:    0,
+			QueueSize:     10,
+		}
 
 	llmRegistry := &llm.Registry{}
 	llmRegistry.Register("mock", &mockLLMProvider{})
@@ -177,10 +177,9 @@ func TestDispatcherDuplicateDelivery(t *testing.T) {
 
 	giteaCfg := &config.GiteaConfig{URL: "http://localhost:0"}
 	dispatcherCfg := &config.DispatcherConfig{
-		MaxConcurrent: 1,
-		Timeout:       30,
-		QueueSize:     10,
-	}
+			MaxConcurrent: 1,
+			QueueSize:     10,
+		}
 
 	d := NewDispatcher(db, giteaCfg, dispatcherCfg, nil, nil)
 

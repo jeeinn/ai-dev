@@ -6,34 +6,60 @@ import (
 	"time"
 )
 
-// AgentLoopConfig contains agent-specific loop configuration.
+// AgentLoopConfig contains agent-specific loop configuration (multi-turn only).
 type AgentLoopConfig struct {
 	MaxIterations     int    `json:"max_iterations,omitempty"`
-	MaxTokens         int    `json:"max_tokens,omitempty"`
-	Timeout           string `json:"timeout,omitempty"`
 	TotalTimeout      string `json:"total_timeout,omitempty"`
 	IterationInterval int    `json:"iteration_interval,omitempty"` // seconds between loop rounds; 0 = no delay
 }
 
 // Agent represents an AI agent registered in the system.
 type Agent struct {
-	ID            int64            `json:"id"`
-	Name          string           `json:"name"`
-	GiteaUsername string           `json:"gitea_username"`
-	GiteaToken    string           `json:"gitea_token"`
-	AvatarURL     string           `json:"avatar_url"`
-	Provider      string           `json:"provider"`
-	Model         string           `json:"model"`
-	MaxTokens     int              `json:"max_tokens"`
-	Temperature   float64          `json:"temperature"`
-	SystemPrompt  string           `json:"system_prompt"`
-	UserTemplate  string           `json:"user_template"`
-	LoopConfig    *AgentLoopConfig `json:"loop_config,omitempty"`
-	Repos         []string         `json:"repos,omitempty"`
-	Role          string           `json:"role"` // analyze | coder | review
-	Status        string           `json:"status"`
-	CreatedAt     time.Time        `json:"created_at"`
-	UpdatedAt     time.Time        `json:"updated_at"`
+	ID              int64            `json:"id"`
+	Name            string           `json:"name"`
+	GiteaUsername   string           `json:"gitea_username"`
+	GiteaToken      string           `json:"gitea_token"`
+	AvatarURL       string           `json:"avatar_url"`
+	Provider        string           `json:"provider"`
+	Model           string           `json:"model"`
+	MaxOutputTokens int              `json:"max_output_tokens"`
+	MaxInputTokens  int              `json:"max_input_tokens"`
+	Temperature     float64          `json:"temperature"`
+	Timeout         string           `json:"timeout"` // single-shot task timeout, e.g. "5m"
+	SystemPrompt    string           `json:"system_prompt"`
+	UserTemplate    string           `json:"user_template"`
+	LoopConfig      *AgentLoopConfig `json:"loop_config,omitempty"`
+	Repos           []string         `json:"repos,omitempty"`
+	Role            string           `json:"role"` // analyze | coder | review
+	Status          string           `json:"status"`
+	CreatedAt       time.Time        `json:"created_at"`
+	UpdatedAt       time.Time        `json:"updated_at"`
+}
+
+const agentSelectCols = `id, name, gitea_username, gitea_token, avatar_url, provider, model,
+	max_output_tokens, max_input_tokens, temperature, timeout, system_prompt, user_template,
+	loop_config, repos, role, status, created_at, updated_at`
+
+func scanAgent(scanner interface {
+	Scan(dest ...any) error
+}) (*Agent, error) {
+	var a Agent
+	var loopConfigJSON, reposJSON string
+	err := scanner.Scan(
+		&a.ID, &a.Name, &a.GiteaUsername, &a.GiteaToken, &a.AvatarURL, &a.Provider, &a.Model,
+		&a.MaxOutputTokens, &a.MaxInputTokens, &a.Temperature, &a.Timeout, &a.SystemPrompt, &a.UserTemplate,
+		&loopConfigJSON, &reposJSON, &a.Role, &a.Status, &a.CreatedAt, &a.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if loopConfigJSON != "" {
+		json.Unmarshal([]byte(loopConfigJSON), &a.LoopConfig)
+	}
+	if reposJSON != "" && reposJSON != "[]" {
+		json.Unmarshal([]byte(reposJSON), &a.Repos)
+	}
+	return &a, nil
 }
 
 // CreateAgent inserts a new agent into the database.
@@ -50,9 +76,13 @@ func (db *DB) CreateAgent(a *Agent) error {
 	}
 
 	result, err := db.Exec(`INSERT INTO agents
-		(name, gitea_username, gitea_token, avatar_url, provider, model, max_tokens, temperature, system_prompt, user_template, loop_config, repos, role, status)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.Name, a.GiteaUsername, a.GiteaToken, a.AvatarURL, a.Provider, a.Model, a.MaxTokens, a.Temperature, a.SystemPrompt, a.UserTemplate, loopConfigJSON, reposJSON, a.Role, a.Status)
+		(name, gitea_username, gitea_token, avatar_url, provider, model,
+		 max_output_tokens, max_input_tokens, temperature, timeout, system_prompt, user_template,
+		 loop_config, repos, role, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.Name, a.GiteaUsername, a.GiteaToken, a.AvatarURL, a.Provider, a.Model,
+		a.MaxOutputTokens, a.MaxInputTokens, a.Temperature, a.Timeout, a.SystemPrompt, a.UserTemplate,
+		loopConfigJSON, reposJSON, a.Role, a.Status)
 	if err != nil {
 		return fmt.Errorf("insert agent: %w", err)
 	}
@@ -63,46 +93,25 @@ func (db *DB) CreateAgent(a *Agent) error {
 
 // GetAgent returns an agent by ID.
 func (db *DB) GetAgent(id int64) (*Agent, error) {
-	var a Agent
-	var loopConfigJSON, reposJSON string
-	err := db.QueryRow(`SELECT id, name, gitea_username, gitea_token, avatar_url, provider, model, max_tokens, temperature, system_prompt, user_template, loop_config, repos, role, status, created_at, updated_at
-		FROM agents WHERE id = ?`, id).Scan(
-		&a.ID, &a.Name, &a.GiteaUsername, &a.GiteaToken, &a.AvatarURL, &a.Provider, &a.Model, &a.MaxTokens, &a.Temperature, &a.SystemPrompt, &a.UserTemplate, &loopConfigJSON, &reposJSON, &a.Role, &a.Status, &a.CreatedAt, &a.UpdatedAt)
+	a, err := scanAgent(db.QueryRow(`SELECT `+agentSelectCols+` FROM agents WHERE id = ?`, id))
 	if err != nil {
 		return nil, fmt.Errorf("get agent: %w", err)
 	}
-	if loopConfigJSON != "" {
-		json.Unmarshal([]byte(loopConfigJSON), &a.LoopConfig)
-	}
-	if reposJSON != "" && reposJSON != "[]" {
-		json.Unmarshal([]byte(reposJSON), &a.Repos)
-	}
-	return &a, nil
+	return a, nil
 }
 
 // GetAgentByGiteaUsername returns an agent by their Gitea username.
 func (db *DB) GetAgentByGiteaUsername(username string) (*Agent, error) {
-	var a Agent
-	var loopConfigJSON, reposJSON string
-	err := db.QueryRow(`SELECT id, name, gitea_username, gitea_token, avatar_url, provider, model, max_tokens, temperature, system_prompt, user_template, loop_config, repos, role, status, created_at, updated_at
-		FROM agents WHERE gitea_username = ?`, username).Scan(
-		&a.ID, &a.Name, &a.GiteaUsername, &a.GiteaToken, &a.AvatarURL, &a.Provider, &a.Model, &a.MaxTokens, &a.Temperature, &a.SystemPrompt, &a.UserTemplate, &loopConfigJSON, &reposJSON, &a.Role, &a.Status, &a.CreatedAt, &a.UpdatedAt)
+	a, err := scanAgent(db.QueryRow(`SELECT `+agentSelectCols+` FROM agents WHERE gitea_username = ?`, username))
 	if err != nil {
 		return nil, fmt.Errorf("get agent by username: %w", err)
 	}
-	if loopConfigJSON != "" {
-		json.Unmarshal([]byte(loopConfigJSON), &a.LoopConfig)
-	}
-	if reposJSON != "" && reposJSON != "[]" {
-		json.Unmarshal([]byte(reposJSON), &a.Repos)
-	}
-	return &a, nil
+	return a, nil
 }
 
 // ListAgents returns all agents.
 func (db *DB) ListAgents() ([]*Agent, error) {
-	rows, err := db.Query(`SELECT id, name, gitea_username, gitea_token, avatar_url, provider, model, max_tokens, temperature, system_prompt, user_template, loop_config, repos, role, status, created_at, updated_at
-		FROM agents ORDER BY id`)
+	rows, err := db.Query(`SELECT ` + agentSelectCols + ` FROM agents ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("list agents: %w", err)
 	}
@@ -110,18 +119,11 @@ func (db *DB) ListAgents() ([]*Agent, error) {
 
 	var agents []*Agent
 	for rows.Next() {
-		var a Agent
-		var loopConfigJSON, reposJSON string
-		if err := rows.Scan(&a.ID, &a.Name, &a.GiteaUsername, &a.GiteaToken, &a.AvatarURL, &a.Provider, &a.Model, &a.MaxTokens, &a.Temperature, &a.SystemPrompt, &a.UserTemplate, &loopConfigJSON, &reposJSON, &a.Role, &a.Status, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		a, err := scanAgent(rows)
+		if err != nil {
 			return nil, fmt.Errorf("scan agent: %w", err)
 		}
-		if loopConfigJSON != "" {
-			json.Unmarshal([]byte(loopConfigJSON), &a.LoopConfig)
-		}
-		if reposJSON != "" && reposJSON != "[]" {
-			json.Unmarshal([]byte(reposJSON), &a.Repos)
-		}
-		agents = append(agents, &a)
+		agents = append(agents, a)
 	}
 	return agents, nil
 }
@@ -139,9 +141,15 @@ func (db *DB) UpdateAgent(a *Agent) error {
 		reposJSON = string(data)
 	}
 
-	_, err := db.Exec(`UPDATE agents SET name=?, provider=?, model=?, max_tokens=?, temperature=?, system_prompt=?, user_template=?, loop_config=?, repos=?, role=?, status=?, avatar_url=?, gitea_token=?, updated_at=CURRENT_TIMESTAMP
+	_, err := db.Exec(`UPDATE agents SET name=?, provider=?, model=?,
+		max_output_tokens=?, max_input_tokens=?, temperature=?, timeout=?,
+		system_prompt=?, user_template=?, loop_config=?, repos=?, role=?, status=?,
+		avatar_url=?, gitea_token=?, updated_at=CURRENT_TIMESTAMP
 		WHERE id=?`,
-		a.Name, a.Provider, a.Model, a.MaxTokens, a.Temperature, a.SystemPrompt, a.UserTemplate, loopConfigJSON, reposJSON, a.Role, a.Status, a.AvatarURL, a.GiteaToken, a.ID)
+		a.Name, a.Provider, a.Model,
+		a.MaxOutputTokens, a.MaxInputTokens, a.Temperature, a.Timeout,
+		a.SystemPrompt, a.UserTemplate, loopConfigJSON, reposJSON, a.Role, a.Status,
+		a.AvatarURL, a.GiteaToken, a.ID)
 	if err != nil {
 		return fmt.Errorf("update agent: %w", err)
 	}

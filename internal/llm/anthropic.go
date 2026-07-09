@@ -21,7 +21,7 @@ func NewAnthropicProvider(apiKey string) *AnthropicProvider {
 	return &AnthropicProvider{
 		APIKey: apiKey,
 		HTTPClient: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout: 10 * time.Minute,
 		},
 	}
 }

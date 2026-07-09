@@ -11,51 +11,41 @@ import (
 )
 
 // AgentLoop manages the multi-turn conversation between LLM and tools.
+// Task-level deadline is owned by the Executor context; this loop only
+// enforces maxIterations and optional iterationInterval.
 type AgentLoop struct {
-	provider      llm.Provider
-	registry      *ToolRegistry
-	model         string
-	maxTokens     int
-	temperature   float64
+	provider          llm.Provider
+	registry          *ToolRegistry
+	model             string
+	maxTokens         int // output tokens per completion
+	maxInputTokens    int // input budget for messages+tools
+	temperature       float64
 	maxIterations     int
-	timeout           time.Duration
-	totalTimeout      time.Duration
 	iterationInterval time.Duration
 }
 
-// NewAgentLoop creates a new AgentLoop.
+// NewAgentLoop creates a new AgentLoop with default iteration settings.
 func NewAgentLoop(provider llm.Provider, registry *ToolRegistry, model string, maxTokens int, temperature float64) *AgentLoop {
 	return &AgentLoop{
-		provider:      provider,
-		registry:      registry,
-		model:         model,
-		maxTokens:     maxTokens,
-		temperature:   temperature,
-		maxIterations: 20,
-		timeout:       5 * time.Minute,
-		totalTimeout:  30 * time.Minute,
+		provider:       provider,
+		registry:       registry,
+		model:          model,
+		maxTokens:      maxTokens,
+		maxInputTokens: 8192,
+		temperature:    temperature,
+		maxIterations:  20,
 	}
 }
 
-// NewAgentLoopWithConfig creates a new AgentLoop with configuration.
-func NewAgentLoopWithConfig(provider llm.Provider, registry *ToolRegistry, model string, maxTokens int, temperature float64, loopCfg config.AgentLoopConfig) *AgentLoop {
-	timeout := 5 * time.Minute
-	totalTimeout := 30 * time.Minute
-
-	if loopCfg.Timeout != "" {
-		if d, err := time.ParseDuration(loopCfg.Timeout); err == nil {
-			timeout = d
-		}
-	}
-	if loopCfg.TotalTimeout != "" {
-		if d, err := time.ParseDuration(loopCfg.TotalTimeout); err == nil {
-			totalTimeout = d
-		}
-	}
-
+// NewAgentLoopWithConfig creates a new AgentLoop with loop configuration.
+// maxInputTokens controls TruncateMessages before each ChatCompletion.
+func NewAgentLoopWithConfig(provider llm.Provider, registry *ToolRegistry, model string, maxTokens, maxInputTokens int, temperature float64, loopCfg config.AgentLoopConfig) *AgentLoop {
 	maxIter := loopCfg.MaxIterations
 	if maxIter <= 0 {
 		maxIter = 20
+	}
+	if maxInputTokens <= 0 {
+		maxInputTokens = 8192
 	}
 
 	iterationInterval := time.Duration(0)
@@ -68,10 +58,9 @@ func NewAgentLoopWithConfig(provider llm.Provider, registry *ToolRegistry, model
 		registry:          registry,
 		model:             model,
 		maxTokens:         maxTokens,
+		maxInputTokens:    maxInputTokens,
 		temperature:       temperature,
 		maxIterations:     maxIter,
-		timeout:           timeout,
-		totalTimeout:      totalTimeout,
 		iterationInterval: iterationInterval,
 	}
 }
@@ -101,7 +90,12 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 
 		log.Printf("[DEBUG] Agent loop iteration %d/%d", i+1, a.maxIterations)
 
-		// Call LLM
+		trimmed, err := TruncateMessages(messages, tools, a.maxInputTokens)
+		if err != nil {
+			return "", fmt.Errorf("truncate messages: %w", err)
+		}
+		messages = trimmed
+
 		resp, err := a.provider.ChatCompletion(ctx, &llm.ChatRequest{
 			Model:       a.model,
 			Messages:    messages,
@@ -116,19 +110,16 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 		log.Printf("[DEBUG] LLM response: content_len=%d, tool_calls=%d, finish=%s",
 			len(resp.Content), len(resp.ToolCalls), resp.FinishReason)
 
-		// If no tool calls, we're done
 		if len(resp.ToolCalls) == 0 {
 			return resp.Content, nil
 		}
 
-		// Add assistant message with tool calls
 		messages = append(messages, llm.Message{
 			Role:      "assistant",
 			Content:   resp.Content,
 			ToolCalls: resp.ToolCalls,
 		})
 
-		// Execute each tool call
 		for _, call := range resp.ToolCalls {
 			log.Printf("[DEBUG] Executing tool: %s(%s)", call.Function.Name, call.Function.Arguments)
 
@@ -138,7 +129,6 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 				log.Printf("[WARN] Tool execution failed: %v", err)
 			}
 
-			// Add tool result message
 			messages = append(messages, llm.Message{
 				Role:       "tool",
 				Content:    result,

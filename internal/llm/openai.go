@@ -24,7 +24,7 @@ func NewOpenAICompatibleProvider(baseURL, apiKey string) *OpenAICompatibleProvid
 		BaseURL: baseURL,
 		APIKey:  apiKey,
 		HTTPClient: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout: 10 * time.Minute,
 		},
 	}
 }

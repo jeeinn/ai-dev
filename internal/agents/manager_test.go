@@ -132,7 +132,8 @@ func TestUpdateAgentProvisionsGiteaUser(t *testing.T) {
 		GiteaToken:    "old-localhost-token",
 		Provider:      "deepseek",
 		Model:         "deepseek-v4-flash",
-		MaxTokens:     2048,
+		MaxOutputTokens: 2048,
+		MaxInputTokens:  8192,
 		Role:          store.RoleAnalyze,
 		Status:        "active",
 	}

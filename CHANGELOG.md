@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (Agent LLM 预算与超时统一)
+- **Token**：`max_tokens` → `max_output_tokens`；新增 `max_input_tokens`；删除 `loop_config.max_tokens` 与 `llm.defaults.max_tokens`
+- **超时**：删除 `dispatcher.timeout` 与 `loop.timeout`；单次任务用 `agents.defaults.timeout` / `agent.timeout`；Loop 仅用 `total_timeout`
+- **Temperature**：迁至 `agents.defaults.temperature`（LLM Tab 不再配置）
+- **截断**：发请求前按 `max_input_tokens` 截断 messages（含 tools JSON）；估算为字符数/4
+- **迁移**：启动时回填 `max_output_tokens = max(旧 max_tokens, loop.max_tokens)`，并清理 system_config 旧 key
+
 ### Added (Assign Workflow v2 — Phase 16)
 - **Agent role 字段**: `analyze` | `coder` | `review`，决定触发后的任务类型
 - **Event Resolver** (`internal/workflow/resolver.go`): 替代 Router.Match + determineTaskType

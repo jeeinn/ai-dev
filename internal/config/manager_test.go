@@ -41,23 +41,23 @@ func TestGetDisplayMapPrefersDBAndFallsBackToFile(t *testing.T) {
 			WebhookSecret: "file-secret",
 		},
 		LLM: LLMConfig{
-			Defaults: AgentDefaultsConfig{
-				Provider:    "deepseek",
-				Model:       "deepseek-chat",
-				MaxTokens:   4096,
-				Temperature: 0.3,
+			Defaults: LLMDefaultsConfig{
+				Provider: "deepseek",
+				Model:    "deepseek-chat",
 			},
 			Providers: map[string]ProviderConfig{
 				"deepseek": {BaseURL: "https://api.deepseek.com/v1", APIKey: "sk-file"},
 			},
 		},
-		Dispatcher: DispatcherConfig{MaxConcurrent: 2, RetryCount: 1, Timeout: 300},
+		Dispatcher: DispatcherConfig{MaxConcurrent: 2, RetryCount: 1},
 		Agents: AgentsConfig{
 			Defaults: AgentDefaultsConfig{
-				Provider:    "deepseek",
-				Model:       "deepseek-chat",
-				MaxTokens:   4096,
-				Temperature: 0.3,
+				Provider:        "deepseek",
+				Model:           "deepseek-chat",
+				MaxOutputTokens: 4096,
+				MaxInputTokens:  8192,
+				Temperature:     0.3,
+				Timeout:         "5m",
 			},
 		},
 	}
@@ -86,11 +86,18 @@ func TestGetDisplayMapTreatsEmptyDBValueAsUnset(t *testing.T) {
 	fileCfg := &Config{
 		Gitea: GiteaConfig{URL: "http://file-gitea:3000"},
 		LLM: LLMConfig{
-			Defaults: AgentDefaultsConfig{Provider: "deepseek", Model: "deepseek-chat", MaxTokens: 4096, Temperature: 0.3},
+			Defaults: LLMDefaultsConfig{Provider: "deepseek", Model: "deepseek-chat"},
 		},
-		Dispatcher: DispatcherConfig{MaxConcurrent: 2, RetryCount: 1, Timeout: 300},
+		Dispatcher: DispatcherConfig{MaxConcurrent: 2, RetryCount: 1},
 		Agents: AgentsConfig{
-			Defaults: AgentDefaultsConfig{Provider: "deepseek", Model: "deepseek-chat", MaxTokens: 4096, Temperature: 0.3},
+			Defaults: AgentDefaultsConfig{
+				Provider:        "deepseek",
+				Model:           "deepseek-chat",
+				MaxOutputTokens: 4096,
+				MaxInputTokens:  8192,
+				Temperature:     0.3,
+				Timeout:         "5m",
+			},
 		},
 	}
 

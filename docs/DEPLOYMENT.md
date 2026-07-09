@@ -97,7 +97,7 @@ workspace:
 dispatcher:
   max_concurrent: 3           # 最大并发 Agent 数
   retry_count: 1              # 失败重试次数
-  timeout: 300                # 单任务超时（秒）
+  rate_limit_backoff: 30      # LLM 429 退避（秒）
   queue_size: 100             # 任务队列大小
 
 llm:
@@ -108,8 +108,6 @@ llm:
   defaults:
     provider: "deepseek"
     model: "deepseek-chat"
-    max_tokens: 4096
-    temperature: 0.3
 
 auth:
   jwt_secret: "${JWT_SECRET:-change-me-in-production}"
@@ -120,11 +118,14 @@ api:
   auth_token: "${API_AUTH_TOKEN}"   # 管理 API 认证 Token
 
 agents:
+  defaults:
+    max_output_tokens: 2048
+    max_input_tokens: 8192
+    temperature: 0.3
+    timeout: "5m"             # 单次任务超时
   loop:
     max_iterations: 20
-    max_tokens: 4096
-    timeout: "5m"
-    total_timeout: "30m"
+    total_timeout: "30m"      # 多轮任务总超时
 ```
 
 ### 配置 LLM Provider
@@ -419,8 +420,9 @@ journalctl -u gateway --since "2024-01-01" --until "2024-01-02"
 - 查看日志中的错误信息
 
 **Q: Agent 执行超时**
-- 调整 `dispatcher.timeout`（单任务超时）
-- 调整 `agents.loop.total_timeout`（Agent 总超时）
+- 调整 `agents.defaults.timeout`（单次任务超时，如 analyze/review）
+- 调整 `agents.loop.total_timeout`（多轮任务总超时）
+- 调整 `agents.defaults.max_output_tokens` / `max_input_tokens`（LLM 预算）
 - 检查 LLM API 响应速度
 
 **Q: 创建 Agent 失败**

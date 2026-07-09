@@ -38,7 +38,7 @@ func (m *mockGiteaFactory) GetAdminGiteaClient() *gitea.Client {
 }
 
 func TestRunnerFactoryGetRunner(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, 4096, 0.3, config.DefaultAgentLoopConfig())
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig())
 
 	tests := []struct {
 		taskType string
@@ -66,7 +66,7 @@ func TestAnalyzeRunnerRun(t *testing.T) {
 	registry.Register("mock", &mockProvider{response: "Analysis result"})
 
 	factory := &mockGiteaFactory{}
-	runnerFactory := NewRunnerFactory(registry, factory, nil, 4096, 0.3, config.DefaultAgentLoopConfig())
+	runnerFactory := NewRunnerFactory(registry, factory, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig())
 	runner := NewAnalyzeRunner(runnerFactory)
 
 	task := &store.Task{
@@ -77,11 +77,12 @@ func TestAnalyzeRunnerRun(t *testing.T) {
 	}
 
 	agent := &store.Agent{
-		ID:           1,
-		Provider:     "mock",
-		Model:        "mock-model",
-		SystemPrompt: "You are an analyst.",
-		MaxTokens:    1024,
+		ID:              1,
+		Provider:        "mock",
+		Model:           "mock-model",
+		SystemPrompt:    "You are an analyst.",
+		MaxOutputTokens: 1024,
+		MaxInputTokens:  8192,
 	}
 
 	result, err := runner.Run(context.Background(), task, agent)

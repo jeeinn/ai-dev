@@ -69,7 +69,6 @@ type WorkspaceConfig struct {
 type DispatcherConfig struct {
 	MaxConcurrent    int `yaml:"max_concurrent"`
 	RetryCount       int `yaml:"retry_count"`
-	Timeout          int `yaml:"timeout"`
 	QueueSize        int `yaml:"queue_size"`
 	RateLimitBackoff int `yaml:"rate_limit_backoff"` // seconds to wait on HTTP 429; 0 = disabled
 }
@@ -85,7 +84,7 @@ type LoggingConfig struct {
 
 type LLMConfig struct {
 	Providers map[string]ProviderConfig `yaml:"providers"`
-	Defaults  AgentDefaultsConfig       `yaml:"defaults"`
+	Defaults  LLMDefaultsConfig         `yaml:"defaults"`
 }
 
 type ProviderConfig struct {
@@ -93,11 +92,20 @@ type ProviderConfig struct {
 	APIKey  string `yaml:"api_key" json:"api_key"`
 }
 
+// LLMDefaultsConfig holds LLM connectivity defaults (provider/model only).
+type LLMDefaultsConfig struct {
+	Provider string `yaml:"provider"`
+	Model    string `yaml:"model"`
+}
+
+// AgentDefaultsConfig holds defaults for new agents and single-shot task budgets.
 type AgentDefaultsConfig struct {
-	Provider    string  `yaml:"provider"`
-	Model       string  `yaml:"model"`
-	MaxTokens   int     `yaml:"max_tokens"`
-	Temperature float64 `yaml:"temperature"`
+	Provider        string  `yaml:"provider"`
+	Model           string  `yaml:"model"`
+	MaxOutputTokens int     `yaml:"max_output_tokens"`
+	MaxInputTokens  int     `yaml:"max_input_tokens"`
+	Temperature     float64 `yaml:"temperature"`
+	Timeout         string  `yaml:"timeout"` // Go duration, e.g. "5m" — single-shot tasks
 }
 
 // APIConfig contains API server configuration.
@@ -128,22 +136,30 @@ type AgentTemplateConfig struct {
 	Permissions  []string `yaml:"permissions"`
 }
 
-// AgentLoopConfig contains agent loop configuration.
+// AgentLoopConfig contains agent loop configuration (multi-turn tasks only).
 type AgentLoopConfig struct {
-	MaxIterations     int    `yaml:"max_iterations"`      // Max iteration rounds (default 20)
-	MaxTokens         int    `yaml:"max_tokens"`          // Max tokens per LLM call (default 4096)
-	Timeout           string `yaml:"timeout"`             // Single round timeout (default "5m")
-	TotalTimeout      string `yaml:"total_timeout"`       // Total task timeout (default "30m")
-	IterationInterval int    `yaml:"iteration_interval"`  // Seconds between loop rounds (default 0)
+	MaxIterations     int    `yaml:"max_iterations"`     // Max iteration rounds (default 20)
+	TotalTimeout      string `yaml:"total_timeout"`      // Total loop task timeout (default "30m")
+	IterationInterval int    `yaml:"iteration_interval"` // Seconds between loop rounds (default 0)
 }
 
 // DefaultAgentLoopConfig returns default agent loop configuration.
 func DefaultAgentLoopConfig() AgentLoopConfig {
 	return AgentLoopConfig{
 		MaxIterations:     20,
-		MaxTokens:         4096,
-		Timeout:           "5m",
 		TotalTimeout:      "30m",
 		IterationInterval: 0,
+	}
+}
+
+// DefaultAgentDefaults returns default agent budget/timeout settings.
+func DefaultAgentDefaults() AgentDefaultsConfig {
+	return AgentDefaultsConfig{
+		Provider:        "deepseek",
+		Model:           "deepseek-chat",
+		MaxOutputTokens: 2048,
+		MaxInputTokens:  8192,
+		Temperature:     0.3,
+		Timeout:         "5m",
 	}
 }

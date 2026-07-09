@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -172,17 +173,33 @@ func (h *Handler) testLLMConfig(w http.ResponseWriter, r *http.Request) {
 		"deepseek-chat",
 	))
 
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-	defer cancel()
+		maxTokens := 8
+		if v := firstNonEmpty(
+			asString(payload["agents.defaults.max_output_tokens"]),
+			h.stringConfigValue("agents.defaults.max_output_tokens"),
+		); v != "" {
+			if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
+				maxTokens = n
+			}
+		}
+		if maxTokens > 16 {
+			maxTokens = 16
+		}
+		if maxTokens <= 0 {
+			maxTokens = 8
+		}
 
-	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
-		Model: model,
-		Messages: []llm.Message{
-			{Role: "user", Content: "ping"},
-		},
-		MaxTokens:   8,
-		Temperature: 0,
-	})
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+
+		resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
+			Model: model,
+			Messages: []llm.Message{
+				{Role: "user", Content: "ping"},
+			},
+			MaxTokens:   maxTokens,
+			Temperature: 0,
+		})
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":      false,

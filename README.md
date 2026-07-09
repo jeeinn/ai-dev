@@ -144,26 +144,28 @@ go build -o gateway .
 | `server` | 监听地址和端口 |
 | `gitea` | Gitea 连接信息（URL、管理员 Token、Webhook 密钥） |
 | `workspace` | Agent 工作目录配置 |
-| `dispatcher` | 并发数、重试、超时、队列大小 |
-| `llm` | LLM Provider 配置（可配多个） |
-| `agents` | Agent 模板、默认参数、loop 配置 |
+| `dispatcher` | 并发数、重试、429 退避、队列大小（无全局任务超时） |
+| `llm` | LLM Provider 与连通性默认（provider/model） |
+| `agents` | Agent 默认预算（tokens/timeout/temperature）与 Loop 总超时 |
 | `auth` | JWT 认证配置 |
 | `api` | 管理 API 认证 Token |
 
-### Agent Loop 配置
-
-Agent 的迭代控制支持全局默认和单 Agent 覆盖：
+### Agent LLM 预算与超时
 
 ```yaml
 agents:
+  defaults:
+    max_output_tokens: 2048   # 每次调用输出上限（单次 + Loop 每轮共用）
+    max_input_tokens: 8192    # 每次请求输入上限（含 tools；估算为字符数/4）
+    temperature: 0.3
+    timeout: "5m"             # 单次任务总超时（analyze/review/reply）
   loop:
-    max_iterations: 20      # 最大迭代轮次
-    max_tokens: 4096        # 单次 LLM 最大 tokens
-    timeout: "5m"           # 单轮超时
-    total_timeout: "30m"    # 总超时
+    max_iterations: 20
+    total_timeout: "30m"      # 仅多轮任务总超时（solve/fix_bug）
+    iteration_interval: 3
 ```
 
-单个 Agent 可通过 API 设置 `loop_config` 字段覆盖全局配置。
+任务超时由 Agent 配置控制（不再使用 `dispatcher.timeout`）。单个 Agent 可覆盖 `max_output_tokens` / `max_input_tokens` / `timeout` / `loop_config`。
 
 ## 开发
 

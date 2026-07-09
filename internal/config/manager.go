@@ -71,6 +71,65 @@ func (m *ConfigManager) ApplyDBOverrides() error {
 	return nil
 }
 
+// MigrateLegacyConfigKeys remaps deprecated system_config keys to the new schema once.
+func (m *ConfigManager) MigrateLegacyConfigKeys() error {
+	if m.store == nil {
+		return nil
+	}
+	entries, err := m.store.ListConfigs()
+	if err != nil {
+		return fmt.Errorf("list configs for migration: %w", err)
+	}
+
+	// agents.defaults.max_tokens / agents.loop.max_tokens → max_output_tokens (take max)
+	out := 0
+	if v, ok := entries["agents.defaults.max_output_tokens"]; ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			out = n
+		}
+	}
+	for _, key := range []string{"agents.defaults.max_tokens", "agents.loop.max_tokens", "llm.defaults.max_tokens"} {
+		if v, ok := entries[key]; ok {
+			if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > out {
+				out = n
+			}
+		}
+	}
+	if out > 0 {
+		if err := m.store.SetConfig("agents.defaults.max_output_tokens", strconv.Itoa(out)); err != nil {
+			return err
+		}
+	}
+
+	// temperature: llm.defaults → agents.defaults if agents missing
+	if _, ok := entries["agents.defaults.temperature"]; !ok {
+		if v, ok := entries["llm.defaults.temperature"]; ok && strings.TrimSpace(v) != "" {
+			if err := m.store.SetConfig("agents.defaults.temperature", v); err != nil {
+				return err
+			}
+		}
+	}
+
+	legacyKeys := []string{
+		"llm.defaults.max_tokens",
+		"llm.defaults.temperature",
+		"agents.defaults.max_tokens",
+		"agents.loop.max_tokens",
+		"agents.loop.timeout",
+		"dispatcher.timeout",
+	}
+	for _, key := range legacyKeys {
+		if _, ok := entries[key]; ok {
+			if err := m.store.DeleteConfig(key); err != nil {
+				log.Printf("[WARN] Failed to delete legacy config key %s: %v", key, err)
+			} else {
+				log.Printf("[INFO] Removed legacy config key: %s", key)
+			}
+		}
+	}
+	return nil
+}
+
 // Get returns the active (merged) config. Safe for concurrent read.
 func (m *ConfigManager) Get() *Config {
 	m.mu.RLock()
@@ -181,27 +240,24 @@ func (m *ConfigManager) getActiveMap() map[string]interface{} {
 	defer m.mu.RUnlock()
 	cfg := m.active
 	return map[string]interface{}{
-		"gitea.url":                     cfg.Gitea.URL,
-		"gitea.admin_token":             cfg.Gitea.AdminToken,
-		"gitea.webhook_secret":          cfg.Gitea.WebhookSecret,
-		"llm.defaults.provider":         cfg.LLM.Defaults.Provider,
-		"llm.defaults.model":            cfg.LLM.Defaults.Model,
-		"llm.defaults.max_tokens":       cfg.LLM.Defaults.MaxTokens,
-		"llm.defaults.temperature":      cfg.LLM.Defaults.Temperature,
-		"llm.providers":                 cfg.LLM.Providers,
-		"dispatcher.max_concurrent":     cfg.Dispatcher.MaxConcurrent,
-		"dispatcher.retry_count":        cfg.Dispatcher.RetryCount,
-		"dispatcher.timeout":            cfg.Dispatcher.Timeout,
-		"dispatcher.rate_limit_backoff": cfg.Dispatcher.RateLimitBackoff,
-		"agents.defaults.provider":      cfg.Agents.Defaults.Provider,
-		"agents.defaults.model":         cfg.Agents.Defaults.Model,
-		"agents.defaults.max_tokens":    cfg.Agents.Defaults.MaxTokens,
-		"agents.defaults.temperature": cfg.Agents.Defaults.Temperature,
-		"agents.loop.max_iterations":    cfg.Agents.Loop.MaxIterations,
-		"agents.loop.max_tokens":        cfg.Agents.Loop.MaxTokens,
-		"agents.loop.timeout":           cfg.Agents.Loop.Timeout,
-		"agents.loop.total_timeout":     cfg.Agents.Loop.TotalTimeout,
-		"agents.loop.iteration_interval": cfg.Agents.Loop.IterationInterval,
+		"gitea.url":                       cfg.Gitea.URL,
+		"gitea.admin_token":               cfg.Gitea.AdminToken,
+		"gitea.webhook_secret":            cfg.Gitea.WebhookSecret,
+		"llm.defaults.provider":           cfg.LLM.Defaults.Provider,
+		"llm.defaults.model":              cfg.LLM.Defaults.Model,
+		"llm.providers":                   cfg.LLM.Providers,
+		"dispatcher.max_concurrent":       cfg.Dispatcher.MaxConcurrent,
+		"dispatcher.retry_count":          cfg.Dispatcher.RetryCount,
+		"dispatcher.rate_limit_backoff":   cfg.Dispatcher.RateLimitBackoff,
+		"agents.defaults.provider":        cfg.Agents.Defaults.Provider,
+		"agents.defaults.model":           cfg.Agents.Defaults.Model,
+		"agents.defaults.max_output_tokens": cfg.Agents.Defaults.MaxOutputTokens,
+		"agents.defaults.max_input_tokens":  cfg.Agents.Defaults.MaxInputTokens,
+		"agents.defaults.temperature":     cfg.Agents.Defaults.Temperature,
+		"agents.defaults.timeout":         cfg.Agents.Defaults.Timeout,
+		"agents.loop.max_iterations":      cfg.Agents.Loop.MaxIterations,
+		"agents.loop.total_timeout":       cfg.Agents.Loop.TotalTimeout,
+		"agents.loop.iteration_interval":  cfg.Agents.Loop.IterationInterval,
 	}
 }
 
@@ -211,33 +267,32 @@ var configKeys = []string{
 	"gitea.webhook_secret",
 	"llm.defaults.provider",
 	"llm.defaults.model",
-	"llm.defaults.max_tokens",
-	"llm.defaults.temperature",
 	"llm.providers",
 	"dispatcher.max_concurrent",
 	"dispatcher.retry_count",
-	"dispatcher.timeout",
 	"dispatcher.rate_limit_backoff",
 	"agents.defaults.provider",
 	"agents.defaults.model",
-	"agents.defaults.max_tokens",
+	"agents.defaults.max_output_tokens",
+	"agents.defaults.max_input_tokens",
 	"agents.defaults.temperature",
+	"agents.defaults.timeout",
 	"agents.loop.max_iterations",
-	"agents.loop.max_tokens",
-	"agents.loop.timeout",
 	"agents.loop.total_timeout",
 	"agents.loop.iteration_interval",
 }
 
 func parseConfigValue(key, value string) (interface{}, error) {
 	switch key {
-	case "llm.defaults.max_tokens", "dispatcher.max_concurrent", "dispatcher.retry_count", "dispatcher.timeout", "dispatcher.rate_limit_backoff", "agents.defaults.max_tokens", "agents.loop.max_iterations", "agents.loop.max_tokens", "agents.loop.iteration_interval":
+	case "dispatcher.max_concurrent", "dispatcher.retry_count", "dispatcher.rate_limit_backoff",
+		"agents.defaults.max_output_tokens", "agents.defaults.max_input_tokens",
+		"agents.loop.max_iterations", "agents.loop.iteration_interval":
 		n, err := strconv.Atoi(value)
 		if err != nil {
 			return nil, fmt.Errorf("not a number: %s", value)
 		}
 		return n, nil
-	case "llm.defaults.temperature", "agents.defaults.temperature":
+	case "agents.defaults.temperature":
 		f, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			return nil, fmt.Errorf("not a float: %s", value)
@@ -266,34 +321,28 @@ func getConfigValueTyped(cfg *Config, key string) interface{} {
 		return cfg.LLM.Defaults.Provider
 	case "llm.defaults.model":
 		return cfg.LLM.Defaults.Model
-	case "llm.defaults.max_tokens":
-		return cfg.LLM.Defaults.MaxTokens
-	case "llm.defaults.temperature":
-		return cfg.LLM.Defaults.Temperature
 	case "llm.providers":
 		return cfg.LLM.Providers
 	case "dispatcher.max_concurrent":
 		return cfg.Dispatcher.MaxConcurrent
 	case "dispatcher.retry_count":
 		return cfg.Dispatcher.RetryCount
-	case "dispatcher.timeout":
-		return cfg.Dispatcher.Timeout
 	case "dispatcher.rate_limit_backoff":
 		return cfg.Dispatcher.RateLimitBackoff
 	case "agents.defaults.provider":
 		return cfg.Agents.Defaults.Provider
 	case "agents.defaults.model":
 		return cfg.Agents.Defaults.Model
-	case "agents.defaults.max_tokens":
-		return cfg.Agents.Defaults.MaxTokens
+	case "agents.defaults.max_output_tokens":
+		return cfg.Agents.Defaults.MaxOutputTokens
+	case "agents.defaults.max_input_tokens":
+		return cfg.Agents.Defaults.MaxInputTokens
 	case "agents.defaults.temperature":
 		return cfg.Agents.Defaults.Temperature
+	case "agents.defaults.timeout":
+		return cfg.Agents.Defaults.Timeout
 	case "agents.loop.max_iterations":
 		return cfg.Agents.Loop.MaxIterations
-	case "agents.loop.max_tokens":
-		return cfg.Agents.Loop.MaxTokens
-	case "agents.loop.timeout":
-		return cfg.Agents.Loop.Timeout
 	case "agents.loop.total_timeout":
 		return cfg.Agents.Loop.TotalTimeout
 	case "agents.loop.iteration_interval":
@@ -321,18 +370,6 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 		cfg.LLM.Defaults.Provider = value
 	case "llm.defaults.model":
 		cfg.LLM.Defaults.Model = value
-	case "llm.defaults.max_tokens":
-		n, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("not a number: %s", value)
-		}
-		cfg.LLM.Defaults.MaxTokens = n
-	case "llm.defaults.temperature":
-		f, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return fmt.Errorf("not a float: %s", value)
-		}
-		cfg.LLM.Defaults.Temperature = f
 	case "llm.providers":
 		providers, err := ParseProvidersJSON(value)
 		if err != nil {
@@ -351,12 +388,6 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 			return fmt.Errorf("not a number: %s", value)
 		}
 		cfg.Dispatcher.RetryCount = n
-	case "dispatcher.timeout":
-		n, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("not a number: %s", value)
-		}
-		cfg.Dispatcher.Timeout = n
 	case "dispatcher.rate_limit_backoff":
 		n, err := strconv.Atoi(value)
 		if err != nil {
@@ -367,32 +398,32 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 		cfg.Agents.Defaults.Provider = value
 	case "agents.defaults.model":
 		cfg.Agents.Defaults.Model = value
-	case "agents.defaults.max_tokens":
+	case "agents.defaults.max_output_tokens":
 		n, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("not a number: %s", value)
 		}
-		cfg.Agents.Defaults.MaxTokens = n
+		cfg.Agents.Defaults.MaxOutputTokens = n
+	case "agents.defaults.max_input_tokens":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("not a number: %s", value)
+		}
+		cfg.Agents.Defaults.MaxInputTokens = n
 	case "agents.defaults.temperature":
 		f, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			return fmt.Errorf("not a float: %s", value)
 		}
 		cfg.Agents.Defaults.Temperature = f
+	case "agents.defaults.timeout":
+		cfg.Agents.Defaults.Timeout = value
 	case "agents.loop.max_iterations":
 		n, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("not a number: %s", value)
 		}
 		cfg.Agents.Loop.MaxIterations = n
-	case "agents.loop.max_tokens":
-		n, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("not a number: %s", value)
-		}
-		cfg.Agents.Loop.MaxTokens = n
-	case "agents.loop.timeout":
-		cfg.Agents.Loop.Timeout = value
 	case "agents.loop.total_timeout":
 		cfg.Agents.Loop.TotalTimeout = value
 	case "agents.loop.iteration_interval":
@@ -409,17 +440,12 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 
 // IsConfigKey returns true if the key is a recognized config field (not a data key like prompt.templates).
 func IsConfigKey(key string) bool {
-	switch key {
-	case "gitea.url", "gitea.admin_token", "gitea.webhook_secret",
-		"llm.defaults.provider", "llm.defaults.model", "llm.defaults.max_tokens", "llm.defaults.temperature",
-		"llm.providers",
-		"dispatcher.max_concurrent", "dispatcher.retry_count", "dispatcher.timeout", "dispatcher.rate_limit_backoff",
-		"agents.defaults.provider", "agents.defaults.model", "agents.defaults.max_tokens", "agents.defaults.temperature",
-		"agents.loop.max_iterations", "agents.loop.max_tokens", "agents.loop.timeout", "agents.loop.total_timeout", "agents.loop.iteration_interval":
-		return true
-	default:
-		return false
+	for _, k := range configKeys {
+		if k == key {
+			return true
+		}
 	}
+	return false
 }
 
 // getConfigEntry reads a single config value from a Config struct.
@@ -435,10 +461,6 @@ func getConfigEntry(cfg *Config, key string) string {
 		return cfg.LLM.Defaults.Provider
 	case "llm.defaults.model":
 		return cfg.LLM.Defaults.Model
-	case "llm.defaults.max_tokens":
-		return strconv.Itoa(cfg.LLM.Defaults.MaxTokens)
-	case "llm.defaults.temperature":
-		return fmt.Sprintf("%g", cfg.LLM.Defaults.Temperature)
 	case "llm.providers":
 		data, _ := json.Marshal(cfg.LLM.Providers)
 		return string(data)
@@ -446,24 +468,22 @@ func getConfigEntry(cfg *Config, key string) string {
 		return strconv.Itoa(cfg.Dispatcher.MaxConcurrent)
 	case "dispatcher.retry_count":
 		return strconv.Itoa(cfg.Dispatcher.RetryCount)
-	case "dispatcher.timeout":
-		return strconv.Itoa(cfg.Dispatcher.Timeout)
 	case "dispatcher.rate_limit_backoff":
 		return strconv.Itoa(cfg.Dispatcher.RateLimitBackoff)
 	case "agents.defaults.provider":
 		return cfg.Agents.Defaults.Provider
 	case "agents.defaults.model":
 		return cfg.Agents.Defaults.Model
-	case "agents.defaults.max_tokens":
-		return strconv.Itoa(cfg.Agents.Defaults.MaxTokens)
+	case "agents.defaults.max_output_tokens":
+		return strconv.Itoa(cfg.Agents.Defaults.MaxOutputTokens)
+	case "agents.defaults.max_input_tokens":
+		return strconv.Itoa(cfg.Agents.Defaults.MaxInputTokens)
 	case "agents.defaults.temperature":
 		return fmt.Sprintf("%g", cfg.Agents.Defaults.Temperature)
+	case "agents.defaults.timeout":
+		return cfg.Agents.Defaults.Timeout
 	case "agents.loop.max_iterations":
 		return strconv.Itoa(cfg.Agents.Loop.MaxIterations)
-	case "agents.loop.max_tokens":
-		return strconv.Itoa(cfg.Agents.Loop.MaxTokens)
-	case "agents.loop.timeout":
-		return cfg.Agents.Loop.Timeout
 	case "agents.loop.total_timeout":
 		return cfg.Agents.Loop.TotalTimeout
 	case "agents.loop.iteration_interval":

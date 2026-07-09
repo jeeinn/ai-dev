@@ -62,9 +62,6 @@ func applyDefaults(cfg *Config) {
 	if cfg.Dispatcher.RetryCount == 0 {
 		cfg.Dispatcher.RetryCount = 1
 	}
-	if cfg.Dispatcher.Timeout == 0 {
-		cfg.Dispatcher.Timeout = 300
-	}
 	if cfg.Dispatcher.QueueSize == 0 {
 		cfg.Dispatcher.QueueSize = 100
 	}
@@ -80,14 +77,30 @@ func applyDefaults(cfg *Config) {
 	if cfg.LLM.Defaults.Model == "" {
 		cfg.LLM.Defaults.Model = "deepseek-chat"
 	}
-	if cfg.LLM.Defaults.MaxTokens == 0 {
-		cfg.LLM.Defaults.MaxTokens = 4096
+	defs := DefaultAgentDefaults()
+	if cfg.Agents.Defaults.Provider == "" {
+		cfg.Agents.Defaults.Provider = defs.Provider
 	}
-	if cfg.Agents.Defaults.MaxTokens == 0 {
-		cfg.Agents.Defaults.MaxTokens = 2048
+	if cfg.Agents.Defaults.Model == "" {
+		cfg.Agents.Defaults.Model = defs.Model
 	}
-	if cfg.LLM.Defaults.Temperature == 0 {
-		cfg.LLM.Defaults.Temperature = 0.3
+	if cfg.Agents.Defaults.MaxOutputTokens == 0 {
+		cfg.Agents.Defaults.MaxOutputTokens = defs.MaxOutputTokens
+	}
+	if cfg.Agents.Defaults.MaxInputTokens == 0 {
+		cfg.Agents.Defaults.MaxInputTokens = defs.MaxInputTokens
+	}
+	if cfg.Agents.Defaults.Temperature == 0 {
+		cfg.Agents.Defaults.Temperature = defs.Temperature
+	}
+	if cfg.Agents.Defaults.Timeout == "" {
+		cfg.Agents.Defaults.Timeout = defs.Timeout
+	}
+	if cfg.Agents.Loop.MaxIterations <= 0 {
+		cfg.Agents.Loop.MaxIterations = DefaultAgentLoopConfig().MaxIterations
+	}
+	if cfg.Agents.Loop.TotalTimeout == "" {
+		cfg.Agents.Loop.TotalTimeout = DefaultAgentLoopConfig().TotalTimeout
 	}
 	if cfg.Auth.JWTSecret == "" {
 		cfg.Auth.JWTSecret = "change-this-in-production"

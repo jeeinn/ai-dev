@@ -306,42 +306,46 @@ func (h *Handler) deleteUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "deleted"})
 }
 
-// AgentDTO is the API response for agents, hiding sensitive fields.
-type AgentDTO struct {
-	ID            int64                  `json:"id"`
-	Name          string                 `json:"name"`
-	GiteaUsername string                 `json:"gitea_username"`
-	AvatarURL     string                 `json:"avatar_url"`
-	Provider      string                 `json:"provider"`
-	Model         string                 `json:"model"`
-	MaxTokens     int                    `json:"max_tokens"`
-	Temperature   float64                `json:"temperature"`
-	SystemPrompt  string                 `json:"system_prompt"`
-	UserTemplate  string                 `json:"user_template"`
-	LoopConfig    *store.AgentLoopConfig `json:"loop_config,omitempty"`
-	Repos         []string               `json:"repos,omitempty"`
-	Role          string                 `json:"role"`
-	Status        string                 `json:"status"`
-}
-
-func toAgentDTO(a *store.Agent) AgentDTO {
-	return AgentDTO{
-		ID:            a.ID,
-		Name:          a.Name,
-		GiteaUsername: a.GiteaUsername,
-		AvatarURL:     a.AvatarURL,
-		Repos:         a.Repos,
-		Provider:      a.Provider,
-		Model:         a.Model,
-		MaxTokens:     a.MaxTokens,
-		Temperature:   a.Temperature,
-		SystemPrompt:  a.SystemPrompt,
-		UserTemplate:  a.UserTemplate,
-		LoopConfig:    a.LoopConfig,
-		Role:          a.Role,
-		Status:        a.Status,
+	// AgentDTO is the API response for agents, hiding sensitive fields.
+	type AgentDTO struct {
+		ID              int64                  `json:"id"`
+		Name            string                 `json:"name"`
+		GiteaUsername   string                 `json:"gitea_username"`
+		AvatarURL       string                 `json:"avatar_url"`
+		Provider        string                 `json:"provider"`
+		Model           string                 `json:"model"`
+		MaxOutputTokens int                    `json:"max_output_tokens"`
+		MaxInputTokens  int                    `json:"max_input_tokens"`
+		Temperature     float64                `json:"temperature"`
+		Timeout         string                 `json:"timeout"`
+		SystemPrompt    string                 `json:"system_prompt"`
+		UserTemplate    string                 `json:"user_template"`
+		LoopConfig      *store.AgentLoopConfig `json:"loop_config,omitempty"`
+		Repos           []string               `json:"repos,omitempty"`
+		Role            string                 `json:"role"`
+		Status          string                 `json:"status"`
 	}
-}
+
+	func toAgentDTO(a *store.Agent) AgentDTO {
+		return AgentDTO{
+			ID:              a.ID,
+			Name:            a.Name,
+			GiteaUsername:   a.GiteaUsername,
+			AvatarURL:       a.AvatarURL,
+			Repos:           a.Repos,
+			Provider:        a.Provider,
+			Model:           a.Model,
+			MaxOutputTokens: a.MaxOutputTokens,
+			MaxInputTokens:  a.MaxInputTokens,
+			Temperature:     a.Temperature,
+			Timeout:         a.Timeout,
+			SystemPrompt:    a.SystemPrompt,
+			UserTemplate:    a.UserTemplate,
+			LoopConfig:      a.LoopConfig,
+			Role:            a.Role,
+			Status:          a.Status,
+		}
+	}
 
 // --- Agent endpoints ---
 
@@ -424,22 +428,24 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid request body")
 		return
 	}
-	// Copy decoded fields to agent
-	agent.Name = req.Name
-	agent.Provider = req.Provider
-	agent.Model = req.Model
-	agent.MaxTokens = req.MaxTokens
-	agent.Temperature = req.Temperature
-	agent.SystemPrompt = req.SystemPrompt
-	agent.UserTemplate = req.UserTemplate
-	agent.Status = req.Status
-	agent.Repos = req.Repos
-	if req.Role != "" {
-		agent.Role = req.Role
-	}
-	if req.LoopConfig != nil {
-		agent.LoopConfig = req.LoopConfig
-	}
+		// Copy decoded fields to agent
+		agent.Name = req.Name
+		agent.Provider = req.Provider
+		agent.Model = req.Model
+		agent.MaxOutputTokens = req.MaxOutputTokens
+		agent.MaxInputTokens = req.MaxInputTokens
+		agent.Temperature = req.Temperature
+		agent.Timeout = req.Timeout
+		agent.SystemPrompt = req.SystemPrompt
+		agent.UserTemplate = req.UserTemplate
+		agent.Status = req.Status
+		agent.Repos = req.Repos
+		if req.Role != "" {
+			agent.Role = req.Role
+		}
+		if req.LoopConfig != nil {
+			agent.LoopConfig = req.LoopConfig
+		}
 	agent.ID = id
 	if err := h.manager.UpdateAgent(agent); err != nil {
 		writeError(w, 500, err.Error())

@@ -48,24 +48,28 @@ func NewDispatcher(
 	agentsCfg *config.AgentsConfig,
 ) *Dispatcher {
 	queue := NewTaskQueue(db, dispatcherCfg.QueueSize)
-	defaultMaxTokens := 4096
-	defaultTemp := 0.3
+	agentDefaults := config.DefaultAgentDefaults()
 	if agentsCfg != nil {
-		if agentsCfg.Defaults.MaxTokens > 0 {
-			defaultMaxTokens = agentsCfg.Defaults.MaxTokens
+		agentDefaults = agentsCfg.Defaults
+		if agentDefaults.MaxOutputTokens <= 0 {
+			agentDefaults.MaxOutputTokens = config.DefaultAgentDefaults().MaxOutputTokens
 		}
-		if agentsCfg.Defaults.Temperature > 0 {
-			defaultTemp = agentsCfg.Defaults.Temperature
+		if agentDefaults.MaxInputTokens <= 0 {
+			agentDefaults.MaxInputTokens = config.DefaultAgentDefaults().MaxInputTokens
+		}
+		if agentDefaults.Temperature <= 0 {
+			agentDefaults.Temperature = config.DefaultAgentDefaults().Temperature
+		}
+		if agentDefaults.Timeout == "" {
+			agentDefaults.Timeout = config.DefaultAgentDefaults().Timeout
 		}
 	}
 	executor := NewExecutor(
 		dispatcherCfg.MaxConcurrent,
-		dispatcherCfg.Timeout,
 		dispatcherCfg.RetryCount,
 		llmRegistry,
 		db,
-		defaultMaxTokens,
-		defaultTemp,
+		agentDefaults,
 		resolveDefaultLoop(agentsCfg),
 	)
 
@@ -88,21 +92,15 @@ func resolveDefaultLoop(agentsCfg *config.AgentsConfig) config.AgentLoopConfig {
 		return config.DefaultAgentLoopConfig()
 	}
 	loop := agentsCfg.Loop
-	if loop.MaxIterations <= 0 && loop.MaxTokens <= 0 && loop.Timeout == "" &&
-		loop.TotalTimeout == "" && loop.IterationInterval <= 0 {
+	if loop.MaxIterations <= 0 && loop.TotalTimeout == "" && loop.IterationInterval <= 0 {
 		return config.DefaultAgentLoopConfig()
 	}
+	defaults := config.DefaultAgentLoopConfig()
 	if loop.MaxIterations <= 0 {
-		loop.MaxIterations = config.DefaultAgentLoopConfig().MaxIterations
-	}
-	if loop.MaxTokens <= 0 {
-		loop.MaxTokens = config.DefaultAgentLoopConfig().MaxTokens
-	}
-	if loop.Timeout == "" {
-		loop.Timeout = config.DefaultAgentLoopConfig().Timeout
+		loop.MaxIterations = defaults.MaxIterations
 	}
 	if loop.TotalTimeout == "" {
-		loop.TotalTimeout = config.DefaultAgentLoopConfig().TotalTimeout
+		loop.TotalTimeout = defaults.TotalTimeout
 	}
 	return loop
 }

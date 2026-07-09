@@ -27,8 +27,6 @@ dispatcher:
   max_concurrent: 2
   # 失败重试次数
   retry_count: 1
-  # 单任务超时（秒）
-  timeout: 300
   # LLM 返回 429 时的退避等待（秒）；0 表示关闭
   rate_limit_backoff: 30
   # 任务队列大小
@@ -69,8 +67,6 @@ llm:
   defaults:
     provider: "deepseek"
     model: "deepseek-chat"
-    max_tokens: 2048
-    temperature: 0.3
 
 # API 管理接口配置
 api:
@@ -83,14 +79,14 @@ agents:
   defaults:
     provider: "deepseek"
     model: "deepseek-chat"
-    max_tokens: 2048
+    max_output_tokens: 2048
+    max_input_tokens: 8192
     temperature: 0.3
+    timeout: "5m"           # 单次任务（analyze/review/reply）总超时
 
   loop:
     max_iterations: 10
-    max_tokens: 4096
-    timeout: "5m"
-    total_timeout: "30m"
+    total_timeout: "30m"    # 仅多轮任务（solve/fix_bug）总超时
     iteration_interval: 3
 
   templates:

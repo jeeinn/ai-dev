@@ -14,12 +14,6 @@ func MergeLoopConfig(agentLoop *store.AgentLoopConfig, defaults config.AgentLoop
 	if agentLoop.MaxIterations > 0 {
 		merged.MaxIterations = agentLoop.MaxIterations
 	}
-	if agentLoop.MaxTokens > 0 {
-		merged.MaxTokens = agentLoop.MaxTokens
-	}
-	if agentLoop.Timeout != "" {
-		merged.Timeout = agentLoop.Timeout
-	}
 	if agentLoop.TotalTimeout != "" {
 		merged.TotalTimeout = agentLoop.TotalTimeout
 	}

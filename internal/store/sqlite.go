@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,20 +53,22 @@ func (db *DB) migrate() error {
 	// Step 1: Create tables (IF NOT EXISTS is safe to repeat)
 	migrations := []string{
 		`CREATE TABLE IF NOT EXISTS agents (
-			id              INTEGER PRIMARY KEY AUTOINCREMENT,
-			name            TEXT NOT NULL,
-			gitea_username  TEXT NOT NULL UNIQUE,
-			gitea_token     TEXT NOT NULL,
-			avatar_url      TEXT DEFAULT '',
-			provider        TEXT NOT NULL DEFAULT 'deepseek',
-			model           TEXT NOT NULL DEFAULT 'deepseek-chat',
-			max_tokens      INTEGER DEFAULT 4096,
-			temperature     REAL DEFAULT 0.3,
-			system_prompt   TEXT NOT NULL DEFAULT '',
-			user_template   TEXT NOT NULL DEFAULT '',
-			status          TEXT DEFAULT 'active',
-			created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+			id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+			name               TEXT NOT NULL,
+			gitea_username     TEXT NOT NULL UNIQUE,
+			gitea_token        TEXT NOT NULL,
+			avatar_url         TEXT DEFAULT '',
+			provider           TEXT NOT NULL DEFAULT 'deepseek',
+			model              TEXT NOT NULL DEFAULT 'deepseek-chat',
+			max_output_tokens  INTEGER DEFAULT 2048,
+			max_input_tokens   INTEGER DEFAULT 8192,
+			temperature        REAL DEFAULT 0.3,
+			timeout            TEXT DEFAULT '5m',
+			system_prompt      TEXT NOT NULL DEFAULT '',
+			user_template      TEXT NOT NULL DEFAULT '',
+			status             TEXT DEFAULT 'active',
+			created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS routes (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -195,6 +198,9 @@ func (db *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN role TEXT DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN pr_id INTEGER NOT NULL DEFAULT 0`, // P0: PR number for review_pr tasks
 		`ALTER TABLE workflow_contexts ADD COLUMN previous_stage TEXT DEFAULT ''`,
+		`ALTER TABLE agents ADD COLUMN max_output_tokens INTEGER DEFAULT 2048`,
+		`ALTER TABLE agents ADD COLUMN max_input_tokens INTEGER DEFAULT 8192`,
+		`ALTER TABLE agents ADD COLUMN timeout TEXT DEFAULT '5m'`,
 		`DROP TABLE IF EXISTS routes`, // v2: routes table removed (Assign model replaces Label trigger)
 	}
 
@@ -207,7 +213,121 @@ func (db *DB) migrate() error {
 		}
 	}
 
+	if err := db.migrateAgentTokenBudget(); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// migrateAgentTokenBudget backfills max_output_tokens from legacy columns (idempotent).
+// Must not nest Query/QueryRow while another rows cursor is open — SQLite MaxOpenConns=1 would deadlock.
+func (db *DB) migrateAgentTokenBudget() error {
+	hasLegacy, err := db.hasColumn("agents", "max_tokens")
+	if err != nil {
+		return err
+	}
+
+	query := `SELECT id, max_output_tokens, max_input_tokens, timeout, COALESCE(loop_config, '{}') FROM agents`
+	if hasLegacy {
+		query = `SELECT id, max_output_tokens, max_input_tokens, timeout, COALESCE(loop_config, '{}'), COALESCE(max_tokens, 0) FROM agents`
+	}
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return fmt.Errorf("migrate agent budget query: %w", err)
+	}
+
+	type row struct {
+		id       int64
+		out      int
+		in       int
+		timeout  string
+		loopJSON string
+		legacy   int
+	}
+	var updates []row
+	for rows.Next() {
+		var r row
+		if hasLegacy {
+			err = rows.Scan(&r.id, &r.out, &r.in, &r.timeout, &r.loopJSON, &r.legacy)
+		} else {
+			err = rows.Scan(&r.id, &r.out, &r.in, &r.timeout, &r.loopJSON)
+		}
+		if err != nil {
+			rows.Close()
+			return err
+		}
+		updates = append(updates, r)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+
+	for _, r := range updates {
+		out := r.out
+		if r.legacy > out {
+			out = r.legacy
+		}
+		var loopCfg struct {
+			MaxTokens int `json:"max_tokens"`
+		}
+		_ = json.Unmarshal([]byte(r.loopJSON), &loopCfg)
+		if loopCfg.MaxTokens > out {
+			out = loopCfg.MaxTokens
+		}
+		if out <= 0 {
+			out = 2048
+		}
+		in := r.in
+		if in <= 0 {
+			in = 8192
+		}
+		timeout := r.timeout
+		if timeout == "" {
+			timeout = "5m"
+		}
+
+		// Strip deprecated loop_config keys
+		cleaned := map[string]interface{}{}
+		_ = json.Unmarshal([]byte(r.loopJSON), &cleaned)
+		delete(cleaned, "max_tokens")
+		delete(cleaned, "timeout")
+		cleanedJSON, _ := json.Marshal(cleaned)
+		if string(cleanedJSON) == "null" {
+			cleanedJSON = []byte("{}")
+		}
+
+		_, err := db.Exec(`UPDATE agents SET max_output_tokens=?, max_input_tokens=?, timeout=?, loop_config=? WHERE id=?`,
+			out, in, timeout, string(cleanedJSON), r.id)
+		if err != nil {
+			return fmt.Errorf("migrate agent %d: %w", r.id, err)
+		}
+	}
+	return nil
+}
+
+func (db *DB) hasColumn(table, column string) (bool, error) {
+	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return false, err
+		}
+		if name == column {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // isDuplicateColumnError checks if the error is a "duplicate column" error.

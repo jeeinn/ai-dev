@@ -85,14 +85,6 @@
             <el-form-item label="默认模型">
               <el-input v-model="form['llm.defaults.model']" placeholder="deepseek-chat" />
             </el-form-item>
-            <el-form-item label="最大 Token">
-              <el-input-number v-model.number="form['llm.defaults.max_tokens']" :min="256" :max="128000" :step="512" />
-              <div class="form-tip">LLM 单次调用的最大 Token 数。当 Agent 未设置时回退到此值（默认 2048）</div>
-            </el-form-item>
-            <el-form-item label="Temperature">
-              <el-slider v-model.number="form['llm.defaults.temperature']" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
-              <div class="form-tip">LLM 生成随机性。0=确定性，2=最大随机。Agent 未设置时回退到此值</div>
-            </el-form-item>
             <el-form-item>
               <el-button :loading="testingLLM" @click="testLLM">测试 LLM 连接</el-button>
               <span v-if="llmTestMessage" :class="['test-result', llmTestOk ? 'ok' : 'error']">{{ llmTestMessage }}</span>
@@ -102,7 +94,7 @@
 
         <!-- Tab 3: 任务调度 -->
         <el-tab-pane label="任务调度" name="dispatcher">
-          <el-alert title="调整任务执行的并发和超时参数，一般使用默认值即可" type="info" :closable="false" style="margin-bottom: 16px" />
+          <el-alert title="调整任务执行的并发和重试参数；任务超时由 Agent 配置控制" type="info" :closable="false" style="margin-bottom: 16px" />
           <el-form label-width="140px" class="config-form">
             <el-form-item label="最大并发数">
               <el-input-number v-model.number="form['dispatcher.max_concurrent']" :min="1" :max="20" />
@@ -111,10 +103,6 @@
             <el-form-item label="失败重试次数">
               <el-input-number v-model.number="form['dispatcher.retry_count']" :min="0" :max="5" />
               <div class="form-tip">任务失败后自动重试次数（默认 1）</div>
-            </el-form-item>
-            <el-form-item label="任务超时">
-              <el-input-number v-model.number="form['dispatcher.timeout']" :min="30" :max="3600" :step="30" />
-              <div class="form-tip">单个任务最大执行时间，单位秒（默认 300）</div>
             </el-form-item>
             <el-form-item label="429 退避时间">
               <el-input-number v-model.number="form['dispatcher.rate_limit_backoff']" :min="0" :max="300" :step="5" />
@@ -126,7 +114,7 @@
         <!-- Tab 4: Agent 默认参数 -->
         <el-tab-pane label="Agent 默认参数" name="agents">
           <el-alert title="新建 Agent 时的默认参数，可在 Agent 编辑中单独覆盖" type="info" :closable="false" style="margin-bottom: 16px" />
-          <el-form label-width="140px" class="config-form">
+          <el-form label-width="160px" class="config-form">
             <el-form-item label="默认 Provider">
               <el-select v-model="form['agents.defaults.provider']" placeholder="选择默认 Provider" style="width: 100%">
                 <el-option v-for="(_, name) in providers" :key="name" :label="name" :value="name" />
@@ -135,31 +123,35 @@
             <el-form-item label="默认模型">
               <el-input v-model="form['agents.defaults.model']" placeholder="deepseek-chat" />
             </el-form-item>
-            <el-form-item label="最大 Token">
-              <el-input-number v-model.number="form['agents.defaults.max_tokens']" :min="256" :max="128000" :step="512" />
-              <div class="form-tip">新建 Agent 时的默认最大 Token 数，可在 Agent 编辑中单独覆盖</div>
+
+            <el-divider content-position="left">LLM Token</el-divider>
+            <el-form-item label="最大输出 Tokens">
+              <el-input-number v-model.number="form['agents.defaults.max_output_tokens']" :min="256" :max="128000" :step="512" />
+              <div class="form-tip">每次调用的最大输出 Tokens（单次任务与 Loop 每轮共用）</div>
+            </el-form-item>
+            <el-form-item label="最大输入 Tokens">
+              <el-input-number v-model.number="form['agents.defaults.max_input_tokens']" :min="1024" :max="200000" :step="1024" />
+              <div class="form-tip">每次请求送入模型的输入上限（含 tools）；估算为字符数/4，仅供管控</div>
             </el-form-item>
             <el-form-item label="Temperature">
               <el-slider v-model.number="form['agents.defaults.temperature']" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
-              <div class="form-tip">新建 Agent 时的默认 Temperature，可在 Agent 编辑中单独覆盖</div>
+            </el-form-item>
+            <el-form-item label="单次任务超时">
+              <el-input v-model="form['agents.defaults.timeout']" placeholder="5m" style="width: 200px" />
+              <div class="form-tip">analyze / review / reply 等单次任务总超时（Go duration，如 5m）</div>
             </el-form-item>
 
             <el-divider content-position="left">Agent Loop 默认参数</el-divider>
             <el-form-item label="最大迭代轮数">
               <el-input-number v-model.number="form['agents.loop.max_iterations']" :min="1" :max="100" />
             </el-form-item>
-            <el-form-item label="Loop Max Tokens">
-              <el-input-number v-model.number="form['agents.loop.max_tokens']" :min="1024" :max="32768" :step="1024" />
-            </el-form-item>
-            <el-form-item label="单轮超时">
-              <el-input v-model="form['agents.loop.timeout']" placeholder="5m" style="width: 200px" />
-            </el-form-item>
-            <el-form-item label="总超时">
+            <el-form-item label="Loop 总超时">
               <el-input v-model="form['agents.loop.total_timeout']" placeholder="30m" style="width: 200px" />
+              <div class="form-tip">仅 solve / fix_bug 等多轮任务使用</div>
             </el-form-item>
             <el-form-item label="轮次间隔">
               <el-input-number v-model.number="form['agents.loop.iteration_interval']" :min="0" :max="300" :step="1" />
-              <div class="form-tip">每轮 Agent Loop 之间的等待秒数；0 表示不等待。新建 Agent 时作为 Loop 默认值</div>
+              <div class="form-tip">每轮 Agent Loop 之间的等待秒数；0 表示不等待</div>
             </el-form-item>
           </el-form>
         </el-tab-pane>
@@ -430,6 +422,7 @@ const testLLM = async () => {
     const result = await api.post('/config/test/llm', {
       'llm.defaults.provider': form.value['llm.defaults.provider'] || '',
       'llm.defaults.model': form.value['llm.defaults.model'] || '',
+      'agents.defaults.max_output_tokens': form.value['agents.defaults.max_output_tokens'],
       'llm.providers': providersData
     })
     llmTestOk.value = !!result.ok

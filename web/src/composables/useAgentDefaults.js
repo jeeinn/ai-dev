@@ -1,12 +1,12 @@
 import { ref, computed } from 'vue'
 import api from '../api'
 
-export const DEFAULT_AGENT_MAX_TOKENS = 2048
+export const DEFAULT_AGENT_MAX_OUTPUT_TOKENS = 2048
+export const DEFAULT_AGENT_MAX_INPUT_TOKENS = 8192
+export const DEFAULT_AGENT_TIMEOUT = '5m'
 
 export const DEFAULT_LOOP_CONFIG = {
   max_iterations: 20,
-  max_tokens: 4096,
-  timeout: '5m',
   total_timeout: '30m',
   iteration_interval: 0
 }
@@ -38,8 +38,6 @@ function resolveDefaultProvider(data, providerKeys) {
 function parseLoopDefaults(data) {
   return {
     max_iterations: Number(data['agents.loop.max_iterations']) || DEFAULT_LOOP_CONFIG.max_iterations,
-    max_tokens: Number(data['agents.loop.max_tokens']) || DEFAULT_LOOP_CONFIG.max_tokens,
-    timeout: (data['agents.loop.timeout'] || DEFAULT_LOOP_CONFIG.timeout).trim(),
     total_timeout: (data['agents.loop.total_timeout'] || DEFAULT_LOOP_CONFIG.total_timeout).trim(),
     iteration_interval: data['agents.loop.iteration_interval'] !== undefined && data['agents.loop.iteration_interval'] !== ''
       ? Number(data['agents.loop.iteration_interval'])
@@ -52,8 +50,10 @@ export function useAgentDefaults() {
   const agentDefaults = ref({
     provider: 'deepseek',
     model: 'deepseek-chat',
-    max_tokens: DEFAULT_AGENT_MAX_TOKENS,
-    temperature: 0.3
+    max_output_tokens: DEFAULT_AGENT_MAX_OUTPUT_TOKENS,
+    max_input_tokens: DEFAULT_AGENT_MAX_INPUT_TOKENS,
+    temperature: 0.3,
+    timeout: DEFAULT_AGENT_TIMEOUT
   })
   const loopDefaults = ref({ ...DEFAULT_LOOP_CONFIG })
 
@@ -68,10 +68,12 @@ export function useAgentDefaults() {
       agentDefaults.value = {
         provider: resolveDefaultProvider(data, keys),
         model: (data['agents.defaults.model'] || data['llm.defaults.model'] || 'deepseek-chat').trim(),
-        max_tokens: Number(data['agents.defaults.max_tokens']) || DEFAULT_AGENT_MAX_TOKENS,
+        max_output_tokens: Number(data['agents.defaults.max_output_tokens']) || DEFAULT_AGENT_MAX_OUTPUT_TOKENS,
+        max_input_tokens: Number(data['agents.defaults.max_input_tokens']) || DEFAULT_AGENT_MAX_INPUT_TOKENS,
         temperature: data['agents.defaults.temperature'] !== undefined
           ? Number(data['agents.defaults.temperature'])
-          : 0.3
+          : 0.3,
+        timeout: (data['agents.defaults.timeout'] || DEFAULT_AGENT_TIMEOUT).trim()
       }
       loopDefaults.value = parseLoopDefaults(data)
     } catch {
@@ -94,14 +96,18 @@ export function useAgentDefaults() {
     role: 'analyze',
     provider: agentDefaults.value.provider,
     model: agentDefaults.value.model,
-    max_tokens: agentDefaults.value.max_tokens,
+    max_output_tokens: agentDefaults.value.max_output_tokens,
+    max_input_tokens: agentDefaults.value.max_input_tokens,
     temperature: agentDefaults.value.temperature,
+    timeout: agentDefaults.value.timeout,
     system_prompt: '',
     user_template: '',
     status: 'active',
     repos: [],
     loop_config: { ...loopDefaults.value }
   })
+
+  const isLoopRole = (role) => role === 'coder'
 
   return {
     providers,
@@ -111,6 +117,7 @@ export function useAgentDefaults() {
     loadAgentConfig,
     effectiveProviderNames,
     createEmptyAgentForm,
+    isLoopRole,
     defaultLoopConfig: DEFAULT_LOOP_CONFIG
   }
 }

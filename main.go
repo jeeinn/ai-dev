@@ -84,6 +84,9 @@ func main() {
 	// Initialize config manager (DB overrides on top of file config)
 	cfgManager := config.NewConfigManager(cfg)
 	cfgManager.SetStore(db)
+	if err := cfgManager.MigrateLegacyConfigKeys(); err != nil {
+		log.Printf("[WARN] Failed to migrate legacy config keys: %v", err)
+	}
 	if err := cfgManager.ApplyDBOverrides(); err != nil {
 		log.Printf("[WARN] Failed to apply DB config overrides: %v", err)
 	}

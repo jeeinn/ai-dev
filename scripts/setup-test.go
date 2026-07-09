@@ -24,24 +24,24 @@ func main() {
 	defer db.Close()
 
 	// Insert analyze agent
-	_, err = db.Exec(`INSERT OR REPLACE INTO agents (id, name, gitea_username, gitea_token, provider, model, max_tokens, temperature, system_prompt, user_template, role, status)
-		VALUES (1, 'analyze-agent', 'analyze-agent', '4212aa8837d31af337504310a6f8de2390a52348', 'deepseek', 'deepseek-chat', 2048, 0.3, 'You are a helpful AI assistant.', '', 'analyze', 'active')`)
+	_, err = db.Exec(`INSERT OR REPLACE INTO agents (id, name, gitea_username, gitea_token, provider, model, max_output_tokens, max_input_tokens, temperature, timeout, system_prompt, user_template, role, status)
+		VALUES (1, 'analyze-agent', 'analyze-agent', '4212aa8837d31af337504310a6f8de2390a52348', 'deepseek', 'deepseek-chat', 2048, 8192, 0.3, '5m', 'You are a helpful AI assistant.', '', 'analyze', 'active')`)
 	if err != nil {
 		log.Fatalf("Failed to insert analyze agent: %v", err)
 	}
 	fmt.Println("Agent created: id=1 (analyze)")
 
 	// Insert coder agent
-	_, err = db.Exec(`INSERT OR REPLACE INTO agents (id, name, gitea_username, gitea_token, provider, model, max_tokens, temperature, system_prompt, user_template, role, status)
-		VALUES (2, 'coder-agent', 'coder-agent', '4212aa8837d31af337504310a6f8de2390a52348', 'deepseek', 'deepseek-chat', 4096, 0.3, 'You are a coding AI assistant.', '', 'coder', 'active')`)
+	_, err = db.Exec(`INSERT OR REPLACE INTO agents (id, name, gitea_username, gitea_token, provider, model, max_output_tokens, max_input_tokens, temperature, timeout, system_prompt, user_template, role, status)
+		VALUES (2, 'coder-agent', 'coder-agent', '4212aa8837d31af337504310a6f8de2390a52348', 'deepseek', 'deepseek-chat', 4096, 8192, 0.3, '5m', 'You are a coding AI assistant.', '', 'coder', 'active')`)
 	if err != nil {
 		log.Fatalf("Failed to insert coder agent: %v", err)
 	}
 	fmt.Println("Agent created: id=2 (coder)")
 
 	// Insert review agent
-	_, err = db.Exec(`INSERT OR REPLACE INTO agents (id, name, gitea_username, gitea_token, provider, model, max_tokens, temperature, system_prompt, user_template, role, status)
-		VALUES (3, 'review-agent', 'review-agent', '4212aa8837d31af337504310a6f8de2390a52348', 'deepseek', 'deepseek-chat', 4096, 0.3, 'You are a code review AI assistant.', '', 'review', 'active')`)
+	_, err = db.Exec(`INSERT OR REPLACE INTO agents (id, name, gitea_username, gitea_token, provider, model, max_output_tokens, max_input_tokens, temperature, timeout, system_prompt, user_template, role, status)
+		VALUES (3, 'review-agent', 'review-agent', '4212aa8837d31af337504310a6f8de2390a52348', 'deepseek', 'deepseek-chat', 4096, 8192, 0.3, '5m', 'You are a code review AI assistant.', '', 'review', 'active')`)
 	if err != nil {
 		log.Fatalf("Failed to insert review agent: %v", err)
 	}

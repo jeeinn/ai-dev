@@ -58,20 +58,21 @@ func NewTestEnv(t *testing.T) *TestEnv {
 			URL:        giteaMock.URL,
 			AdminToken: "test-admin-token",
 		},
-		Dispatcher: config.DispatcherConfig{
-			MaxConcurrent: 2,
-			Timeout:       30,
-			RetryCount:    0,
-			QueueSize:     10,
-		},
-		Agents: config.AgentsConfig{
-			Defaults: config.AgentDefaultsConfig{
-				Provider:    "mock",
-				Model:       "mock-model",
-				MaxTokens:   1024,
-				Temperature: 0.3,
+			Dispatcher: config.DispatcherConfig{
+				MaxConcurrent: 2,
+				RetryCount:    0,
+				QueueSize:     10,
 			},
-		},
+			Agents: config.AgentsConfig{
+				Defaults: config.AgentDefaultsConfig{
+					Provider:        "mock",
+					Model:           "mock-model",
+					MaxOutputTokens: 1024,
+					MaxInputTokens:  8192,
+					Temperature:     0.3,
+					Timeout:         "5m",
+				},
+			},
 		API: config.APIConfig{
 			AuthToken: "test-api-token",
 		},
@@ -190,17 +191,18 @@ func (e *TestEnv) SendWebhook(event, deliveryID string, payload interface{}) err
 func (e *TestEnv) CreateTestAgent(t *testing.T) *store.Agent {
 	t.Helper()
 
-	agent := &store.Agent{
-		Name:          "test-agent",
-		GiteaUsername: "ai-agent",
-		GiteaToken:    "test-gitea-token",
-		Provider:      "mock",
-		Model:         "mock-model",
-		MaxTokens:     1024,
-		Temperature:   0.3,
-		SystemPrompt:  "You are a helpful AI assistant.",
-		Status:        "active",
-	}
+		agent := &store.Agent{
+			Name:            "test-agent",
+			GiteaUsername:   "ai-agent",
+			GiteaToken:      "test-gitea-token",
+			Provider:        "mock",
+			Model:           "mock-model",
+			MaxOutputTokens: 1024,
+			MaxInputTokens:  8192,
+			Temperature:     0.3,
+			SystemPrompt:    "You are a helpful AI assistant.",
+			Status:          "active",
+		}
 
 	err := e.DB.CreateAgent(agent)
 	require.NoError(t, err)
@@ -230,18 +232,19 @@ func (e *TestEnv) EnableWorkflowV2(t *testing.T) *agents.Registry {
 func (e *TestEnv) CreateTestAgentWithRole(t *testing.T, name, username, role string) *store.Agent {
 	t.Helper()
 
-	agent := &store.Agent{
-		Name:          name,
-		GiteaUsername: username,
-		GiteaToken:    "test-gitea-token",
-		Provider:      "mock",
-		Model:         "mock-model",
-		MaxTokens:     1024,
-		Temperature:   0.3,
-		SystemPrompt:  "You are a helpful AI assistant.",
-		Role:          role,
-		Status:        "active",
-	}
+		agent := &store.Agent{
+			Name:            name,
+			GiteaUsername:   username,
+			GiteaToken:      "test-gitea-token",
+			Provider:        "mock",
+			Model:           "mock-model",
+			MaxOutputTokens: 1024,
+			MaxInputTokens:  8192,
+			Temperature:     0.3,
+			SystemPrompt:    "You are a helpful AI assistant.",
+			Role:            role,
+			Status:          "active",
+		}
 
 	err := e.DB.CreateAgent(agent)
 	require.NoError(t, err)

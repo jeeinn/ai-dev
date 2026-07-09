@@ -30,20 +30,22 @@ func NewManager(db *store.DB, cfg *config.GiteaConfig) *Manager {
 	}
 }
 
-// CreateAgentRequest is the payload for creating a new agent.
-type CreateAgentRequest struct {
-	Name          string                 `json:"name"`
-	GiteaUsername string                 `json:"gitea_username"`
-	Provider      string                 `json:"provider"`
-	Model         string                 `json:"model"`
-	MaxTokens     int                    `json:"max_tokens"`
-	Temperature   float64                `json:"temperature"`
-	SystemPrompt  string                 `json:"system_prompt"`
-	UserTemplate  string                 `json:"user_template"`
-	LoopConfig    *store.AgentLoopConfig `json:"loop_config,omitempty"`
-	Repos         []string               `json:"repos,omitempty"` // Repos to add as collaborator (e.g. ["owner/repo"])
-	Role          string                 `json:"role"`            // analyze | coder | review
-}
+	// CreateAgentRequest is the payload for creating a new agent.
+	type CreateAgentRequest struct {
+		Name            string                 `json:"name"`
+		GiteaUsername   string                 `json:"gitea_username"`
+		Provider        string                 `json:"provider"`
+		Model           string                 `json:"model"`
+		MaxOutputTokens int                    `json:"max_output_tokens"`
+		MaxInputTokens  int                    `json:"max_input_tokens"`
+		Temperature     float64                `json:"temperature"`
+		Timeout         string                 `json:"timeout"`
+		SystemPrompt    string                 `json:"system_prompt"`
+		UserTemplate    string                 `json:"user_template"`
+		LoopConfig      *store.AgentLoopConfig `json:"loop_config,omitempty"`
+		Repos           []string               `json:"repos,omitempty"` // Repos to add as collaborator (e.g. ["owner/repo"])
+		Role            string                 `json:"role"`            // analyze | coder | review
+	}
 
 // ReloadGitea updates the Gitea client after config changes.
 func (m *Manager) ReloadGitea(cfg *config.GiteaConfig) {
@@ -139,21 +141,23 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 	if role == "" {
 		role = store.RoleAnalyze
 	}
-	agent := &store.Agent{
-		Name:          req.Name,
-		GiteaUsername: req.GiteaUsername,
-		GiteaToken:    token,
-		Provider:      req.Provider,
-		Model:         req.Model,
-		MaxTokens:     req.MaxTokens,
-		Temperature:   req.Temperature,
-		SystemPrompt:  req.SystemPrompt,
-		UserTemplate:  req.UserTemplate,
-		LoopConfig:    req.LoopConfig,
-		Repos:         req.Repos,
-		Role:          role,
-		Status:        "active",
-	}
+		agent := &store.Agent{
+			Name:            req.Name,
+			GiteaUsername:   req.GiteaUsername,
+			GiteaToken:      token,
+			Provider:        req.Provider,
+			Model:           req.Model,
+			MaxOutputTokens: req.MaxOutputTokens,
+			MaxInputTokens:  req.MaxInputTokens,
+			Temperature:     req.Temperature,
+			Timeout:         req.Timeout,
+			SystemPrompt:    req.SystemPrompt,
+			UserTemplate:    req.UserTemplate,
+			LoopConfig:      req.LoopConfig,
+			Repos:           req.Repos,
+			Role:            role,
+			Status:          "active",
+		}
 	if err := m.db.CreateAgent(agent); err != nil {
 		return nil, fmt.Errorf("store agent: %w", err)
 	}

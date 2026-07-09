@@ -112,11 +112,19 @@
                 <el-option label="禁用" value="inactive" />
               </el-select>
             </el-form-item>
-            <el-form-item label="Max Tokens">
-              <el-input-number v-model="form.max_tokens" :min="256" :max="128000" :step="512" />
+            <el-divider content-position="left">LLM Token</el-divider>
+            <el-form-item label="最大输出 Tokens（每次调用）">
+              <el-input-number v-model="form.max_output_tokens" :min="256" :max="128000" :step="512" />
+            </el-form-item>
+            <el-form-item label="最大输入 Tokens">
+              <el-input-number v-model="form.max_input_tokens" :min="1024" :max="200000" :step="1024" />
+              <div class="form-tip">含 tools；估算为字符数/4</div>
             </el-form-item>
             <el-form-item label="Temperature">
               <el-slider v-model="form.temperature" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="单次任务超时">
+              <el-input v-model="form.timeout" placeholder="5m" style="width: 200px" />
             </el-form-item>
             <el-form-item label="User Template">
               <el-input v-model="form.user_template" type="textarea" :rows="3" placeholder="用户消息模板（可选）" />
@@ -124,19 +132,12 @@
             </el-form-item>
           </el-collapse-item>
 
-          <el-collapse-item title="Agent Loop 配置" name="loop">
+          <el-collapse-item v-if="form.role === 'coder'" title="Agent Loop 配置" name="loop">
             <el-form-item label="最大迭代轮数">
               <el-input-number v-model="form.loop_config.max_iterations" :min="1" :max="100" :step="1" />
               <span class="form-tip" style="margin-left: 12px">默认 20</span>
             </el-form-item>
-            <el-form-item label="最大 Tokens">
-              <el-input-number v-model="form.loop_config.max_tokens" :min="1024" :max="32768" :step="1024" />
-              <span class="form-tip" style="margin-left: 12px">默认 4096</span>
-            </el-form-item>
-            <el-form-item label="单轮超时">
-              <el-input v-model="form.loop_config.timeout" placeholder="5m" style="width: 200px" />
-            </el-form-item>
-            <el-form-item label="总超时">
+            <el-form-item label="Loop 总超时">
               <el-input v-model="form.loop_config.total_timeout" placeholder="30m" style="width: 200px" />
             </el-form-item>
             <el-form-item label="轮次间隔">

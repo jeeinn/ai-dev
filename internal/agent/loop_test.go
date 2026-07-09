@@ -34,7 +34,7 @@ func (p *countingProvider) ChatCompletion(ctx context.Context, req *llm.ChatRequ
 func TestAgentLoopIterationInterval(t *testing.T) {
 	provider := &countingProvider{}
 	registry := NewToolRegistry()
-	loop := NewAgentLoopWithConfig(provider, registry, "test-model", 1024, 0.3, config.AgentLoopConfig{
+	loop := NewAgentLoopWithConfig(provider, registry, "test-model", 1024, 8192, 0.3, config.AgentLoopConfig{
 		MaxIterations:     3,
 		IterationInterval: 1,
 	})

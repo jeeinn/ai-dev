@@ -624,12 +624,13 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		TaskType:   taskSubType,
 	}
 
-	var systemPrompt string
+	var basePrompt string
 	if taskSubType == "dev" {
-		systemPrompt = agentpkg.BuildDevPrompt(taskCtx, codeCtx)
+		basePrompt = agentpkg.BuildDevPrompt(taskCtx, codeCtx)
 	} else {
-		systemPrompt = agentpkg.BuildBugfixPrompt(taskCtx, codeCtx)
+		basePrompt = agentpkg.BuildBugfixPrompt(taskCtx, codeCtx)
 	}
+	systemPrompt := agentpkg.MergeAgentSystemPrompt(basePrompt, agentCfg.SystemPrompt)
 
 	// Create tool registry
 	toolRegistry := agentpkg.DefaultTools(sb)

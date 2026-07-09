@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Agent 对话持久化（调试）**: 新增 `task_conversation_logs` 表；系统配置「调试」页可开启 `debug.conversation_log.enabled`，将 Agent Loop 每轮 LLM 消息与 tool call 写入 SQLite（默认关闭）
+- **Dev/Bugfix 工具使用指引**: `BuildSolveToolPrompt()` 明确要求使用 `write_file`/`apply_diff` 实现变更、`run_command` 跑测试，并说明 Gateway 会自动 commit/push/PR
 
 ### Fixed
+- **DevRunner 忽略 WebUI system_prompt**: `runWriteTask` 在 `BuildDevPrompt`/`BuildBugfixPrompt` 基础上通过 `MergeAgentSystemPrompt` 合并 Agent 自定义指令（`## Agent-specific instructions` 段落）
 - **Dev 任务 Git 操作**: session 复用 workspace 时 checkout 使用仓库 `default_branch` 而非硬编码 `main`；clone 使用 Agent Token 认证 URL；`git fetch`/`pull` 失败时立即终止任务并回写失败评论
 - **Session 复用 fetch 失败**: 移除 `git remote set-branches --add` 对 `.git/config` 的污染；本地-only 分支跳过远程 fetch，改用一次性 refspec fetch；session 复用前重置 branch-specific fetch refspec；创建分支时立即持久化 `session.Branch`
 - **沙箱工具跨平台**: `list_files` / `tree` / `search_code` 在 Windows 走 PowerShell，在 Unix 走 `find`/`grep`；`run_command` 在 Windows 用 `cmd /C`，Unix 用 `sh -c`；修复 Windows 上 Agent Loop 因无 `find`/`sh` 空转耗尽迭代的问题

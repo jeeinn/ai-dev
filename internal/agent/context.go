@@ -147,6 +147,32 @@ type TaskContext struct {
 	TaskType   string
 }
 
+// BuildSolveToolPrompt returns explicit tool-use instructions for solve-type tasks.
+func BuildSolveToolPrompt() string {
+	return `## Tool-use requirements
+
+You MUST implement changes using tools — do not stop at analysis-only responses.
+
+- Use write_file or apply_diff to modify source code
+- Use read_file, list_files, and search_code to explore the codebase
+- Run tests with run_command when applicable (e.g. go test, npm test)
+- The gateway automatically commits, pushes, and opens a PR when git detects changes
+- Prioritize delivering working code changes within your iteration budget; avoid lengthy analysis-only final messages`
+}
+
+// MergeAgentSystemPrompt appends WebUI agent instructions to a base task prompt.
+func MergeAgentSystemPrompt(basePrompt, agentSystemPrompt string) string {
+	agentSystemPrompt = strings.TrimSpace(agentSystemPrompt)
+	if agentSystemPrompt == "" {
+		return basePrompt
+	}
+	var sb strings.Builder
+	sb.WriteString(basePrompt)
+	sb.WriteString("\n\n## Agent-specific instructions\n\n")
+	sb.WriteString(agentSystemPrompt)
+	return sb.String()
+}
+
 // BuildDevPrompt builds the prompt for development tasks.
 func BuildDevPrompt(task TaskContext, codeCtx *CodeContext) string {
 	var sb strings.Builder
@@ -168,6 +194,8 @@ func BuildDevPrompt(task TaskContext, codeCtx *CodeContext) string {
 	sb.WriteString("3. Write code that integrates seamlessly\n")
 	sb.WriteString("4. Use the available tools to read, write, and test code\n")
 	sb.WriteString("5. Run tests to verify your changes work correctly\n")
+	sb.WriteString("\n\n")
+	sb.WriteString(BuildSolveToolPrompt())
 
 	return sb.String()
 }
@@ -194,6 +222,8 @@ func BuildBugfixPrompt(task TaskContext, codeCtx *CodeContext) string {
 	sb.WriteString("4. Implement a minimal fix\n")
 	sb.WriteString("5. Run tests to verify the fix works\n")
 	sb.WriteString("6. Ensure no regressions are introduced\n")
+	sb.WriteString("\n\n")
+	sb.WriteString(BuildSolveToolPrompt())
 
 	return sb.String()
 }

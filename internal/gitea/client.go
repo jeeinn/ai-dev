@@ -29,13 +29,13 @@ func NewClient(baseURL, token string) *Client {
 	}
 }
 
-func (c *Client) do(method, path string, body interface{}) ([]byte, error) {
+func (c *Client) doWithStatus(method, path string, body interface{}) ([]byte, int, error) {
 	var reqBody []byte
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
 		if err != nil {
-			return nil, fmt.Errorf("marshal body: %w", err)
+			return nil, 0, fmt.Errorf("marshal body: %w", err)
 		}
 		reqBody = data
 		bodyReader = bytes.NewReader(data)
@@ -43,13 +43,17 @@ func (c *Client) do(method, path string, body interface{}) ([]byte, error) {
 
 	req, err := http.NewRequest(method, c.BaseURL+"/api/v1"+path, bodyReader)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, 0, fmt.Errorf("create request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "token "+c.Token)
 	req.Header.Set("Content-Type", "application/json")
 
-	respBody, status, err := c.execute(req, reqBody)
+	return c.execute(req, reqBody)
+}
+
+func (c *Client) do(method, path string, body interface{}) ([]byte, error) {
+	respBody, status, err := c.doWithStatus(method, path, body)
 	if err != nil {
 		return nil, err
 	}

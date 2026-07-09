@@ -31,6 +31,49 @@ type TokenResponse struct {
 	SHA1 string `json:"sha1"`
 }
 
+// GetUser looks up a Gitea user by login name. Returns nil if the user does not exist.
+func (c *Client) GetUser(username string) (*UserResponse, error) {
+	body, status, err := c.doWithStatus("GET", fmt.Sprintf("/users/%s", username), nil)
+	if err != nil {
+		return nil, err
+	}
+	if status == http.StatusNotFound {
+		return nil, nil
+	}
+	if status >= 400 {
+		return nil, fmt.Errorf("API error %d: %s", status, string(body))
+	}
+
+	var user UserResponse
+	if err := json.Unmarshal(body, &user); err != nil {
+		return nil, fmt.Errorf("unmarshal user: %w", err)
+	}
+	return &user, nil
+}
+
+// ValidateUserToken checks whether a token is valid for the given username on this Gitea instance.
+func (c *Client) ValidateUserToken(username, token string) bool {
+	if username == "" || token == "" {
+		return false
+	}
+	client := NewClient(c.BaseURL, token)
+	user, err := client.GetCurrentUser()
+	return err == nil && user != nil && user.Login == username
+}
+
+// AdminUpdateUserPassword resets a user's password via the Admin API.
+func (c *Client) AdminUpdateUserPassword(username, password string) error {
+	_, err := c.do("PATCH", fmt.Sprintf("/admin/users/%s", username), map[string]interface{}{
+		"login_name":           username,
+		"password":             password,
+		"must_change_password": false,
+	})
+	if err != nil {
+		return fmt.Errorf("admin update user password: %w", err)
+	}
+	return nil
+}
+
 // AdminCreateUser creates a new user via the Admin API.
 func (c *Client) AdminCreateUser(req CreateUserRequest) (*UserResponse, error) {
 	body, err := c.do("POST", "/admin/users", req)

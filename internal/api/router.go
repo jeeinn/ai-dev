@@ -441,7 +441,7 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 		agent.LoopConfig = req.LoopConfig
 	}
 	agent.ID = id
-	if err := h.db.UpdateAgent(agent); err != nil {
+	if err := h.manager.UpdateAgent(agent); err != nil {
 		writeError(w, 500, err.Error())
 		return
 	}

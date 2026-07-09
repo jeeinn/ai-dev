@@ -138,9 +138,9 @@ func (db *DB) UpdateAgent(a *Agent) error {
 		reposJSON = string(data)
 	}
 
-	_, err := db.Exec(`UPDATE agents SET name=?, provider=?, model=?, max_tokens=?, temperature=?, system_prompt=?, user_template=?, loop_config=?, repos=?, role=?, status=?, avatar_url=?, updated_at=CURRENT_TIMESTAMP
+	_, err := db.Exec(`UPDATE agents SET name=?, provider=?, model=?, max_tokens=?, temperature=?, system_prompt=?, user_template=?, loop_config=?, repos=?, role=?, status=?, avatar_url=?, gitea_token=?, updated_at=CURRENT_TIMESTAMP
 		WHERE id=?`,
-		a.Name, a.Provider, a.Model, a.MaxTokens, a.Temperature, a.SystemPrompt, a.UserTemplate, loopConfigJSON, reposJSON, a.Role, a.Status, a.AvatarURL, a.ID)
+		a.Name, a.Provider, a.Model, a.MaxTokens, a.Temperature, a.SystemPrompt, a.UserTemplate, loopConfigJSON, reposJSON, a.Role, a.Status, a.AvatarURL, a.GiteaToken, a.ID)
 	if err != nil {
 		return fmt.Errorf("update agent: %w", err)
 	}

@@ -12,6 +12,8 @@ import (
 	"gitea-agent-gateway/internal/store"
 )
 
+const agentTokenName = "gateway-agent"
+
 // Manager handles agent lifecycle (create, update, delete) and Gitea account registration.
 type Manager struct {
 	db    *store.DB
@@ -80,32 +82,59 @@ func splitRepo(fullName string) []string {
 	return parts
 }
 
+// EnsureGiteaAccount ensures the agent user exists on the current Gitea instance
+// and returns a valid API token. It creates the user when missing, or refreshes
+// the token when the stored token is invalid (e.g. after switching Gitea URL).
+func (m *Manager) EnsureGiteaAccount(username, currentToken string) (token string, userCreated bool, err error) {
+	if strings.TrimSpace(username) == "" {
+		return "", false, fmt.Errorf("gitea username is empty")
+	}
+
+	user, err := m.gitea.GetUser(username)
+	if err != nil {
+		return "", false, fmt.Errorf("lookup gitea user: %w", err)
+	}
+
+	if user != nil && m.gitea.ValidateUserToken(username, currentToken) {
+		return currentToken, false, nil
+	}
+
+	password := generatePassword()
+	if user == nil {
+		if _, err := m.gitea.AdminCreateUser(gitea.CreateUserRequest{
+			LoginName:          username,
+			Username:           username,
+			Email:              username + "@gateway.local",
+			Password:           password,
+			SendNotify:         false,
+			MustChangePassword: false,
+		}); err != nil {
+			return "", false, fmt.Errorf("create gitea user: %w", err)
+		}
+		userCreated = true
+		log.Printf("[INFO] Created Gitea user: %s", username)
+	} else {
+		if err := m.gitea.AdminUpdateUserPassword(username, password); err != nil {
+			return "", false, fmt.Errorf("reset gitea user password: %w", err)
+		}
+		log.Printf("[INFO] Refreshed Gitea credentials for existing user: %s", username)
+	}
+
+	tokenResp, err := m.gitea.CreateTokenWithCredentials(username, password, agentTokenName)
+	if err != nil {
+		return "", userCreated, fmt.Errorf("create gitea token: %w", err)
+	}
+	log.Printf("[INFO] Created Gitea token for: %s", username)
+	return tokenResp.SHA1, userCreated, nil
+}
+
 // CreateAgent registers a new agent with Gitea account and stores it in DB.
 func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
-	// 1. Create Gitea user
-	password := generatePassword()
-	_, err := m.gitea.AdminCreateUser(gitea.CreateUserRequest{
-		LoginName:          req.GiteaUsername,
-		Username:           req.GiteaUsername,
-		Email:              req.GiteaUsername + "@gateway.local",
-		Password:           password,
-		SendNotify:         false,
-		MustChangePassword: false,
-	})
+	token, _, err := m.EnsureGiteaAccount(req.GiteaUsername, "")
 	if err != nil {
-		return nil, fmt.Errorf("create gitea user: %w", err)
+		return nil, err
 	}
-	log.Printf("[INFO] Created Gitea user: %s", req.GiteaUsername)
 
-	// 2. Generate API token using user's own credentials
-	// Note: Gitea 1.26+ requires using user's own credentials to create tokens
-	token, err := m.gitea.CreateTokenWithCredentials(req.GiteaUsername, password, "gateway-agent")
-	if err != nil {
-		return nil, fmt.Errorf("create gitea token: %w", err)
-	}
-	log.Printf("[INFO] Created Gitea token for: %s", req.GiteaUsername)
-
-	// 3. Store in DB
 	role := req.Role
 	if role == "" {
 		role = store.RoleAnalyze
@@ -113,7 +142,7 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 	agent := &store.Agent{
 		Name:          req.Name,
 		GiteaUsername: req.GiteaUsername,
-		GiteaToken:    token.SHA1,
+		GiteaToken:    token,
 		Provider:      req.Provider,
 		Model:         req.Model,
 		MaxTokens:     req.MaxTokens,
@@ -121,6 +150,7 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 		SystemPrompt:  req.SystemPrompt,
 		UserTemplate:  req.UserTemplate,
 		LoopConfig:    req.LoopConfig,
+		Repos:         req.Repos,
 		Role:          role,
 		Status:        "active",
 	}
@@ -132,8 +162,18 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 	return agent, nil
 }
 
-// UpdateAgent updates an agent's configuration (not Gitea account).
+// UpdateAgent updates an agent's configuration and ensures its Gitea account exists.
 func (m *Manager) UpdateAgent(agent *store.Agent) error {
+	token, userCreated, err := m.EnsureGiteaAccount(agent.GiteaUsername, agent.GiteaToken)
+	if err != nil {
+		return err
+	}
+	if token != agent.GiteaToken {
+		agent.GiteaToken = token
+	}
+	if userCreated {
+		log.Printf("[INFO] Provisioned Gitea user for agent id=%d username=%s", agent.ID, agent.GiteaUsername)
+	}
 	return m.db.UpdateAgent(agent)
 }
 

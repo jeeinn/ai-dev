@@ -71,6 +71,12 @@ llm:
   # 单次 ChatCompletion 遇 HTTP 429 后的重试次数（需 rate_limit_backoff > 0）
   rate_limit_retries: 1
 
+# 调试选项（默认关闭）
+debug:
+  conversation_log:
+    enabled: false
+    max_content_chars: 100000   # 单条 message 写入前截断；0 = 不截断
+
 # API 管理接口配置
 api:
   # 管理 API 认证 Token（留空则不认证）

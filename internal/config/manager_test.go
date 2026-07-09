@@ -116,3 +116,29 @@ func TestGetDisplayMapTreatsEmptyDBValueAsUnset(t *testing.T) {
 	sources := meta["sources"].(map[string]string)
 	assert.Equal(t, "file", sources["gitea.url"])
 }
+
+func TestDebugConversationLogConfigRoundTrip(t *testing.T) {
+	fileCfg := &Config{
+		Debug: DebugConfig{ConversationLog: DefaultConversationLogConfig()},
+		LLM: LLMConfig{
+			Defaults: LLMDefaultsConfig{Provider: "deepseek", Model: "deepseek-chat"},
+		},
+		Dispatcher: DispatcherConfig{MaxConcurrent: 2, TaskRetryCount: 1},
+		Agents: AgentsConfig{
+			Defaults: DefaultAgentDefaults(),
+			Loop:     DefaultAgentLoopConfig(),
+		},
+	}
+
+	m := NewConfigManager(fileCfg)
+	m.SetStore(&mockConfigStore{data: map[string]string{}})
+
+	require.NoError(t, m.Update("debug.conversation_log.enabled", "true"))
+	require.NoError(t, m.Update("debug.conversation_log.max_content_chars", "5000"))
+
+	display, err := m.GetDisplayMap()
+	require.NoError(t, err)
+	assert.Equal(t, true, display["debug.conversation_log.enabled"])
+	assert.Equal(t, 5000, display["debug.conversation_log.max_content_chars"])
+	assert.True(t, m.Get().Debug.ConversationLog.Enabled)
+}

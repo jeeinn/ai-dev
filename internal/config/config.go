@@ -119,4 +119,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.Auth.DefaultAdminPassword == "" {
 		cfg.Auth.DefaultAdminPassword = "admin123"
 	}
+	if cfg.Debug.ConversationLog.MaxContentChars == 0 && !cfg.Debug.ConversationLog.Enabled {
+		cfg.Debug.ConversationLog = DefaultConversationLogConfig()
+	} else if cfg.Debug.ConversationLog.MaxContentChars == 0 {
+		cfg.Debug.ConversationLog.MaxContentChars = DefaultConversationLogConfig().MaxContentChars
+	}
 }

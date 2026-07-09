@@ -276,6 +276,8 @@ func (m *ConfigManager) getActiveMap() map[string]interface{} {
 		"agents.loop.max_iterations":      cfg.Agents.Loop.MaxIterations,
 		"agents.loop.total_timeout":       cfg.Agents.Loop.TotalTimeout,
 		"agents.loop.iteration_interval":  cfg.Agents.Loop.IterationInterval,
+		"debug.conversation_log.enabled":          cfg.Debug.ConversationLog.Enabled,
+		"debug.conversation_log.max_content_chars": cfg.Debug.ConversationLog.MaxContentChars,
 	}
 }
 
@@ -299,6 +301,8 @@ var configKeys = []string{
 	"agents.loop.max_iterations",
 	"agents.loop.total_timeout",
 	"agents.loop.iteration_interval",
+	"debug.conversation_log.enabled",
+	"debug.conversation_log.max_content_chars",
 }
 
 func parseConfigValue(key, value string) (interface{}, error) {
@@ -306,7 +310,8 @@ func parseConfigValue(key, value string) (interface{}, error) {
 	case "dispatcher.max_concurrent", "dispatcher.task_retry_count", "dispatcher.rate_limit_backoff",
 		"llm.rate_limit_retries",
 		"agents.defaults.max_output_tokens", "agents.defaults.max_input_tokens",
-		"agents.loop.max_iterations", "agents.loop.iteration_interval":
+		"agents.loop.max_iterations", "agents.loop.iteration_interval",
+		"debug.conversation_log.max_content_chars":
 		n, err := strconv.Atoi(value)
 		if err != nil {
 			return nil, fmt.Errorf("not a number: %s", value)
@@ -318,6 +323,12 @@ func parseConfigValue(key, value string) (interface{}, error) {
 			return nil, fmt.Errorf("not a float: %s", value)
 		}
 		return f, nil
+	case "debug.conversation_log.enabled":
+		b, err := parseBoolValue(value)
+		if err != nil {
+			return nil, err
+		}
+		return b, nil
 	case "llm.providers":
 		var providers map[string]ProviderConfig
 		if err := json.Unmarshal([]byte(value), &providers); err != nil {
@@ -369,6 +380,10 @@ func getConfigValueTyped(cfg *Config, key string) interface{} {
 		return cfg.Agents.Loop.TotalTimeout
 	case "agents.loop.iteration_interval":
 		return cfg.Agents.Loop.IterationInterval
+	case "debug.conversation_log.enabled":
+		return cfg.Debug.ConversationLog.Enabled
+	case "debug.conversation_log.max_content_chars":
+		return cfg.Debug.ConversationLog.MaxContentChars
 	default:
 		return ""
 	}
@@ -460,6 +475,18 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 			return fmt.Errorf("not a number: %s", value)
 		}
 		cfg.Agents.Loop.IterationInterval = n
+	case "debug.conversation_log.enabled":
+		b, err := parseBoolValue(value)
+		if err != nil {
+			return fmt.Errorf("not a boolean: %s", value)
+		}
+		cfg.Debug.ConversationLog.Enabled = b
+	case "debug.conversation_log.max_content_chars":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("not a number: %s", value)
+		}
+		cfg.Debug.ConversationLog.MaxContentChars = n
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}
@@ -518,6 +545,10 @@ func getConfigEntry(cfg *Config, key string) string {
 		return cfg.Agents.Loop.TotalTimeout
 	case "agents.loop.iteration_interval":
 		return strconv.Itoa(cfg.Agents.Loop.IterationInterval)
+	case "debug.conversation_log.enabled":
+		return strconv.FormatBool(cfg.Debug.ConversationLog.Enabled)
+	case "debug.conversation_log.max_content_chars":
+		return strconv.Itoa(cfg.Debug.ConversationLog.MaxContentChars)
 	default:
 		return ""
 	}
@@ -540,4 +571,15 @@ func copyConfig(src *Config) *Config {
 		}
 	}
 	return &dst
+}
+
+func parseBoolValue(value string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true, nil
+	case "0", "false", "no", "off", "":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid boolean: %s", value)
+	}
 }

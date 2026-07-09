@@ -14,6 +14,26 @@ type Config struct {
 	Agents     AgentsConfig     `yaml:"agents"`
 	Workflow   WorkflowConfig   `yaml:"workflow"`
 	Session    SessionConfig    `yaml:"session"`
+	Debug      DebugConfig      `yaml:"debug"`
+}
+
+// DebugConfig contains optional debug/diagnostic settings (default off).
+type DebugConfig struct {
+	ConversationLog ConversationLogConfig `yaml:"conversation_log"`
+}
+
+// ConversationLogConfig persists Agent Loop LLM messages to SQLite when enabled.
+type ConversationLogConfig struct {
+	Enabled         bool `yaml:"enabled"`
+	MaxContentChars int  `yaml:"max_content_chars"` // 0 = no truncation
+}
+
+// DefaultConversationLogConfig returns default conversation log settings.
+func DefaultConversationLogConfig() ConversationLogConfig {
+	return ConversationLogConfig{
+		Enabled:         false,
+		MaxContentChars: 100000,
+	}
 }
 
 // WorkflowConfig contains workflow policy configuration.

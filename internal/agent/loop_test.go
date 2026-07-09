@@ -52,3 +52,43 @@ func TestAgentLoopIterationInterval(t *testing.T) {
 		t.Fatalf("expected at least 2s delay between iterations, got %v", elapsed)
 	}
 }
+
+type recordingRecorder struct {
+	calls []recordCall
+}
+
+type recordCall struct {
+	iteration int
+	messages  int
+	hasFinal  bool
+}
+
+func (r *recordingRecorder) RecordIteration(taskID int64, iteration int, messages []llm.Message, finalAssistant *llm.ChatResponse) error {
+	r.calls = append(r.calls, recordCall{
+		iteration: iteration,
+		messages:  len(messages),
+		hasFinal:  finalAssistant != nil,
+	})
+	return nil
+}
+
+func TestAgentLoopPersistsIterations(t *testing.T) {
+	provider := &countingProvider{}
+	registry := NewToolRegistry()
+	recorder := &recordingRecorder{}
+	loop := NewAgentLoopWithConfig(provider, registry, "test-model", 1024, 8192, 0.3, config.AgentLoopConfig{
+		MaxIterations: 3,
+	})
+	loop.SetConversationRecorder(recorder, 42)
+
+	_, err := loop.Run(context.Background(), []llm.Message{{Role: "user", Content: "go"}})
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+	if len(recorder.calls) != 3 {
+		t.Fatalf("expected 3 recorded iterations, got %d", len(recorder.calls))
+	}
+	if !recorder.calls[2].hasFinal {
+		t.Fatalf("expected final iteration to include assistant response")
+	}
+}

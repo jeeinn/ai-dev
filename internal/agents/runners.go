@@ -54,10 +54,11 @@ type RunnerFactory struct {
 	defaultTemp      float64
 	defaultTimeout   string
 	defaultLoop      config.AgentLoopConfig
+	getDebugConfig   func() config.DebugConfig
 }
 
 // NewRunnerFactory creates a new RunnerFactory from agent defaults and loop config.
-func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig) *RunnerFactory {
+func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig) *RunnerFactory {
 	maxOut := defaults.MaxOutputTokens
 	if maxOut <= 0 {
 		maxOut = fallbackMaxOutput
@@ -87,6 +88,7 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 		defaultTemp:      temp,
 		defaultTimeout:   timeout,
 		defaultLoop:      defaultLoop,
+		getDebugConfig:   getDebugConfig,
 	}
 }
 
@@ -589,6 +591,16 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		factory.resolveTemperature(agentCfg.Temperature),
 		mergedLoop,
 	)
+
+	if factory.getDebugConfig != nil {
+		debugCfg := factory.getDebugConfig()
+		if debugCfg.ConversationLog.Enabled && factory.db != nil {
+			loop.SetConversationRecorder(
+				newConversationRecorder(factory.db, debugCfg.ConversationLog.MaxContentChars),
+				task.ID,
+			)
+		}
+	}
 
 	// Run agent loop
 	messages := []llm.Message{

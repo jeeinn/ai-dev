@@ -82,9 +82,16 @@ func NewDispatcher(
 	}
 
 	// Wire up Gitea client factory for result writeback
-	executor.SetGiteaClientFactory(d)
+	executor.SetGiteaClientFactory(d, nil)
 
 	return d
+}
+
+// SetDebugConfigGetter supplies live debug settings for conversation logging.
+func (d *Dispatcher) SetDebugConfigGetter(getter func() config.DebugConfig) {
+	if d.executor != nil && d.executor.giteaFactory != nil {
+		d.executor.SetGiteaClientFactory(d.executor.giteaFactory, getter)
+	}
 }
 
 func resolveDefaultLoop(agentsCfg *config.AgentsConfig) config.AgentLoopConfig {

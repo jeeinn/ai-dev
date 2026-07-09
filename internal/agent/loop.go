@@ -24,6 +24,8 @@ type AgentLoop struct {
 	temperature       float64
 	maxIterations     int
 	iterationInterval time.Duration
+	recorder          ConversationRecorder
+	taskID            int64
 }
 
 // NewAgentLoop creates a new AgentLoop with default iteration settings.
@@ -72,6 +74,12 @@ func (a *AgentLoop) SetMaxIterations(n int) {
 	a.maxIterations = n
 }
 
+// SetConversationRecorder enables per-iteration conversation persistence for a task.
+func (a *AgentLoop) SetConversationRecorder(recorder ConversationRecorder, taskID int64) {
+	a.recorder = recorder
+	a.taskID = taskID
+}
+
 // Run executes the agent loop with the given messages.
 // Returns the final assistant message content.
 func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, error) {
@@ -94,6 +102,8 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 		}
 
 		logging.Debugf("Agent loop iteration %d/%d", i+1, a.maxIterations)
+
+		msgStart := len(messages)
 
 		trimmed, err := TruncateMessages(messages, tools, a.maxInputTokens)
 		if err != nil {
@@ -122,6 +132,7 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 		}
 
 		if len(resp.ToolCalls) == 0 {
+			a.persistIteration(i+1, messages[msgStart:], resp)
 			return resp.Content, nil
 		}
 
@@ -147,9 +158,23 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 				ToolCallID: call.ID,
 			})
 		}
+
+		a.persistIteration(i+1, messages[msgStart:], nil)
 	}
 
 	return "", fmt.Errorf("max iterations (%d) reached", a.maxIterations)
+}
+
+func (a *AgentLoop) persistIteration(iteration int, delta []llm.Message, finalAssistant *llm.ChatResponse) {
+	if a.recorder == nil || a.taskID <= 0 {
+		return
+	}
+	if len(delta) == 0 && finalAssistant == nil {
+		return
+	}
+	if err := a.recorder.RecordIteration(a.taskID, iteration, delta, finalAssistant); err != nil {
+		logging.Warnf("Failed to persist conversation log (task=%d iter=%d): %v", a.taskID, iteration, err)
+	}
 }
 
 func truncateForLog(s string, maxRunes int) string {

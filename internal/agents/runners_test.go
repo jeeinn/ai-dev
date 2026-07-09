@@ -38,7 +38,7 @@ func (m *mockGiteaFactory) GetAdminGiteaClient() *gitea.Client {
 }
 
 func TestRunnerFactoryGetRunner(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig())
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil)
 
 	tests := []struct {
 		taskType string
@@ -66,7 +66,7 @@ func TestAnalyzeRunnerRun(t *testing.T) {
 	registry.Register("mock", &mockProvider{response: "Analysis result"})
 
 	factory := &mockGiteaFactory{}
-	runnerFactory := NewRunnerFactory(registry, factory, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig())
+	runnerFactory := NewRunnerFactory(registry, factory, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil)
 	runner := NewAnalyzeRunner(runnerFactory)
 
 	task := &store.Task{

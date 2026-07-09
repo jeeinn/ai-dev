@@ -83,9 +83,9 @@ func (e *Executor) SetOnFailed(cb TaskFailedCallback) {
 }
 
 // SetGiteaClientFactory sets the factory for creating Gitea clients.
-func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory) {
+func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory, getDebugConfig func() config.DebugConfig) {
 	e.giteaFactory = factory
-	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.agentDefaults, e.defaultLoop)
+	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.agentDefaults, e.defaultLoop, getDebugConfig)
 }
 
 // Start begins the executor workers.

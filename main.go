@@ -105,6 +105,9 @@ func main() {
 
 	// Initialize dispatcher (Router + TaskQueue + Executor)
 	d := dispatcher.NewDispatcher(db, &activeCfg.Gitea, &activeCfg.Dispatcher, llmRegistry, &activeCfg.Agents)
+	d.SetDebugConfigGetter(func() config.DebugConfig {
+		return cfgManager.Get().Debug
+	})
 
 	// Initialize v2 workflow components
 	registry := agents.NewRegistry()

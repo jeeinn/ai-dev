@@ -209,3 +209,93 @@ func TestApplyTransition(t *testing.T) {
 	assert.Equal(t, store.RoleAnalyze, got.ActiveRole)
 	assert.Equal(t, "sess-apply", got.SessionID)
 }
+
+func TestOnTaskFailedAnalyzeFromIdle(t *testing.T) {
+	db := newTestDB(t)
+	mgr := NewWorkflowManager(db)
+
+	ctx, err := db.GetOrCreateWorkflowContext("owner/repo", 20)
+	require.NoError(t, err)
+
+	agent := &store.Agent{Name: "analyzer", GiteaUsername: "analyzer", GiteaToken: "t", Role: store.RoleAnalyze, Status: "active"}
+	require.NoError(t, db.CreateAgent(agent))
+
+	result := mgr.Transition(ctx, store.RoleAnalyze)
+	require.True(t, result.Allowed)
+	require.NoError(t, mgr.ApplyTransition(ctx, result, agent.ID, store.RoleAnalyze, "sess-fail"))
+
+	got, err := db.GetWorkflowContext("owner/repo", 20)
+	require.NoError(t, err)
+	assert.Equal(t, store.StageAnalyzing, got.Stage)
+	assert.Equal(t, store.StageIdle, got.PreviousStage)
+
+	require.NoError(t, mgr.OnTaskFailed(got, "analyze_issue"))
+
+	got, err = db.GetWorkflowContext("owner/repo", 20)
+	require.NoError(t, err)
+	assert.Equal(t, store.StageIdle, got.Stage)
+	assert.Equal(t, "", got.PreviousStage)
+	assert.Equal(t, int64(0), got.ActiveAgentID)
+}
+
+func TestOnTaskFailedAnalyzeFromAnalyzed(t *testing.T) {
+	db := newTestDB(t)
+	mgr := NewWorkflowManager(db)
+
+	ctx, err := db.GetOrCreateWorkflowContext("owner/repo", 21)
+	require.NoError(t, err)
+	ctx.Stage = store.StageAnalyzed
+	require.NoError(t, db.UpdateWorkflowContext(ctx))
+
+	agent := &store.Agent{Name: "analyzer", GiteaUsername: "analyzer", GiteaToken: "t", Role: store.RoleAnalyze, Status: "active"}
+	require.NoError(t, db.CreateAgent(agent))
+
+	result := mgr.Transition(ctx, store.RoleAnalyze)
+	require.True(t, result.Allowed)
+	require.NoError(t, mgr.ApplyTransition(ctx, result, agent.ID, store.RoleAnalyze, "sess-fail2"))
+
+	require.NoError(t, mgr.OnTaskFailed(ctx, "analyze_issue"))
+
+	got, err := db.GetWorkflowContext("owner/repo", 21)
+	require.NoError(t, err)
+	assert.Equal(t, store.StageAnalyzed, got.Stage)
+}
+
+func TestOnTaskFailedAnalyzeFromDeveloping(t *testing.T) {
+	db := newTestDB(t)
+	mgr := NewWorkflowManager(db)
+
+	ctx, err := db.GetOrCreateWorkflowContext("owner/repo", 22)
+	require.NoError(t, err)
+	ctx.Stage = store.StageDeveloping
+	require.NoError(t, db.UpdateWorkflowContext(ctx))
+
+	agent := &store.Agent{Name: "analyzer", GiteaUsername: "analyzer", GiteaToken: "t", Role: store.RoleAnalyze, Status: "active"}
+	require.NoError(t, db.CreateAgent(agent))
+
+	result := mgr.Transition(ctx, store.RoleAnalyze)
+	require.True(t, result.Allowed)
+	require.NoError(t, mgr.ApplyTransition(ctx, result, agent.ID, store.RoleAnalyze, "sess-fail3"))
+
+	require.NoError(t, mgr.OnTaskFailed(ctx, "analyze_issue"))
+
+	got, err := db.GetWorkflowContext("owner/repo", 22)
+	require.NoError(t, err)
+	assert.Equal(t, store.StageDeveloping, got.Stage)
+}
+
+func TestOnTaskFailedSolveIssueNoStageChange(t *testing.T) {
+	db := newTestDB(t)
+	mgr := NewWorkflowManager(db)
+
+	ctx, err := db.GetOrCreateWorkflowContext("owner/repo", 23)
+	require.NoError(t, err)
+	ctx.Stage = store.StageDeveloping
+	require.NoError(t, db.UpdateWorkflowContext(ctx))
+
+	require.NoError(t, mgr.OnTaskFailed(ctx, "solve_issue"))
+
+	got, err := db.GetWorkflowContext("owner/repo", 23)
+	require.NoError(t, err)
+	assert.Equal(t, store.StageDeveloping, got.Stage)
+}

@@ -194,6 +194,7 @@ func (db *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN session_id TEXT DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN role TEXT DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN pr_id INTEGER NOT NULL DEFAULT 0`, // P0: PR number for review_pr tasks
+		`ALTER TABLE workflow_contexts ADD COLUMN previous_stage TEXT DEFAULT ''`,
 		`DROP TABLE IF EXISTS routes`, // v2: routes table removed (Assign model replaces Label trigger)
 	}
 

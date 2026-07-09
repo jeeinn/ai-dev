@@ -118,9 +118,23 @@ func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *
 		}
 		// L3 notification (if policy configured)
 		d.postL3Notification(task)
-		// Release in-flight lock
-		lockKey := fmt.Sprintf("%s#%d", task.Repo, task.IssueID)
-		d.inFlight.Delete(lockKey)
+		d.releaseIssueLock(task.Repo, task.IssueID)
+	})
+
+	// Wire task failure callback: rollback workflow stage + release in-flight lock
+	d.executor.SetOnFailed(func(task *store.Task) {
+		if task == nil {
+			return
+		}
+		if wfMgr != nil {
+			ctx, err := d.db.GetWorkflowContext(task.Repo, task.IssueID)
+			if err != nil {
+				log.Printf("[WARN] Failed to get workflow context for task %d failure: %v", task.ID, err)
+			} else if err := wfMgr.OnTaskFailed(ctx, task.TaskType); err != nil {
+				log.Printf("[WARN] Failed to rollback workflow context after task %d: %v", task.ID, err)
+			}
+		}
+		d.releaseIssueLock(task.Repo, task.IssueID)
 	})
 }
 
@@ -355,6 +369,7 @@ func (d *Dispatcher) resetIssue(repo string, issueID int) {
 	ctx, err := d.db.GetWorkflowContext(repo, issueID)
 	if err == nil {
 		ctx.Stage = store.StageIdle
+		ctx.PreviousStage = ""
 		ctx.ActiveAgentID = 0
 		ctx.ActiveRole = ""
 		ctx.SessionID = ""
@@ -362,10 +377,14 @@ func (d *Dispatcher) resetIssue(repo string, issueID int) {
 	}
 
 	// Release in-flight lock
-	lockKey := fmt.Sprintf("%s#%d", repo, issueID)
-	d.inFlight.Delete(lockKey)
+	d.releaseIssueLock(repo, issueID)
 
 	log.Printf("[INFO] Reset %s#%d: sessions archived, context=idle", repo, issueID)
+}
+
+func (d *Dispatcher) releaseIssueLock(repo string, issueID int) {
+	lockKey := fmt.Sprintf("%s#%d", repo, issueID)
+	d.inFlight.Delete(lockKey)
 }
 
 // handleLifecycleEvent handles lifecycle events (archive, done) from the Resolver.

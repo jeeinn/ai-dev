@@ -29,6 +29,7 @@ type WorkflowContext struct {
 	IssueID       int       `json:"issue_id"`
 	PRID          int       `json:"pr_id"`
 	Stage         string    `json:"stage"`
+	PreviousStage string    `json:"previous_stage"` // stage before entering analyzing (for failure rollback)
 	ActiveAgentID int64     `json:"active_agent_id"`
 	ActiveRole    string    `json:"active_role"`
 	SessionID     string    `json:"session_id"`
@@ -62,9 +63,9 @@ func (db *DB) GetOrCreateWorkflowContext(repo string, issueID int) (*WorkflowCon
 // GetWorkflowContext returns the context for the given repo and issue.
 func (db *DB) GetWorkflowContext(repo string, issueID int) (*WorkflowContext, error) {
 	var ctx WorkflowContext
-	err := db.QueryRow(`SELECT id, repo, issue_id, pr_id, stage, active_agent_id, active_role, session_id, updated_at
+	err := db.QueryRow(`SELECT id, repo, issue_id, pr_id, stage, previous_stage, active_agent_id, active_role, session_id, updated_at
 		FROM workflow_contexts WHERE repo = ? AND issue_id = ?`, repo, issueID).Scan(
-		&ctx.ID, &ctx.Repo, &ctx.IssueID, &ctx.PRID, &ctx.Stage, &ctx.ActiveAgentID, &ctx.ActiveRole, &ctx.SessionID, &ctx.UpdatedAt)
+		&ctx.ID, &ctx.Repo, &ctx.IssueID, &ctx.PRID, &ctx.Stage, &ctx.PreviousStage, &ctx.ActiveAgentID, &ctx.ActiveRole, &ctx.SessionID, &ctx.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get workflow context: %w", err)
 	}
@@ -73,8 +74,8 @@ func (db *DB) GetWorkflowContext(repo string, issueID int) (*WorkflowContext, er
 
 // UpdateWorkflowContext updates an existing workflow context.
 func (db *DB) UpdateWorkflowContext(ctx *WorkflowContext) error {
-	_, err := db.Exec(`UPDATE workflow_contexts SET pr_id=?, stage=?, active_agent_id=?, active_role=?, session_id=?, updated_at=CURRENT_TIMESTAMP
-		WHERE id=?`, ctx.PRID, ctx.Stage, ctx.ActiveAgentID, ctx.ActiveRole, ctx.SessionID, ctx.ID)
+	_, err := db.Exec(`UPDATE workflow_contexts SET pr_id=?, stage=?, previous_stage=?, active_agent_id=?, active_role=?, session_id=?, updated_at=CURRENT_TIMESTAMP
+		WHERE id=?`, ctx.PRID, ctx.Stage, ctx.PreviousStage, ctx.ActiveAgentID, ctx.ActiveRole, ctx.SessionID, ctx.ID)
 	if err != nil {
 		return fmt.Errorf("update workflow context: %w", err)
 	}
@@ -83,7 +84,7 @@ func (db *DB) UpdateWorkflowContext(ctx *WorkflowContext) error {
 
 // ListWorkflowContextsByRepo returns all workflow contexts for a given repo.
 func (db *DB) ListWorkflowContextsByRepo(repo string) ([]*WorkflowContext, error) {
-	rows, err := db.Query(`SELECT id, repo, issue_id, pr_id, stage, active_agent_id, active_role, session_id, updated_at
+	rows, err := db.Query(`SELECT id, repo, issue_id, pr_id, stage, previous_stage, active_agent_id, active_role, session_id, updated_at
 		FROM workflow_contexts WHERE repo = ? ORDER BY issue_id`, repo)
 	if err != nil {
 		return nil, fmt.Errorf("list workflow contexts: %w", err)
@@ -93,7 +94,7 @@ func (db *DB) ListWorkflowContextsByRepo(repo string) ([]*WorkflowContext, error
 	var contexts []*WorkflowContext
 	for rows.Next() {
 		var ctx WorkflowContext
-		if err := rows.Scan(&ctx.ID, &ctx.Repo, &ctx.IssueID, &ctx.PRID, &ctx.Stage, &ctx.ActiveAgentID, &ctx.ActiveRole, &ctx.SessionID, &ctx.UpdatedAt); err != nil {
+		if err := rows.Scan(&ctx.ID, &ctx.Repo, &ctx.IssueID, &ctx.PRID, &ctx.Stage, &ctx.PreviousStage, &ctx.ActiveAgentID, &ctx.ActiveRole, &ctx.SessionID, &ctx.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan workflow context: %w", err)
 		}
 		contexts = append(contexts, &ctx)
@@ -103,6 +104,9 @@ func (db *DB) ListWorkflowContextsByRepo(repo string) ([]*WorkflowContext, error
 
 // TransitionStage updates the stage and active agent for a workflow context.
 func (db *DB) TransitionStage(ctx *WorkflowContext, stage string, agentID int64, role, sessionID string) error {
+	if stage == StageAnalyzing && ctx.Stage != StageAnalyzing {
+		ctx.PreviousStage = ctx.Stage
+	}
 	ctx.Stage = stage
 	ctx.ActiveAgentID = agentID
 	ctx.ActiveRole = role

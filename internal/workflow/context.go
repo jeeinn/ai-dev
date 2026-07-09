@@ -124,3 +124,29 @@ func (m *WorkflowManager) OnTaskComplete(ctx *store.WorkflowContext, taskType st
 	}
 	return m.db.UpdateWorkflowContext(ctx)
 }
+
+// OnTaskFailed rolls back workflow stage after a task fails.
+// analyze_issue failures revert analyzing → previous stage (or idle).
+func (m *WorkflowManager) OnTaskFailed(ctx *store.WorkflowContext, taskType string) error {
+	switch taskType {
+	case "analyze_issue":
+		if ctx.Stage != store.StageAnalyzing {
+			return nil
+		}
+		rollback := ctx.PreviousStage
+		if rollback == "" || rollback == store.StageAnalyzing {
+			rollback = store.StageIdle
+		}
+		ctx.Stage = rollback
+		ctx.PreviousStage = ""
+		ctx.ActiveAgentID = 0
+		ctx.ActiveRole = ""
+		ctx.SessionID = ""
+		log.Printf("[INFO] Rolled back workflow %s#%d stage: analyzing → %s (analyze task failed)",
+			ctx.Repo, ctx.IssueID, rollback)
+		return m.db.UpdateWorkflowContext(ctx)
+	default:
+		// solve_issue, review_pr, etc. keep their current stage
+		return nil
+	}
+}

@@ -782,6 +782,7 @@ func (h *Handler) resetSession(w http.ResponseWriter, r *http.Request) {
 	ctx, err := h.db.GetWorkflowContext(repo, issueID)
 	if err == nil {
 		ctx.Stage = "idle"
+		ctx.PreviousStage = ""
 		ctx.ActiveAgentID = 0
 		ctx.ActiveRole = ""
 		ctx.SessionID = ""

@@ -23,6 +23,9 @@ type GiteaClientFactory interface {
 // TaskCompleteCallback is called after a task completes successfully.
 type TaskCompleteCallback func(task *store.Task)
 
+// TaskFailedCallback is called after a task fails (all retries exhausted).
+type TaskFailedCallback func(task *store.Task)
+
 // Executor runs agent tasks from the queue with concurrency control.
 type Executor struct {
 	maxConcurrent    int
@@ -36,6 +39,7 @@ type Executor struct {
 	defaultMaxTokens int
 	defaultTemp      float64
 	onComplete       TaskCompleteCallback
+	onFailed         TaskFailedCallback
 }
 
 // NewExecutor creates a new Executor.
@@ -55,6 +59,11 @@ func NewExecutor(maxConcurrent, timeout, retryCount int, llmRegistry *llm.Regist
 // SetOnComplete sets the callback for successful task completion.
 func (e *Executor) SetOnComplete(cb TaskCompleteCallback) {
 	e.onComplete = cb
+}
+
+// SetOnFailed sets the callback for failed task completion.
+func (e *Executor) SetOnFailed(cb TaskFailedCallback) {
+	e.onFailed = cb
 }
 
 // SetGiteaClientFactory sets the factory for creating Gitea clients.
@@ -115,6 +124,9 @@ func (e *Executor) execute(task *store.Task) {
 		log.Printf("[ERROR] Task %d failed: %v", task.ID, err)
 		if writeErr := e.writeFailureToGitea(task, err); writeErr != nil {
 			log.Printf("[ERROR] Task %d failure writeback failed: %v", task.ID, writeErr)
+		}
+		if e.onFailed != nil {
+			e.onFailed(task)
 		}
 	} else {
 		task.Status = "success"

@@ -423,7 +423,12 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	if err != nil {
 		return nil, fmt.Errorf("get repo info: %w", err)
 	}
-	cloneURL := repoInfo.CloneURL
+	cloneURL, err := gitea.AuthenticatedCloneURL(repoInfo.CloneURL, agentCfg.GiteaUsername, agentCfg.GiteaToken)
+	if err != nil {
+		return nil, fmt.Errorf("authenticated clone url: %w", err)
+	}
+	redactedCloneURL := gitea.RedactCloneURL(cloneURL)
+	defaultBranch := gitea.ResolveDefaultBranch(repoInfo.DefaultBranch)
 
 	// Determine workspace strategy: session-level or task-level
 	var sb *sandbox.Sandbox
@@ -467,18 +472,40 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 			log.Printf("[INFO] Session workspace has existing repo, fetching latest")
 			fetchResult := sb.Execute("git", "fetch", "origin")
 			audit.LogCommand("git", []string{"fetch", "origin"}, fetchResult)
-			// Checkout the session branch or main
+			if fetchResult.Error != nil {
+				errMsg := fetchResult.Stderr
+				if errMsg == "" {
+					errMsg = fetchResult.Error.Error()
+				}
+				return nil, fmt.Errorf("git fetch: %s", errMsg)
+			}
+			// Checkout the session branch or repo default branch
 			branch := sessionBranch
 			if branch == "" {
-				branch = "main"
+				branch = defaultBranch
 			}
-			sb.Execute("git", "checkout", branch)
+			checkoutResult := sb.Execute("git", "checkout", branch)
+			audit.LogCommand("git", []string{"checkout", branch}, checkoutResult)
+			if checkoutResult.Error != nil {
+				errMsg := checkoutResult.Stderr
+				if errMsg == "" {
+					errMsg = checkoutResult.Error.Error()
+				}
+				return nil, fmt.Errorf("git checkout %s: %s", branch, errMsg)
+			}
 			pullResult := sb.Execute("git", "pull", "origin", branch)
 			audit.LogCommand("git", []string{"pull", "origin", branch}, pullResult)
+			if pullResult.Error != nil {
+				errMsg := pullResult.Stderr
+				if errMsg == "" {
+					errMsg = pullResult.Error.Error()
+				}
+				return nil, fmt.Errorf("git pull: %s", errMsg)
+			}
 		} else {
 			// New session workspace — clone
 			cloneResult := git.Clone(cloneURL)
-			audit.LogCommand("git", []string{"clone", cloneURL}, cloneResult)
+			audit.LogCommand("git", []string{"clone", redactedCloneURL}, cloneResult)
 			if cloneResult.Error != nil {
 				errMsg := cloneResult.Stderr
 				if errMsg == "" {
@@ -490,7 +517,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	} else {
 		// Standard task-level clone
 		cloneResult := git.Clone(cloneURL)
-		audit.LogCommand("git", []string{"clone", cloneURL}, cloneResult)
+		audit.LogCommand("git", []string{"clone", redactedCloneURL}, cloneResult)
 		if cloneResult.Error != nil {
 			errMsg := cloneResult.Stderr
 			if errMsg == "" {
@@ -522,6 +549,13 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		sb.Execute("git", "remote", "set-branches", "--add", "origin", branchName)
 		fetchResult := sb.Execute("git", "fetch", "--depth", "1", "origin", branchName)
 		audit.LogCommand("git", []string{"fetch", "origin", branchName}, fetchResult)
+		if fetchResult.Error != nil {
+			errMsg := fetchResult.Stderr
+			if errMsg == "" {
+				errMsg = fetchResult.Error.Error()
+			}
+			return nil, fmt.Errorf("git fetch %s: %s", branchName, errMsg)
+		}
 		// Try checkout first (if local branch exists), then create tracking branch
 		checkoutResult := sb.Execute("git", "checkout", branchName)
 		audit.LogCommand("git", []string{"checkout", branchName}, checkoutResult)

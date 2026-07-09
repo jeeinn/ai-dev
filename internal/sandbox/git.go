@@ -23,7 +23,7 @@ func (g *Git) Clone(repoURL string) *Result {
 	if result.Error != nil {
 		return result
 	}
-	log.Printf("[INFO] Cloned repository: %s", repoURL)
+	log.Printf("[INFO] Cloned repository into workspace")
 	return result
 }
 
@@ -33,7 +33,7 @@ func (g *Git) CloneBranch(repoURL, branch string) *Result {
 	if result.Error != nil {
 		return result
 	}
-	log.Printf("[INFO] Cloned repository branch: %s @ %s", repoURL, branch)
+	log.Printf("[INFO] Cloned repository branch %s into workspace", branch)
 	return result
 }
 

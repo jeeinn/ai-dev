@@ -184,7 +184,8 @@ func main() {
 	apiHandler := api.NewHandler(db, manager, activeCfg, jwtManager, cfgManager, func(newCfg *config.Config) {
 		// Hot-reload LLM providers when config changes
 		llmRegistry.Reload(&newCfg.LLM)
-		log.Printf("[INFO] LLM registry reloaded")
+		manager.ReloadGitea(&newCfg.Gitea)
+		log.Printf("[INFO] LLM registry and Gitea client reloaded")
 	})
 	apiHandler.RegisterRoutes(mux)
 

@@ -9,7 +9,7 @@ gitea:
   # Gitea 服务地址
   url: "http://localhost:3000"
   # 管理员 API Token（用于自动注册 Agent 账号）
-  # 在 Gitea → 个人设置 → 应用 → 管理访问令牌 中创建，需要 admin 权限
+  # 在 Gitea → 个人设置 → 应用 → 生成令牌，需包含 write:admin 权限
   admin_token: "${GITEA_ADMIN_TOKEN}"
   # Webhook 签名密钥（在 Gitea Webhook 设置中配置的密钥）
   webhook_secret: "your-webhook-secret-here"

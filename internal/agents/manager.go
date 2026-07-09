@@ -43,6 +43,12 @@ type CreateAgentRequest struct {
 	Role          string                 `json:"role"`            // analyze | coder | review
 }
 
+// ReloadGitea updates the Gitea client after config changes.
+func (m *Manager) ReloadGitea(cfg *config.GiteaConfig) {
+	m.gitea = gitea.NewClient(cfg.URL, cfg.AdminToken)
+	m.cfg = cfg
+}
+
 // ListRepos returns all repositories from Gitea.
 func (m *Manager) ListRepos() ([]gitea.RepoItem, error) {
 	return m.gitea.ListRepos()

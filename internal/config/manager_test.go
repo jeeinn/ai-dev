@@ -1,0 +1,111 @@
+package config
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+type mockConfigStore struct {
+	data map[string]string
+}
+
+func (m *mockConfigStore) GetConfig(key string) (string, error) {
+	return m.data[key], nil
+}
+
+func (m *mockConfigStore) SetConfig(key, value string) error {
+	m.data[key] = value
+	return nil
+}
+
+func (m *mockConfigStore) DeleteConfig(key string) error {
+	delete(m.data, key)
+	return nil
+}
+
+func (m *mockConfigStore) ListConfigs() (map[string]string, error) {
+	out := make(map[string]string, len(m.data))
+	for k, v := range m.data {
+		out[k] = v
+	}
+	return out, nil
+}
+
+func TestGetDisplayMapPrefersDBAndFallsBackToFile(t *testing.T) {
+	fileCfg := &Config{
+		Gitea: GiteaConfig{
+			URL:           "http://file-gitea:3000",
+			AdminToken:    "file-token",
+			WebhookSecret: "file-secret",
+		},
+		LLM: LLMConfig{
+			Defaults: AgentDefaultsConfig{
+				Provider:    "deepseek",
+				Model:       "deepseek-chat",
+				MaxTokens:   4096,
+				Temperature: 0.3,
+			},
+			Providers: map[string]ProviderConfig{
+				"deepseek": {BaseURL: "https://api.deepseek.com/v1", APIKey: "sk-file"},
+			},
+		},
+		Dispatcher: DispatcherConfig{MaxConcurrent: 2, RetryCount: 1, Timeout: 300},
+		Agents: AgentsConfig{
+			Defaults: AgentDefaultsConfig{
+				Provider:    "deepseek",
+				Model:       "deepseek-chat",
+				MaxTokens:   4096,
+				Temperature: 0.3,
+			},
+		},
+	}
+
+	m := NewConfigManager(fileCfg)
+	m.SetStore(&mockConfigStore{
+		data: map[string]string{
+			"gitea.url": "http://db-gitea:3000",
+		},
+	})
+
+	display, err := m.GetDisplayMap()
+	require.NoError(t, err)
+
+	assert.Equal(t, "http://db-gitea:3000", display["gitea.url"])
+	assert.Equal(t, "file-token", display["gitea.admin_token"])
+	assert.Equal(t, "deepseek-chat", display["llm.defaults.model"])
+
+	meta := display["_meta"].(map[string]interface{})
+	sources := meta["sources"].(map[string]string)
+	assert.Equal(t, "db", sources["gitea.url"])
+	assert.Equal(t, "file", sources["gitea.admin_token"])
+}
+
+func TestGetDisplayMapTreatsEmptyDBValueAsUnset(t *testing.T) {
+	fileCfg := &Config{
+		Gitea: GiteaConfig{URL: "http://file-gitea:3000"},
+		LLM: LLMConfig{
+			Defaults: AgentDefaultsConfig{Provider: "deepseek", Model: "deepseek-chat", MaxTokens: 4096, Temperature: 0.3},
+		},
+		Dispatcher: DispatcherConfig{MaxConcurrent: 2, RetryCount: 1, Timeout: 300},
+		Agents: AgentsConfig{
+			Defaults: AgentDefaultsConfig{Provider: "deepseek", Model: "deepseek-chat", MaxTokens: 4096, Temperature: 0.3},
+		},
+	}
+
+	m := NewConfigManager(fileCfg)
+	m.SetStore(&mockConfigStore{
+		data: map[string]string{
+			"gitea.url": "",
+		},
+	})
+
+	display, err := m.GetDisplayMap()
+	require.NoError(t, err)
+	assert.Equal(t, "http://file-gitea:3000", display["gitea.url"])
+
+	meta := display["_meta"].(map[string]interface{})
+	sources := meta["sources"].(map[string]string)
+	assert.Equal(t, "file", sources["gitea.url"])
+}

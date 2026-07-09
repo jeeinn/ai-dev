@@ -46,61 +46,94 @@ Gitea Webhook → Handler (签名验证 + 去重)
 ### 前置条件
 
 - Go 1.26+
-- Node.js 18+（仅开发前端时需要）
-- Gitea 实例（需创建 Webhook）
+- Node.js 18+（仅开发/构建前端时需要）
+- Gitea 实例
 - LLM API Key（DeepSeek / OpenAI / Claude 等）
 
-### 1. 配置
+### 1. 构建并启动
 
 ```bash
 cp config.example.yaml config.yaml
+# 可选：在 config.yaml 中预填 gitea / llm，也可全部通过 Web UI 配置
+
+cd web && npm install && npm run build && cd ..
+go build -o gateway .
+./gateway -config config.yaml
 ```
 
-编辑 `config.yaml`，至少配置以下内容：
+启动后访问 **Web UI**：http://localhost:8080  
+默认账号：`admin` / `admin123`
+
+> `config.yaml` 可作为初始默认值；Web UI **系统配置**会优先显示数据库中的值，数据库未设置的项自动回退到 `config.yaml`。
+
+### 2. Web UI 配置（推荐顺序）
+
+按以下顺序在 Web UI 中完成首次配置：
+
+| 步骤 | 页面 | 操作 |
+|------|------|------|
+| ① | 登录 | 使用 `admin` / `admin123` 登录 |
+| ② | **系统配置 → Gitea 连接** | 填写 Gitea 地址、管理员 Token（需 `write:admin`）、Webhook 密钥 → 点击 **测试 Gitea 连接** → **保存全部** |
+| ③ | **系统配置 → LLM 配置** | 填写 Provider JSON 与默认模型 → 点击 **测试 LLM 连接** → **保存全部** |
+| ④ | **Agent 管理** | 新建 analyze / coder / review 三个 Agent，勾选目标仓库 |
+| ⑤ | Gitea 仓库 | 将 Agent 用户加为协作者；配置 Webhook（见下文） |
+
+**Gitea 管理员 Token 所需权限**：`write:admin`（创建 Agent 用户）、`write:repository`、`read:repository`。
+
+### 3. 配置 Gitea Webhook
+
+在 Gitea 仓库 **Settings → Webhooks** 添加：
+
+| 项 | 值 |
+|----|-----|
+| URL | `http://<gateway-host>:8080/webhook/gitea` |
+| Secret | 与系统配置中的 Webhook 密钥一致 |
+| 事件 | Issues、Issue Comment、Pull Request、Pull Request Comment |
+
+> 远程 Gitea 无法访问你本机的 `localhost`，需使用公网 IP、内网穿透，或将 Gateway 部署到 Gitea 同机。
+
+### 4. 验证工作流
+
+1. 在 Gitea 创建 Issue，Assign `analyze-agent` → 等待分析评论  
+2. Assign `coder-agent` → 等待 PR 创建  
+3. 在 PR 上 Request `review-agent` → 等待审查评论  
+
+详细联调清单见 [docs/v2-gitea-integration-checklist.md](docs/v2-gitea-integration-checklist.md)。
+
+---
+
+### 备选：纯配置文件方式
+
+若不使用 Web UI，可直接编辑 `config.yaml`：
 
 ```yaml
 gitea:
   url: "https://your-gitea.example.com"
-  admin_token: "your-admin-token"        # Gitea 管理员 Token
-  webhook_secret: "your-webhook-secret"  # Webhook 签名密钥
+  admin_token: "${GITEA_ADMIN_TOKEN}"
+  webhook_secret: "your-webhook-secret"
 
 llm:
   providers:
     deepseek:
       base_url: "https://api.deepseek.com/v1"
-      api_key: "sk-xxx"
+      api_key: "${DEEPSEEK_API_KEY}"
 ```
 
 配置支持环境变量展开：`${VAR_NAME}` 或 `${VAR_NAME:-default_value}`。
 
-### 2. 构建
+### 构建（仅后端）
 
 ```bash
-# 仅构建后端
-go build -o gateway .
-
-# 构建含前端的完整版本（需要先构建前端）
-cd web && npm install && npm run build && cd ..
 go build -o gateway .
 ```
 
-### 3. 运行
+### 运行
 
 ```bash
 ./gateway -config config.yaml
 ```
 
-启动后访问：
-- **Web UI**: http://localhost:8080
-- **默认账号**: `admin` / `admin123`
 - **健康检查**: http://localhost:8080/health
-
-### 4. 配置 Gitea Webhook
-
-在 Gitea 仓库设置中添加 Webhook：
-- **URL**: `http://your-server:8080/webhook/gitea`
-- **Secret**: 与 `config.yaml` 中的 `webhook_secret` 一致
-- **触发事件**: Issues、Pull Request、Issue Comment
 
 ## 配置说明
 

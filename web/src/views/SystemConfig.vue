@@ -11,21 +11,49 @@
         </div>
       </template>
 
+      <el-alert
+        v-if="setupHint"
+        :title="setupHint"
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 16px"
+      />
+
       <el-tabs v-model="activeTab">
         <!-- Tab 1: Gitea 连接 -->
         <el-tab-pane label="Gitea 连接" name="gitea">
           <el-form label-width="140px" class="config-form">
             <el-form-item label="Gitea 地址">
               <el-input v-model="form['gitea.url']" placeholder="http://localhost:3000" />
-              <div class="form-tip">Gitea 服务的访问地址</div>
+              <div class="form-tip">
+                Gitea 服务的访问地址
+                <el-tag v-if="sourceTag('gitea.url')" size="small" :type="sourceTag('gitea.url') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
+                  {{ sourceTag('gitea.url') }}
+                </el-tag>
+              </div>
             </el-form-item>
             <el-form-item label="管理员 Token">
               <el-input v-model="form['gitea.admin_token']" type="password" show-password placeholder="Gitea 管理员 Token" />
-              <div class="form-tip">用于自动创建 Agent 账号，需 admin 权限</div>
+              <div class="form-tip">
+                用于自动创建 Agent 账号，需包含 <code>write:admin</code> 权限
+                <el-tag v-if="sourceTag('gitea.admin_token')" size="small" :type="sourceTag('gitea.admin_token') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
+                  {{ sourceTag('gitea.admin_token') }}
+                </el-tag>
+              </div>
             </el-form-item>
             <el-form-item label="Webhook 密钥">
               <el-input v-model="form['gitea.webhook_secret']" type="password" show-password placeholder="Webhook 签名密钥" />
-              <div class="form-tip">与 Gitea Webhook 设置中的密钥一致</div>
+              <div class="form-tip">
+                与 Gitea Webhook 设置中的密钥一致
+                <el-tag v-if="sourceTag('gitea.webhook_secret')" size="small" :type="sourceTag('gitea.webhook_secret') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
+                  {{ sourceTag('gitea.webhook_secret') }}
+                </el-tag>
+              </div>
+            </el-form-item>
+            <el-form-item>
+              <el-button :loading="testingGitea" @click="testGitea">测试 Gitea 连接</el-button>
+              <span v-if="giteaTestMessage" :class="['test-result', giteaTestOk ? 'ok' : 'error']">{{ giteaTestMessage }}</span>
             </el-form-item>
           </el-form>
         </el-tab-pane>
@@ -58,6 +86,10 @@
             <el-form-item label="Temperature">
               <el-slider v-model.number="form['llm.defaults.temperature']" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
               <div class="form-tip">LLM 生成随机性。0=确定性，2=最大随机。Agent 未设置时回退到此值</div>
+            </el-form-item>
+            <el-form-item>
+              <el-button :loading="testingLLM" @click="testLLM">测试 LLM 连接</el-button>
+              <span v-if="llmTestMessage" :class="['test-result', llmTestOk ? 'ok' : 'error']">{{ llmTestMessage }}</span>
             </el-form-item>
           </el-form>
         </el-tab-pane>
@@ -179,7 +211,14 @@ import TemplateHelp from '../components/TemplateHelp.vue'
 
 const activeTab = ref('gitea')
 const form = ref({})
+const sources = ref({})
 const saving = ref(false)
+const testingGitea = ref(false)
+const testingLLM = ref(false)
+const giteaTestMessage = ref('')
+const giteaTestOk = ref(false)
+const llmTestMessage = ref('')
+const llmTestOk = ref(false)
 const providersJson = ref('')
 const templateList = ref([])
 const showViewTemplate = ref(false)
@@ -195,12 +234,33 @@ const providers = computed(() => {
   }
 })
 
-const loadConfig = async () => {
-  const data = await api.get('/config')
-  form.value = data
+const setupHint = computed(() => {
+  const fileCount = Object.values(sources.value).filter(v => v === 'file').length
+  if (fileCount === 0) return ''
+  return `有 ${fileCount} 项配置来自 config.yaml，保存后将写入数据库。建议先完成 Gitea 连接测试，再配置 LLM，最后到 Agent 管理创建 Agent。`
+})
+
+const sourceTag = (key) => {
+  const src = sources.value[key]
+  if (!src) return ''
+  return src === 'db' ? '数据库' : 'config.yaml'
+}
+
+const applyConfigData = (data) => {
+  const next = { ...data }
+  if (next._meta?.sources) {
+    sources.value = next._meta.sources
+    delete next._meta
+  }
+  form.value = next
   if (data['llm.providers']) {
     providersJson.value = JSON.stringify(data['llm.providers'], null, 2)
   }
+}
+
+const loadConfig = async () => {
+  const data = await api.get('/config')
+  applyConfigData(data)
 }
 
 const loadTemplates = async () => {
@@ -276,12 +336,58 @@ const saveAll = async () => {
     }
     entries['llm.providers'] = JSON.stringify(providersData)
 
-    await api.put('/config', entries)
+    const data = await api.put('/config', entries)
+    applyConfigData(data)
     ElMessage.success('配置已保存')
   } catch (error) {
     ElMessage.error(error.response?.data?.error || '保存失败')
   } finally {
     saving.value = false
+  }
+}
+
+const testGitea = async () => {
+  testingGitea.value = true
+  giteaTestMessage.value = ''
+  try {
+    const result = await api.post('/config/test/gitea', {
+      'gitea.url': form.value['gitea.url'] || '',
+      'gitea.admin_token': form.value['gitea.admin_token'] || ''
+    })
+    giteaTestOk.value = !!result.ok
+    giteaTestMessage.value = result.message
+  } catch (error) {
+    giteaTestOk.value = false
+    giteaTestMessage.value = error.response?.data?.message || error.response?.data?.error || '测试失败'
+  } finally {
+    testingGitea.value = false
+  }
+}
+
+const testLLM = async () => {
+  testingLLM.value = true
+  llmTestMessage.value = ''
+  try {
+    let providersData
+    try {
+      providersData = JSON.parse(providersJson.value)
+    } catch {
+      ElMessage.error('Provider 配置 JSON 格式错误')
+      testingLLM.value = false
+      return
+    }
+    const result = await api.post('/config/test/llm', {
+      'llm.defaults.provider': form.value['llm.defaults.provider'] || '',
+      'llm.defaults.model': form.value['llm.defaults.model'] || '',
+      'llm.providers': providersData
+    })
+    llmTestOk.value = !!result.ok
+    llmTestMessage.value = result.message
+  } catch (error) {
+    llmTestOk.value = false
+    llmTestMessage.value = error.response?.data?.message || error.response?.data?.error || '测试失败'
+  } finally {
+    testingLLM.value = false
   }
 }
 
@@ -315,5 +421,22 @@ onMounted(() => {
   text-overflow: ellipsis;
   font-size: 13px;
   color: #606266;
+}
+
+.test-result {
+  margin-left: 12px;
+  font-size: 13px;
+}
+
+.test-result.ok {
+  color: #67c23a;
+}
+
+.test-result.error {
+  color: #f56c6c;
+}
+
+.form-tip code {
+  font-size: 12px;
 }
 </style>

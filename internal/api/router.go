@@ -54,6 +54,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/config", h.jwtWrap(h.getConfig))
 	mux.HandleFunc("PUT /api/config", h.jwtWrap(h.updateConfig))
 	mux.HandleFunc("DELETE /api/config/{key}", h.jwtWrap(h.deleteConfigEntry))
+	mux.HandleFunc("POST /api/config/test/gitea", h.jwtWrap(h.testGiteaConfig))
+	mux.HandleFunc("POST /api/config/test/llm", h.jwtWrap(h.testLLMConfig))
 
 	// Prompt template endpoints
 	mux.HandleFunc("GET /api/prompt-templates", h.authorizeWrap(h.listPromptTemplates))

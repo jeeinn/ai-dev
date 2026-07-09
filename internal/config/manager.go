@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -126,27 +127,161 @@ func (m *ConfigManager) Delete(key string) error {
 }
 
 // GetMap returns the current config as a flat map for API response.
+// Display values prefer DB entries; empty/missing DB values fall back to file config.
 func (m *ConfigManager) GetMap() map[string]interface{} {
+	display, err := m.GetDisplayMap()
+	if err != nil {
+		log.Printf("[WARN] GetDisplayMap failed, falling back to active config: %v", err)
+		return m.getActiveMap()
+	}
+	return display
+}
+
+// GetDisplayMap returns config for Web UI display.
+// Per-field: non-empty DB value wins; otherwise file config (config.yaml) is used.
+func (m *ConfigManager) GetDisplayMap() (map[string]interface{}, error) {
+	dbEntries := map[string]string{}
+	if m.store != nil {
+		entries, err := m.store.ListConfigs()
+		if err != nil {
+			return nil, fmt.Errorf("load db configs: %w", err)
+		}
+		dbEntries = entries
+	}
+
+	m.mu.RLock()
+	base := m.base
+	m.mu.RUnlock()
+
+	result := make(map[string]interface{}, len(configKeys)+1)
+	sources := make(map[string]string, len(configKeys))
+
+	for _, key := range configKeys {
+		if dbVal, ok := dbEntries[key]; ok && strings.TrimSpace(dbVal) != "" {
+			val, err := parseConfigValue(key, dbVal)
+			if err != nil {
+				return nil, fmt.Errorf("invalid db config %s: %w", key, err)
+			}
+			result[key] = val
+			sources[key] = "db"
+			continue
+		}
+		result[key] = getConfigValueTyped(base, key)
+		sources[key] = "file"
+	}
+
+	result["_meta"] = map[string]interface{}{
+		"sources": sources,
+	}
+	return result, nil
+}
+
+func (m *ConfigManager) getActiveMap() map[string]interface{} {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	cfg := m.active
 	return map[string]interface{}{
-		"gitea.url":                   cfg.Gitea.URL,
-		"gitea.admin_token":           cfg.Gitea.AdminToken,
-		"gitea.webhook_secret":        cfg.Gitea.WebhookSecret,
-		"llm.defaults.provider":       cfg.LLM.Defaults.Provider,
-		"llm.defaults.model":          cfg.LLM.Defaults.Model,
-		"llm.defaults.max_tokens":     cfg.LLM.Defaults.MaxTokens,
-		"llm.defaults.temperature":    cfg.LLM.Defaults.Temperature,
-		"llm.providers":               cfg.LLM.Providers,
-		"dispatcher.max_concurrent":   cfg.Dispatcher.MaxConcurrent,
-		"dispatcher.retry_count":      cfg.Dispatcher.RetryCount,
-		"dispatcher.timeout":          cfg.Dispatcher.Timeout,
-		"agents.defaults.provider":    cfg.Agents.Defaults.Provider,
-		"agents.defaults.model":       cfg.Agents.Defaults.Model,
-		"agents.defaults.max_tokens":  cfg.Agents.Defaults.MaxTokens,
+		"gitea.url":                     cfg.Gitea.URL,
+		"gitea.admin_token":             cfg.Gitea.AdminToken,
+		"gitea.webhook_secret":          cfg.Gitea.WebhookSecret,
+		"llm.defaults.provider":         cfg.LLM.Defaults.Provider,
+		"llm.defaults.model":            cfg.LLM.Defaults.Model,
+		"llm.defaults.max_tokens":       cfg.LLM.Defaults.MaxTokens,
+		"llm.defaults.temperature":      cfg.LLM.Defaults.Temperature,
+		"llm.providers":                 cfg.LLM.Providers,
+		"dispatcher.max_concurrent":     cfg.Dispatcher.MaxConcurrent,
+		"dispatcher.retry_count":        cfg.Dispatcher.RetryCount,
+		"dispatcher.timeout":            cfg.Dispatcher.Timeout,
+		"agents.defaults.provider":      cfg.Agents.Defaults.Provider,
+		"agents.defaults.model":         cfg.Agents.Defaults.Model,
+		"agents.defaults.max_tokens":    cfg.Agents.Defaults.MaxTokens,
 		"agents.defaults.temperature": cfg.Agents.Defaults.Temperature,
 	}
+}
+
+var configKeys = []string{
+	"gitea.url",
+	"gitea.admin_token",
+	"gitea.webhook_secret",
+	"llm.defaults.provider",
+	"llm.defaults.model",
+	"llm.defaults.max_tokens",
+	"llm.defaults.temperature",
+	"llm.providers",
+	"dispatcher.max_concurrent",
+	"dispatcher.retry_count",
+	"dispatcher.timeout",
+	"agents.defaults.provider",
+	"agents.defaults.model",
+	"agents.defaults.max_tokens",
+	"agents.defaults.temperature",
+}
+
+func parseConfigValue(key, value string) (interface{}, error) {
+	switch key {
+	case "llm.defaults.max_tokens", "dispatcher.max_concurrent", "dispatcher.retry_count", "dispatcher.timeout", "agents.defaults.max_tokens":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return nil, fmt.Errorf("not a number: %s", value)
+		}
+		return n, nil
+	case "llm.defaults.temperature", "agents.defaults.temperature":
+		f, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return nil, fmt.Errorf("not a float: %s", value)
+		}
+		return f, nil
+	case "llm.providers":
+		var providers map[string]ProviderConfig
+		if err := json.Unmarshal([]byte(value), &providers); err != nil {
+			return nil, fmt.Errorf("invalid JSON: %w", err)
+		}
+		return providers, nil
+	default:
+		return value, nil
+	}
+}
+
+func getConfigValueTyped(cfg *Config, key string) interface{} {
+	switch key {
+	case "gitea.url":
+		return cfg.Gitea.URL
+	case "gitea.admin_token":
+		return cfg.Gitea.AdminToken
+	case "gitea.webhook_secret":
+		return cfg.Gitea.WebhookSecret
+	case "llm.defaults.provider":
+		return cfg.LLM.Defaults.Provider
+	case "llm.defaults.model":
+		return cfg.LLM.Defaults.Model
+	case "llm.defaults.max_tokens":
+		return cfg.LLM.Defaults.MaxTokens
+	case "llm.defaults.temperature":
+		return cfg.LLM.Defaults.Temperature
+	case "llm.providers":
+		return cfg.LLM.Providers
+	case "dispatcher.max_concurrent":
+		return cfg.Dispatcher.MaxConcurrent
+	case "dispatcher.retry_count":
+		return cfg.Dispatcher.RetryCount
+	case "dispatcher.timeout":
+		return cfg.Dispatcher.Timeout
+	case "agents.defaults.provider":
+		return cfg.Agents.Defaults.Provider
+	case "agents.defaults.model":
+		return cfg.Agents.Defaults.Model
+	case "agents.defaults.max_tokens":
+		return cfg.Agents.Defaults.MaxTokens
+	case "agents.defaults.temperature":
+		return cfg.Agents.Defaults.Temperature
+	default:
+		return ""
+	}
+}
+
+// GetMapLegacy returns the active merged config without display metadata.
+func (m *ConfigManager) GetMapLegacy() map[string]interface{} {
+	return m.getActiveMap()
 }
 
 // applyConfigEntry sets a single config key on the Config struct.

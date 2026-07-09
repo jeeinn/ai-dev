@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"gitea-agent-gateway/internal/agent"
+	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/sandbox"
@@ -48,15 +49,19 @@ type RunnerFactory struct {
 	db               *store.DB
 	defaultMaxTokens int
 	defaultTemp      float64
+	defaultLoop      config.AgentLoopConfig
 }
 
 // NewRunnerFactory creates a new RunnerFactory.
-func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, maxTokens int, temp float64) *RunnerFactory {
+func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, maxTokens int, temp float64, defaultLoop config.AgentLoopConfig) *RunnerFactory {
 	if maxTokens <= 0 {
 		maxTokens = defaultMaxTokens
 	}
 	if temp <= 0 {
 		temp = defaultTemp
+	}
+	if defaultLoop.MaxIterations <= 0 {
+		defaultLoop = config.DefaultAgentLoopConfig()
 	}
 	return &RunnerFactory{
 		llmRegistry:      llmRegistry,
@@ -65,6 +70,7 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 		db:               db,
 		defaultMaxTokens: maxTokens,
 		defaultTemp:      temp,
+		defaultLoop:      defaultLoop,
 	}
 }
 
@@ -521,21 +527,21 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	// Create tool registry
 	toolRegistry := agent.DefaultTools(sb)
 
-	// Create agent loop with config priority: Agent.LoopConfig > Agent > Factory Default
-	// Agent loop runs multiple turns (tool calls + responses), so allocate 2x the single-call limit
+	// Create agent loop with config priority: Agent.LoopConfig > system agents.loop defaults
 	maxTokens := factory.resolveMaxTokens(agentCfg.MaxTokens) * 2
-	if agentCfg.LoopConfig != nil && agentCfg.LoopConfig.MaxTokens > 0 {
-		maxTokens = agentCfg.LoopConfig.MaxTokens
+	mergedLoop := MergeLoopConfig(agentCfg.LoopConfig, factory.defaultLoop)
+	if mergedLoop.MaxTokens > 0 {
+		maxTokens = mergedLoop.MaxTokens
 	}
 
-	loop := agent.NewAgentLoop(provider, toolRegistry, agentCfg.Model, maxTokens, factory.resolveTemperature(agentCfg.Temperature))
-
-	// Apply agent-specific loop config
-	if agentCfg.LoopConfig != nil {
-		if agentCfg.LoopConfig.MaxIterations > 0 {
-			loop.SetMaxIterations(agentCfg.LoopConfig.MaxIterations)
-		}
-	}
+	loop := agent.NewAgentLoopWithConfig(
+		provider,
+		toolRegistry,
+		agentCfg.Model,
+		maxTokens,
+		factory.resolveTemperature(agentCfg.Temperature),
+		mergedLoop,
+	)
 
 	// Run agent loop
 	messages := []llm.Message{

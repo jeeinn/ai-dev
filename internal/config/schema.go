@@ -67,10 +67,11 @@ type WorkspaceConfig struct {
 }
 
 type DispatcherConfig struct {
-	MaxConcurrent int `yaml:"max_concurrent"`
-	RetryCount    int `yaml:"retry_count"`
-	Timeout       int `yaml:"timeout"`
-	QueueSize     int `yaml:"queue_size"`
+	MaxConcurrent    int `yaml:"max_concurrent"`
+	RetryCount       int `yaml:"retry_count"`
+	Timeout          int `yaml:"timeout"`
+	QueueSize        int `yaml:"queue_size"`
+	RateLimitBackoff int `yaml:"rate_limit_backoff"` // seconds to wait on HTTP 429; 0 = disabled
 }
 
 type DatabaseConfig struct {
@@ -129,18 +130,20 @@ type AgentTemplateConfig struct {
 
 // AgentLoopConfig contains agent loop configuration.
 type AgentLoopConfig struct {
-	MaxIterations int    `yaml:"max_iterations"` // Max iteration rounds (default 20)
-	MaxTokens     int    `yaml:"max_tokens"`     // Max tokens per LLM call (default 4096)
-	Timeout       string `yaml:"timeout"`        // Single round timeout (default "5m")
-	TotalTimeout  string `yaml:"total_timeout"`  // Total task timeout (default "30m")
+	MaxIterations     int    `yaml:"max_iterations"`      // Max iteration rounds (default 20)
+	MaxTokens         int    `yaml:"max_tokens"`          // Max tokens per LLM call (default 4096)
+	Timeout           string `yaml:"timeout"`             // Single round timeout (default "5m")
+	TotalTimeout      string `yaml:"total_timeout"`       // Total task timeout (default "30m")
+	IterationInterval int    `yaml:"iteration_interval"`  // Seconds between loop rounds (default 0)
 }
 
 // DefaultAgentLoopConfig returns default agent loop configuration.
 func DefaultAgentLoopConfig() AgentLoopConfig {
 	return AgentLoopConfig{
-		MaxIterations: 20,
-		MaxTokens:     4096,
-		Timeout:       "5m",
-		TotalTimeout:  "30m",
+		MaxIterations:     20,
+		MaxTokens:         4096,
+		Timeout:           "5m",
+		TotalTimeout:      "30m",
+		IterationInterval: 0,
 	}
 }

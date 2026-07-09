@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
@@ -37,7 +38,7 @@ func (m *mockGiteaFactory) GetAdminGiteaClient() *gitea.Client {
 }
 
 func TestRunnerFactoryGetRunner(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, 4096, 0.3)
+	factory := NewRunnerFactory(nil, nil, nil, 4096, 0.3, config.DefaultAgentLoopConfig())
 
 	tests := []struct {
 		taskType string
@@ -65,7 +66,7 @@ func TestAnalyzeRunnerRun(t *testing.T) {
 	registry.Register("mock", &mockProvider{response: "Analysis result"})
 
 	factory := &mockGiteaFactory{}
-	runnerFactory := NewRunnerFactory(registry, factory, nil, 4096, 0.3)
+	runnerFactory := NewRunnerFactory(registry, factory, nil, 4096, 0.3, config.DefaultAgentLoopConfig())
 	runner := NewAnalyzeRunner(runnerFactory)
 
 	task := &store.Task{

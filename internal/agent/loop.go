@@ -17,9 +17,10 @@ type AgentLoop struct {
 	model         string
 	maxTokens     int
 	temperature   float64
-	maxIterations int
-	timeout       time.Duration
-	totalTimeout  time.Duration
+	maxIterations     int
+	timeout           time.Duration
+	totalTimeout      time.Duration
+	iterationInterval time.Duration
 }
 
 // NewAgentLoop creates a new AgentLoop.
@@ -57,15 +58,21 @@ func NewAgentLoopWithConfig(provider llm.Provider, registry *ToolRegistry, model
 		maxIter = 20
 	}
 
+	iterationInterval := time.Duration(0)
+	if loopCfg.IterationInterval > 0 {
+		iterationInterval = time.Duration(loopCfg.IterationInterval) * time.Second
+	}
+
 	return &AgentLoop{
-		provider:      provider,
-		registry:      registry,
-		model:         model,
-		maxTokens:     maxTokens,
-		temperature:   temperature,
-		maxIterations: maxIter,
-		timeout:       timeout,
-		totalTimeout:  totalTimeout,
+		provider:          provider,
+		registry:          registry,
+		model:             model,
+		maxTokens:         maxTokens,
+		temperature:       temperature,
+		maxIterations:     maxIter,
+		timeout:           timeout,
+		totalTimeout:      totalTimeout,
+		iterationInterval: iterationInterval,
 	}
 }
 
@@ -80,6 +87,18 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 	tools := a.registry.ToLLMTools()
 
 	for i := 0; i < a.maxIterations; i++ {
+		if i > 0 && a.iterationInterval > 0 {
+			log.Printf("[DEBUG] Agent loop waiting %s before iteration %d/%d",
+				a.iterationInterval, i+1, a.maxIterations)
+			timer := time.NewTimer(a.iterationInterval)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return "", fmt.Errorf("agent loop cancelled during iteration delay: %w", ctx.Err())
+			case <-timer.C:
+			}
+		}
+
 		log.Printf("[DEBUG] Agent loop iteration %d/%d", i+1, a.maxIterations)
 
 		// Call LLM

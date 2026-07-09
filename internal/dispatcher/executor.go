@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gitea-agent-gateway/internal/agents"
+	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
@@ -38,12 +39,13 @@ type Executor struct {
 	runnerFactory    *agents.RunnerFactory
 	defaultMaxTokens int
 	defaultTemp      float64
+	defaultLoop      config.AgentLoopConfig
 	onComplete       TaskCompleteCallback
 	onFailed         TaskFailedCallback
 }
 
 // NewExecutor creates a new Executor.
-func NewExecutor(maxConcurrent, timeout, retryCount int, llmRegistry *llm.Registry, db *store.DB, defaultMaxTokens int, defaultTemp float64) *Executor {
+func NewExecutor(maxConcurrent, timeout, retryCount int, llmRegistry *llm.Registry, db *store.DB, defaultMaxTokens int, defaultTemp float64, defaultLoop config.AgentLoopConfig) *Executor {
 	return &Executor{
 		maxConcurrent:    maxConcurrent,
 		timeout:          timeout,
@@ -53,6 +55,7 @@ func NewExecutor(maxConcurrent, timeout, retryCount int, llmRegistry *llm.Regist
 		retryCount:       retryCount,
 		defaultMaxTokens: defaultMaxTokens,
 		defaultTemp:      defaultTemp,
+		defaultLoop:      defaultLoop,
 	}
 }
 
@@ -69,7 +72,7 @@ func (e *Executor) SetOnFailed(cb TaskFailedCallback) {
 // SetGiteaClientFactory sets the factory for creating Gitea clients.
 func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory) {
 	e.giteaFactory = factory
-	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.defaultMaxTokens, e.defaultTemp)
+	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.defaultMaxTokens, e.defaultTemp, e.defaultLoop)
 }
 
 // Start begins the executor workers.

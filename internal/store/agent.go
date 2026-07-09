@@ -8,10 +8,11 @@ import (
 
 // AgentLoopConfig contains agent-specific loop configuration.
 type AgentLoopConfig struct {
-	MaxIterations int    `json:"max_iterations,omitempty"`
-	MaxTokens     int    `json:"max_tokens,omitempty"`
-	Timeout       string `json:"timeout,omitempty"`
-	TotalTimeout  string `json:"total_timeout,omitempty"`
+	MaxIterations     int    `json:"max_iterations,omitempty"`
+	MaxTokens         int    `json:"max_tokens,omitempty"`
+	Timeout           string `json:"timeout,omitempty"`
+	TotalTimeout      string `json:"total_timeout,omitempty"`
+	IterationInterval int    `json:"iteration_interval,omitempty"` // seconds between loop rounds; 0 = no delay
 }
 
 // Agent represents an AI agent registered in the system.

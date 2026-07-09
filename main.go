@@ -98,6 +98,7 @@ func main() {
 
 	// Initialize LLM registry
 	llmRegistry := llm.NewRegistry(&activeCfg.LLM)
+	llmRegistry.SetRateLimitBackoff(activeCfg.Dispatcher.RateLimitBackoff, activeCfg.Dispatcher.RetryCount)
 
 	// Initialize dispatcher (Router + TaskQueue + Executor)
 	d := dispatcher.NewDispatcher(db, &activeCfg.Gitea, &activeCfg.Dispatcher, llmRegistry, &activeCfg.Agents)
@@ -191,6 +192,7 @@ func main() {
 	apiHandler := api.NewHandler(db, manager, activeCfg, jwtManager, cfgManager, func(newCfg *config.Config) {
 		// Hot-reload LLM providers when config changes
 		llmRegistry.Reload(&newCfg.LLM)
+		llmRegistry.SetRateLimitBackoff(newCfg.Dispatcher.RateLimitBackoff, newCfg.Dispatcher.RetryCount)
 		manager.ReloadGitea(&newCfg.Gitea)
 		log.Printf("[INFO] LLM registry and Gitea client reloaded")
 	})

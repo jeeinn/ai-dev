@@ -3,11 +3,12 @@ import api from '../api'
 
 export const DEFAULT_AGENT_MAX_TOKENS = 2048
 
-const DEFAULT_LOOP_CONFIG = {
+export const DEFAULT_LOOP_CONFIG = {
   max_iterations: 20,
   max_tokens: 4096,
   timeout: '5m',
-  total_timeout: '30m'
+  total_timeout: '30m',
+  iteration_interval: 0
 }
 
 export function normalizeProviders(raw) {
@@ -34,6 +35,18 @@ function resolveDefaultProvider(data, providerKeys) {
   return 'deepseek'
 }
 
+function parseLoopDefaults(data) {
+  return {
+    max_iterations: Number(data['agents.loop.max_iterations']) || DEFAULT_LOOP_CONFIG.max_iterations,
+    max_tokens: Number(data['agents.loop.max_tokens']) || DEFAULT_LOOP_CONFIG.max_tokens,
+    timeout: (data['agents.loop.timeout'] || DEFAULT_LOOP_CONFIG.timeout).trim(),
+    total_timeout: (data['agents.loop.total_timeout'] || DEFAULT_LOOP_CONFIG.total_timeout).trim(),
+    iteration_interval: data['agents.loop.iteration_interval'] !== undefined && data['agents.loop.iteration_interval'] !== ''
+      ? Number(data['agents.loop.iteration_interval'])
+      : DEFAULT_LOOP_CONFIG.iteration_interval
+  }
+}
+
 export function useAgentDefaults() {
   const providers = ref({})
   const agentDefaults = ref({
@@ -42,6 +55,7 @@ export function useAgentDefaults() {
     max_tokens: DEFAULT_AGENT_MAX_TOKENS,
     temperature: 0.3
   })
+  const loopDefaults = ref({ ...DEFAULT_LOOP_CONFIG })
 
   const providerNames = computed(() => Object.keys(providers.value))
 
@@ -59,6 +73,7 @@ export function useAgentDefaults() {
           ? Number(data['agents.defaults.temperature'])
           : 0.3
       }
+      loopDefaults.value = parseLoopDefaults(data)
     } catch {
       providers.value = {}
     }
@@ -85,13 +100,14 @@ export function useAgentDefaults() {
     user_template: '',
     status: 'active',
     repos: [],
-    loop_config: { ...DEFAULT_LOOP_CONFIG }
+    loop_config: { ...loopDefaults.value }
   })
 
   return {
     providers,
     providerNames,
     agentDefaults,
+    loopDefaults,
     loadAgentConfig,
     effectiveProviderNames,
     createEmptyAgentForm,

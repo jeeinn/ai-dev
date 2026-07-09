@@ -139,6 +139,10 @@
             <el-form-item label="总超时">
               <el-input v-model="form.loop_config.total_timeout" placeholder="30m" style="width: 200px" />
             </el-form-item>
+            <el-form-item label="轮次间隔">
+              <el-input-number v-model="form.loop_config.iteration_interval" :min="0" :max="300" :step="1" />
+              <span class="form-tip" style="margin-left: 12px">秒；每轮 Loop 之间的等待时间，0 表示不等待</span>
+            </el-form-item>
           </el-collapse-item>
         </el-collapse>
       </el-form>
@@ -165,6 +169,7 @@ const {
   loadAgentConfig,
   effectiveProviderNames,
   createEmptyAgentForm,
+  loopDefaults,
   defaultLoopConfig
 } = useAgentDefaults()
 const agents = ref([])
@@ -235,7 +240,7 @@ const editAgent = async (agent) => {
   editingAgent.value = agent
   form.value = {
     ...agent,
-    loop_config: { ...defaultLoopConfig, ...(agent.loop_config || {}) }
+    loop_config: { ...loopDefaults.value, ...defaultLoopConfig, ...(agent.loop_config || {}) }
   }
   selectedTemplate.value = ''
   showCreateDialog.value = true

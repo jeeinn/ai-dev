@@ -66,6 +66,7 @@ func NewDispatcher(
 		db,
 		defaultMaxTokens,
 		defaultTemp,
+		resolveDefaultLoop(agentsCfg),
 	)
 
 	d := &Dispatcher{
@@ -80,6 +81,30 @@ func NewDispatcher(
 	executor.SetGiteaClientFactory(d)
 
 	return d
+}
+
+func resolveDefaultLoop(agentsCfg *config.AgentsConfig) config.AgentLoopConfig {
+	if agentsCfg == nil {
+		return config.DefaultAgentLoopConfig()
+	}
+	loop := agentsCfg.Loop
+	if loop.MaxIterations <= 0 && loop.MaxTokens <= 0 && loop.Timeout == "" &&
+		loop.TotalTimeout == "" && loop.IterationInterval <= 0 {
+		return config.DefaultAgentLoopConfig()
+	}
+	if loop.MaxIterations <= 0 {
+		loop.MaxIterations = config.DefaultAgentLoopConfig().MaxIterations
+	}
+	if loop.MaxTokens <= 0 {
+		loop.MaxTokens = config.DefaultAgentLoopConfig().MaxTokens
+	}
+	if loop.Timeout == "" {
+		loop.Timeout = config.DefaultAgentLoopConfig().Timeout
+	}
+	if loop.TotalTimeout == "" {
+		loop.TotalTimeout = config.DefaultAgentLoopConfig().TotalTimeout
+	}
+	return loop
 }
 
 // SetWorkflowComponents sets the v2 workflow components.

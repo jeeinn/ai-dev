@@ -74,6 +74,10 @@
             <el-form-item label="总超时">
               <el-input v-model="form.loop_config.total_timeout" placeholder="30m" />
             </el-form-item>
+            <el-form-item label="轮次间隔">
+              <el-input-number v-model="form.loop_config.iteration_interval" :min="0" :max="300" :step="1" />
+              <div class="form-tip">每轮 Loop 之间的等待秒数，0 表示不等待</div>
+            </el-form-item>
 
             <el-divider content-position="left">Prompt</el-divider>
             <el-form-item label="System Prompt">
@@ -166,6 +170,7 @@ const {
   loadAgentConfig,
   effectiveProviderNames,
   createEmptyAgentForm,
+  loopDefaults,
   defaultLoopConfig
 } = useAgentDefaults()
 
@@ -202,7 +207,7 @@ const loadAgent = async () => {
     form.value = {
       ...defaultForm,
       ...data,
-      loop_config: { ...defaultLoopConfig, ...(data.loop_config || {}) }
+      loop_config: { ...loopDefaults.value, ...defaultLoopConfig, ...(data.loop_config || {}) }
     }
   } catch (error) {
     ElMessage.error('加载 Agent 信息失败')

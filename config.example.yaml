@@ -29,6 +29,8 @@ dispatcher:
   retry_count: 1
   # 单任务超时（秒）
   timeout: 300
+  # LLM 返回 429 时的退避等待（秒）；0 表示关闭
+  rate_limit_backoff: 30
   # 任务队列大小
   queue_size: 100
 
@@ -83,6 +85,13 @@ agents:
     model: "deepseek-chat"
     max_tokens: 2048
     temperature: 0.3
+
+  loop:
+    max_iterations: 10
+    max_tokens: 4096
+    timeout: "5m"
+    total_timeout: "30m"
+    iteration_interval: 3
 
   templates:
     analyze:

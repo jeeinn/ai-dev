@@ -192,10 +192,16 @@ func (m *ConfigManager) getActiveMap() map[string]interface{} {
 		"dispatcher.max_concurrent":     cfg.Dispatcher.MaxConcurrent,
 		"dispatcher.retry_count":        cfg.Dispatcher.RetryCount,
 		"dispatcher.timeout":            cfg.Dispatcher.Timeout,
+		"dispatcher.rate_limit_backoff": cfg.Dispatcher.RateLimitBackoff,
 		"agents.defaults.provider":      cfg.Agents.Defaults.Provider,
 		"agents.defaults.model":         cfg.Agents.Defaults.Model,
 		"agents.defaults.max_tokens":    cfg.Agents.Defaults.MaxTokens,
 		"agents.defaults.temperature": cfg.Agents.Defaults.Temperature,
+		"agents.loop.max_iterations":    cfg.Agents.Loop.MaxIterations,
+		"agents.loop.max_tokens":        cfg.Agents.Loop.MaxTokens,
+		"agents.loop.timeout":           cfg.Agents.Loop.Timeout,
+		"agents.loop.total_timeout":     cfg.Agents.Loop.TotalTimeout,
+		"agents.loop.iteration_interval": cfg.Agents.Loop.IterationInterval,
 	}
 }
 
@@ -211,15 +217,21 @@ var configKeys = []string{
 	"dispatcher.max_concurrent",
 	"dispatcher.retry_count",
 	"dispatcher.timeout",
+	"dispatcher.rate_limit_backoff",
 	"agents.defaults.provider",
 	"agents.defaults.model",
 	"agents.defaults.max_tokens",
 	"agents.defaults.temperature",
+	"agents.loop.max_iterations",
+	"agents.loop.max_tokens",
+	"agents.loop.timeout",
+	"agents.loop.total_timeout",
+	"agents.loop.iteration_interval",
 }
 
 func parseConfigValue(key, value string) (interface{}, error) {
 	switch key {
-	case "llm.defaults.max_tokens", "dispatcher.max_concurrent", "dispatcher.retry_count", "dispatcher.timeout", "agents.defaults.max_tokens":
+	case "llm.defaults.max_tokens", "dispatcher.max_concurrent", "dispatcher.retry_count", "dispatcher.timeout", "dispatcher.rate_limit_backoff", "agents.defaults.max_tokens", "agents.loop.max_iterations", "agents.loop.max_tokens", "agents.loop.iteration_interval":
 		n, err := strconv.Atoi(value)
 		if err != nil {
 			return nil, fmt.Errorf("not a number: %s", value)
@@ -266,6 +278,8 @@ func getConfigValueTyped(cfg *Config, key string) interface{} {
 		return cfg.Dispatcher.RetryCount
 	case "dispatcher.timeout":
 		return cfg.Dispatcher.Timeout
+	case "dispatcher.rate_limit_backoff":
+		return cfg.Dispatcher.RateLimitBackoff
 	case "agents.defaults.provider":
 		return cfg.Agents.Defaults.Provider
 	case "agents.defaults.model":
@@ -274,6 +288,16 @@ func getConfigValueTyped(cfg *Config, key string) interface{} {
 		return cfg.Agents.Defaults.MaxTokens
 	case "agents.defaults.temperature":
 		return cfg.Agents.Defaults.Temperature
+	case "agents.loop.max_iterations":
+		return cfg.Agents.Loop.MaxIterations
+	case "agents.loop.max_tokens":
+		return cfg.Agents.Loop.MaxTokens
+	case "agents.loop.timeout":
+		return cfg.Agents.Loop.Timeout
+	case "agents.loop.total_timeout":
+		return cfg.Agents.Loop.TotalTimeout
+	case "agents.loop.iteration_interval":
+		return cfg.Agents.Loop.IterationInterval
 	default:
 		return ""
 	}
@@ -333,6 +357,12 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 			return fmt.Errorf("not a number: %s", value)
 		}
 		cfg.Dispatcher.Timeout = n
+	case "dispatcher.rate_limit_backoff":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("not a number: %s", value)
+		}
+		cfg.Dispatcher.RateLimitBackoff = n
 	case "agents.defaults.provider":
 		cfg.Agents.Defaults.Provider = value
 	case "agents.defaults.model":
@@ -349,6 +379,28 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 			return fmt.Errorf("not a float: %s", value)
 		}
 		cfg.Agents.Defaults.Temperature = f
+	case "agents.loop.max_iterations":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("not a number: %s", value)
+		}
+		cfg.Agents.Loop.MaxIterations = n
+	case "agents.loop.max_tokens":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("not a number: %s", value)
+		}
+		cfg.Agents.Loop.MaxTokens = n
+	case "agents.loop.timeout":
+		cfg.Agents.Loop.Timeout = value
+	case "agents.loop.total_timeout":
+		cfg.Agents.Loop.TotalTimeout = value
+	case "agents.loop.iteration_interval":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("not a number: %s", value)
+		}
+		cfg.Agents.Loop.IterationInterval = n
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}
@@ -361,8 +413,9 @@ func IsConfigKey(key string) bool {
 	case "gitea.url", "gitea.admin_token", "gitea.webhook_secret",
 		"llm.defaults.provider", "llm.defaults.model", "llm.defaults.max_tokens", "llm.defaults.temperature",
 		"llm.providers",
-		"dispatcher.max_concurrent", "dispatcher.retry_count", "dispatcher.timeout",
-		"agents.defaults.provider", "agents.defaults.model", "agents.defaults.max_tokens", "agents.defaults.temperature":
+		"dispatcher.max_concurrent", "dispatcher.retry_count", "dispatcher.timeout", "dispatcher.rate_limit_backoff",
+		"agents.defaults.provider", "agents.defaults.model", "agents.defaults.max_tokens", "agents.defaults.temperature",
+		"agents.loop.max_iterations", "agents.loop.max_tokens", "agents.loop.timeout", "agents.loop.total_timeout", "agents.loop.iteration_interval":
 		return true
 	default:
 		return false
@@ -395,6 +448,8 @@ func getConfigEntry(cfg *Config, key string) string {
 		return strconv.Itoa(cfg.Dispatcher.RetryCount)
 	case "dispatcher.timeout":
 		return strconv.Itoa(cfg.Dispatcher.Timeout)
+	case "dispatcher.rate_limit_backoff":
+		return strconv.Itoa(cfg.Dispatcher.RateLimitBackoff)
 	case "agents.defaults.provider":
 		return cfg.Agents.Defaults.Provider
 	case "agents.defaults.model":
@@ -403,6 +458,16 @@ func getConfigEntry(cfg *Config, key string) string {
 		return strconv.Itoa(cfg.Agents.Defaults.MaxTokens)
 	case "agents.defaults.temperature":
 		return fmt.Sprintf("%g", cfg.Agents.Defaults.Temperature)
+	case "agents.loop.max_iterations":
+		return strconv.Itoa(cfg.Agents.Loop.MaxIterations)
+	case "agents.loop.max_tokens":
+		return strconv.Itoa(cfg.Agents.Loop.MaxTokens)
+	case "agents.loop.timeout":
+		return cfg.Agents.Loop.Timeout
+	case "agents.loop.total_timeout":
+		return cfg.Agents.Loop.TotalTimeout
+	case "agents.loop.iteration_interval":
+		return strconv.Itoa(cfg.Agents.Loop.IterationInterval)
 	default:
 		return ""
 	}

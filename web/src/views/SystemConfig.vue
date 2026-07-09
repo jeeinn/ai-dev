@@ -116,6 +116,10 @@
               <el-input-number v-model.number="form['dispatcher.timeout']" :min="30" :max="3600" :step="30" />
               <div class="form-tip">单个任务最大执行时间，单位秒（默认 300）</div>
             </el-form-item>
+            <el-form-item label="429 退避时间">
+              <el-input-number v-model.number="form['dispatcher.rate_limit_backoff']" :min="0" :max="300" :step="5" />
+              <div class="form-tip">LLM 返回 429 时等待秒数后再重试；0 表示关闭（默认 0）</div>
+            </el-form-item>
           </el-form>
         </el-tab-pane>
 
@@ -138,6 +142,24 @@
             <el-form-item label="Temperature">
               <el-slider v-model.number="form['agents.defaults.temperature']" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
               <div class="form-tip">新建 Agent 时的默认 Temperature，可在 Agent 编辑中单独覆盖</div>
+            </el-form-item>
+
+            <el-divider content-position="left">Agent Loop 默认参数</el-divider>
+            <el-form-item label="最大迭代轮数">
+              <el-input-number v-model.number="form['agents.loop.max_iterations']" :min="1" :max="100" />
+            </el-form-item>
+            <el-form-item label="Loop Max Tokens">
+              <el-input-number v-model.number="form['agents.loop.max_tokens']" :min="1024" :max="32768" :step="1024" />
+            </el-form-item>
+            <el-form-item label="单轮超时">
+              <el-input v-model="form['agents.loop.timeout']" placeholder="5m" style="width: 200px" />
+            </el-form-item>
+            <el-form-item label="总超时">
+              <el-input v-model="form['agents.loop.total_timeout']" placeholder="30m" style="width: 200px" />
+            </el-form-item>
+            <el-form-item label="轮次间隔">
+              <el-input-number v-model.number="form['agents.loop.iteration_interval']" :min="0" :max="300" :step="1" />
+              <div class="form-tip">每轮 Agent Loop 之间的等待秒数；0 表示不等待。新建 Agent 时作为 Loop 默认值</div>
             </el-form-item>
           </el-form>
         </el-tab-pane>

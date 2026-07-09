@@ -33,13 +33,17 @@ type Executor struct {
 	llmRegistry   *llm.Registry
 	db            *store.DB
 	sem           chan struct{}
-	retryCount    int
+	retryCount    int // task_retry_count: whole-task retries after runner failure
 	giteaFactory  GiteaClientFactory
 	runnerFactory *agents.RunnerFactory
 	agentDefaults config.AgentDefaultsConfig
 	defaultLoop   config.AgentLoopConfig
 	onComplete    TaskCompleteCallback
 	onFailed      TaskFailedCallback
+
+	// rootCtx is cancelled on Shutdown so in-flight agent loops abort promptly.
+	rootCtx    context.Context
+	rootCancel context.CancelFunc
 }
 
 // NewExecutor creates a new Executor.
@@ -47,6 +51,7 @@ func NewExecutor(maxConcurrent, retryCount int, llmRegistry *llm.Registry, db *s
 	if defaultLoop.MaxIterations <= 0 {
 		defaultLoop = config.DefaultAgentLoopConfig()
 	}
+	rootCtx, rootCancel := context.WithCancel(context.Background())
 	return &Executor{
 		maxConcurrent: maxConcurrent,
 		llmRegistry:   llmRegistry,
@@ -55,6 +60,15 @@ func NewExecutor(maxConcurrent, retryCount int, llmRegistry *llm.Registry, db *s
 		retryCount:    retryCount,
 		agentDefaults: agentDefaults,
 		defaultLoop:   defaultLoop,
+		rootCtx:       rootCtx,
+		rootCancel:    rootCancel,
+	}
+}
+
+// Shutdown cancels in-flight task contexts (agent loops / LLM calls observe ctx.Done()).
+func (e *Executor) Shutdown() {
+	if e.rootCancel != nil {
+		e.rootCancel()
 	}
 }
 
@@ -115,18 +129,39 @@ func (e *Executor) execute(task *store.Task) {
 	}
 
 	timeout := e.resolveTaskTimeout(task.TaskType, agent)
-	// Shared across retries (option A)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	// Shared across task retries; cancelled on Executor.Shutdown (Ctrl+C / SIGTERM).
+	parent := e.rootCtx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
 	for attempt := 0; attempt <= e.retryCount; attempt++ {
 		if attempt > 0 {
-			log.Printf("[INFO] Retrying task %d (attempt %d/%d)", task.ID, attempt, e.retryCount)
-			time.Sleep(5 * time.Second)
+			if ctx.Err() != nil {
+				err = fmt.Errorf("task cancelled before retry: %w", ctx.Err())
+				break
+			}
+			log.Printf("[INFO] Retrying whole task %d (task_retry %d/%d)", task.ID, attempt, e.retryCount)
+			timer := time.NewTimer(5 * time.Second)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				err = fmt.Errorf("task cancelled during retry backoff: %w", ctx.Err())
+			case <-timer.C:
+			}
+			if ctx.Err() != nil {
+				break
+			}
 		}
 
 		err = e.runTask(ctx, task, agent)
 		if err == nil {
+			break
+		}
+		// Do not burn task retries on intentional cancellation / deadline.
+		if ctx.Err() != nil {
 			break
 		}
 	}

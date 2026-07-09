@@ -161,6 +161,16 @@ func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *
 	})
 }
 
+// Shutdown cancels in-flight executor work so agent loops can exit on process stop.
+func (d *Dispatcher) Shutdown() {
+	if d.executor != nil {
+		d.executor.Shutdown()
+	}
+	if d.queue != nil {
+		d.queue.StopScanner()
+	}
+}
+
 // Start initializes the executor workers, loads pending tasks, and starts the queue scanner.
 func (d *Dispatcher) Start() error {
 	// Mark orphaned running tasks as failed (e.g. previous process killed with Ctrl+C)

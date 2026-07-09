@@ -228,6 +228,9 @@ func main() {
 	<-done
 	log.Println("[INFO] Server shutting down...")
 
+	// Cancel in-flight agent loops / LLM calls before closing HTTP.
+	d.Shutdown()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

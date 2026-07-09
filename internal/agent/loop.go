@@ -78,6 +78,9 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 	tools := a.registry.ToLLMTools()
 
 	for i := 0; i < a.maxIterations; i++ {
+		if err := ctx.Err(); err != nil {
+			return "", fmt.Errorf("agent loop cancelled: %w", err)
+		}
 		if i > 0 && a.iterationInterval > 0 {
 			logging.Debugf("Agent loop waiting %s before iteration %d/%d",
 				a.iterationInterval, i+1, a.maxIterations)

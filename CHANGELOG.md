@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Token**：`max_tokens` → `max_output_tokens`；新增 `max_input_tokens`；删除 `loop_config.max_tokens` 与 `llm.defaults.max_tokens`
 - **默认 `max_input_tokens`**：`8192` → `65536`（缓解 tool-use 多轮后上下文被截断导致重复读文件）
 - **重试拆分**：`dispatcher.retry_count` → `dispatcher.task_retry_count`（整任务）+ `llm.rate_limit_retries`（仅 429）；启动时自动迁移旧 key
+- **优雅退出**：Ctrl+C / SIGTERM 时取消 in-flight Agent Loop / LLM 请求，避免任务长期卡在 `running`
 - **超时**：删除 `dispatcher.timeout` 与 `loop.timeout`；单次任务用 `agents.defaults.timeout` / `agent.timeout`；Loop 仅用 `total_timeout`
 - **Temperature**：迁至 `agents.defaults.temperature`（LLM Tab 不再配置）
 - **截断**：发请求前按 `max_input_tokens` 截断 messages（含 tools JSON）；估算为字符数/4

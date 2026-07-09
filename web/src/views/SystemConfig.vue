@@ -87,7 +87,7 @@
             </el-form-item>
             <el-form-item label="最大 Token">
               <el-input-number v-model.number="form['llm.defaults.max_tokens']" :min="256" :max="128000" :step="512" />
-              <div class="form-tip">LLM 单次调用的最大 Token 数。当 Agent 未设置时回退到此值（默认 4096）</div>
+              <div class="form-tip">LLM 单次调用的最大 Token 数。当 Agent 未设置时回退到此值（默认 2048）</div>
             </el-form-item>
             <el-form-item label="Temperature">
               <el-slider v-model.number="form['llm.defaults.temperature']" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />

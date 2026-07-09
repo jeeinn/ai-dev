@@ -44,14 +44,15 @@
 
             <el-divider content-position="left">LLM 配置</el-divider>
             <el-form-item label="Provider">
-              <el-select v-model="form.provider" style="width: 100%">
-                <el-option label="DeepSeek" value="deepseek" />
-                <el-option label="OpenAI" value="openai" />
-                <el-option label="Anthropic" value="anthropic" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="模型">
-              <el-input v-model="form.model" />
+              <el-col :span="11">
+                <el-select v-model="form.provider" placeholder="选择 Provider" style="width: 100%">
+                  <el-option v-for="name in effectiveProviderNames(form.provider)" :key="name" :label="name" :value="name" />
+                </el-select>
+              </el-col>
+              <el-col :span="2" style="text-align: center; line-height: 32px">:</el-col>
+              <el-col :span="11">
+                <el-input v-model="form.model" placeholder="模型名称" />
+              </el-col>
             </el-form-item>
             <el-form-item label="Max Tokens">
               <el-input-number v-model="form.max_tokens" :min="256" :max="128000" :step="512" />
@@ -154,13 +155,19 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
-import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TemplateHelp from '../components/TemplateHelp.vue'
+import { useAgentDefaults } from '../composables/useAgentDefaults'
 
 const route = useRoute()
 const router = useRouter()
 const agentId = ref(route.params.id)
+const {
+  loadAgentConfig,
+  effectiveProviderNames,
+  createEmptyAgentForm,
+  defaultLoopConfig
+} = useAgentDefaults()
 
 const activeTab = ref('info')
 const agent = ref(null)
@@ -176,26 +183,7 @@ const saving = ref(false)
 const showPromptDetail = ref(false)
 const viewingPrompt = ref(null)
 
-const defaultLoopConfig = {
-  max_iterations: 20,
-  max_tokens: 4096,
-  timeout: '5m',
-  total_timeout: '30m'
-}
-
-const defaultForm = {
-  name: '',
-  gitea_username: '',
-  role: 'analyze',
-  provider: 'deepseek',
-  model: 'deepseek-chat',
-  max_tokens: 4096,
-  temperature: 0.3,
-  system_prompt: '',
-  user_template: '',
-  status: 'active',
-  loop_config: { ...defaultLoopConfig }
-}
+const defaultForm = createEmptyAgentForm()
 
 const form = ref({ ...defaultForm, loop_config: { ...defaultLoopConfig } })
 
@@ -278,8 +266,9 @@ watch(activeTab, (tab) => {
   if (tab === 'prompts') loadPrompts()
 })
 
-onMounted(() => {
-  loadAgent()
+onMounted(async () => {
+  await loadAgentConfig()
+  await loadAgent()
   loadRepos()
 })
 </script>

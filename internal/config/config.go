@@ -83,6 +83,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.LLM.Defaults.MaxTokens == 0 {
 		cfg.LLM.Defaults.MaxTokens = 4096
 	}
+	if cfg.Agents.Defaults.MaxTokens == 0 {
+		cfg.Agents.Defaults.MaxTokens = 2048
+	}
 	if cfg.LLM.Defaults.Temperature == 0 {
 		cfg.LLM.Defaults.Temperature = 0.3
 	}

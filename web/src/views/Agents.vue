@@ -84,7 +84,7 @@
         <el-form-item label="Provider">
           <el-col :span="11">
             <el-select v-model="form.provider" placeholder="选择 Provider" style="width: 100%">
-              <el-option v-for="(_, name) in providers" :key="name" :label="name" :value="name" />
+              <el-option v-for="name in effectiveProviderNames(form.provider)" :key="name" :label="name" :value="name" />
             </el-select>
           </el-col>
           <el-col :span="2" style="text-align: center; line-height: 32px">:</el-col>
@@ -158,8 +158,15 @@ import api from '../api'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TemplateHelp from '../components/TemplateHelp.vue'
+import { useAgentDefaults } from '../composables/useAgentDefaults'
 
 const router = useRouter()
+const {
+  loadAgentConfig,
+  effectiveProviderNames,
+  createEmptyAgentForm,
+  defaultLoopConfig
+} = useAgentDefaults()
 const agents = ref([])
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -173,30 +180,9 @@ const editingAgent = ref(null)
 const builtinTemplates = ref([])
 const selectedTemplate = ref('')
 const advancedOpen = ref([])
-const providers = ref({})
 const repoList = ref([])
 
-const defaultForm = {
-  name: '',
-  gitea_username: '',
-  role: 'analyze',
-  provider: 'deepseek',
-  model: 'deepseek-chat',
-  max_tokens: 4096,
-  temperature: 0.3,
-  system_prompt: '',
-  user_template: '',
-  status: 'active',
-  repos: [],
-  loop_config: {
-    max_iterations: 20,
-    max_tokens: 4096,
-    timeout: '5m',
-    total_timeout: '30m'
-  }
-}
-
-const form = ref({ ...defaultForm })
+const form = ref(createEmptyAgentForm())
 
 const loadAgents = async () => {
   agents.value = await api.get('/agents')
@@ -224,21 +210,7 @@ const loadRepos = async () => {
   }
 }
 
-const loadProviders = async () => {
-  try {
-    const data = await api.get('/config')
-    if (data && data['llm.providers']) {
-      providers.value = data['llm.providers']
-    }
-    // Update default form values from config
-    if (data['agents.defaults.provider']) defaultForm.provider = data['agents.defaults.provider']
-    if (data['agents.defaults.model']) defaultForm.model = data['agents.defaults.model']
-    if (data['agents.defaults.max_tokens']) defaultForm.max_tokens = Number(data['agents.defaults.max_tokens']) || 4096
-    if (data['agents.defaults.temperature'] !== undefined) defaultForm.temperature = Number(data['agents.defaults.temperature']) || 0.3
-  } catch {
-    providers.value = {}
-  }
-}
+const loadProviders = loadAgentConfig
 
 const applyTemplate = (name) => {
   if (!name) return
@@ -250,18 +222,20 @@ const applyTemplate = (name) => {
   }
 }
 
-const openCreateDialog = () => {
+const openCreateDialog = async () => {
+  await loadAgentConfig()
   editingAgent.value = null
-  form.value = { ...defaultForm, loop_config: { ...defaultForm.loop_config } }
+  form.value = createEmptyAgentForm()
   selectedTemplate.value = ''
   showCreateDialog.value = true
 }
 
-const editAgent = (agent) => {
+const editAgent = async (agent) => {
+  await loadAgentConfig()
   editingAgent.value = agent
   form.value = {
     ...agent,
-    loop_config: { ...defaultForm.loop_config, ...(agent.loop_config || {}) }
+    loop_config: { ...defaultLoopConfig, ...(agent.loop_config || {}) }
   }
   selectedTemplate.value = ''
   showCreateDialog.value = true
@@ -270,7 +244,7 @@ const editAgent = (agent) => {
 const closeDialog = () => {
   showCreateDialog.value = false
   editingAgent.value = null
-  form.value = { ...defaultForm }
+  form.value = createEmptyAgentForm()
 }
 
 const saveAgent = async () => {

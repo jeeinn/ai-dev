@@ -67,7 +67,7 @@ llm:
   defaults:
     provider: "deepseek"
     model: "deepseek-chat"
-    max_tokens: 4096
+    max_tokens: 2048
     temperature: 0.3
 
 # API 管理接口配置
@@ -81,7 +81,7 @@ agents:
   defaults:
     provider: "deepseek"
     model: "deepseek-chat"
-    max_tokens: 4096
+    max_tokens: 2048
     temperature: 0.3
 
   templates:

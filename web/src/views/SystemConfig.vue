@@ -66,10 +66,16 @@
               <el-input
                 v-model="providersJson"
                 type="textarea"
-                :rows="6"
+                :rows="8"
                 placeholder='{"deepseek":{"base_url":"https://api.deepseek.com/v1","api_key":"sk-xxx"}}'
               />
-              <div class="form-tip">JSON 格式，key 为 Provider 名称，包含 base_url 和 api_key</div>
+              <div class="form-tip">
+                JSON 格式，可配置多个 Provider；字段名使用 <code>base_url</code> 与 <code>api_key</code>
+                <el-button type="primary" link size="small" class="help-link" @click="$refs.providerHelp.show()">点击查看配置示例</el-button>
+                <span v-if="providerNames.length" class="provider-tags">
+                  已识别：{{ providerNames.join('、') }}
+                </span>
+              </div>
             </el-form-item>
             <el-form-item label="默认 Provider">
               <el-select v-model="form['llm.defaults.provider']" placeholder="选择默认 Provider" style="width: 100%">
@@ -199,6 +205,7 @@
     </el-dialog>
 
     <TemplateHelp ref="templateHelp" />
+    <ProviderConfigHelp ref="providerHelp" />
   </div>
 </template>
 
@@ -208,6 +215,7 @@ import api from '../api'
 import { Check, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TemplateHelp from '../components/TemplateHelp.vue'
+import ProviderConfigHelp from '../components/ProviderConfigHelp.vue'
 
 const activeTab = ref('gitea')
 const form = ref({})
@@ -228,11 +236,27 @@ const newTemplate = ref({ name: '', system_prompt: '', user_template: '' })
 
 const providers = computed(() => {
   try {
-    return JSON.parse(providersJson.value)
+    return normalizeProviders(JSON.parse(providersJson.value))
   } catch {
     return {}
   }
 })
+
+const providerNames = computed(() => Object.keys(providers.value))
+
+const normalizeProviders = (raw) => {
+  const out = {}
+  for (const [name, cfg] of Object.entries(raw || {})) {
+    if (!cfg || typeof cfg !== 'object') continue
+    out[name] = {
+      base_url: cfg.base_url || cfg.BaseURL || '',
+      api_key: cfg.api_key || cfg.APIKey || ''
+    }
+  }
+  return out
+}
+
+const formatProvidersJson = (raw) => JSON.stringify(normalizeProviders(raw), null, 2)
 
 const setupHint = computed(() => {
   const fileCount = Object.values(sources.value).filter(v => v === 'file').length
@@ -254,7 +278,7 @@ const applyConfigData = (data) => {
   }
   form.value = next
   if (data['llm.providers']) {
-    providersJson.value = JSON.stringify(data['llm.providers'], null, 2)
+    providersJson.value = formatProvidersJson(data['llm.providers'])
   }
 }
 
@@ -319,9 +343,14 @@ const saveAll = async () => {
     // Parse providers JSON
     let providersData
     try {
-      providersData = JSON.parse(providersJson.value)
+      providersData = normalizeProviders(JSON.parse(providersJson.value))
     } catch {
       ElMessage.error('Provider 配置 JSON 格式错误')
+      saving.value = false
+      return
+    }
+    if (Object.keys(providersData).length === 0) {
+      ElMessage.error('请至少配置一个 Provider')
       saving.value = false
       return
     }
@@ -370,7 +399,7 @@ const testLLM = async () => {
   try {
     let providersData
     try {
-      providersData = JSON.parse(providersJson.value)
+      providersData = normalizeProviders(JSON.parse(providersJson.value))
     } catch {
       ElMessage.error('Provider 配置 JSON 格式错误')
       testingLLM.value = false
@@ -438,5 +467,17 @@ onMounted(() => {
 
 .form-tip code {
   font-size: 12px;
+}
+
+.help-link {
+  margin-left: 8px;
+  padding: 0;
+  vertical-align: baseline;
+}
+
+.provider-tags {
+  display: block;
+  margin-top: 4px;
+  color: #67c23a;
 }
 </style>

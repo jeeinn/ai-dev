@@ -310,9 +310,9 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 		}
 		cfg.LLM.Defaults.Temperature = f
 	case "llm.providers":
-		var providers map[string]ProviderConfig
-		if err := json.Unmarshal([]byte(value), &providers); err != nil {
-			return fmt.Errorf("invalid JSON: %s", err)
+		providers, err := ParseProvidersJSON(value)
+		if err != nil {
+			return fmt.Errorf("invalid JSON: %w", err)
 		}
 		cfg.LLM.Providers = providers
 	case "dispatcher.max_concurrent":

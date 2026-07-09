@@ -11,6 +11,7 @@ import (
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
+	"gitea-agent-gateway/internal/workflow"
 )
 
 // GiteaClientFactory creates Gitea clients for result writeback.
@@ -112,6 +113,9 @@ func (e *Executor) execute(task *store.Task) {
 		task.Error = err.Error()
 		e.db.UpdateTaskStatus(task.ID, "failed", "", err.Error())
 		log.Printf("[ERROR] Task %d failed: %v", task.ID, err)
+		if writeErr := e.writeFailureToGitea(task, err); writeErr != nil {
+			log.Printf("[ERROR] Task %d failure writeback failed: %v", task.ID, writeErr)
+		}
 	} else {
 		task.Status = "success"
 		e.db.UpdateTaskStatus(task.ID, "success", task.Result, "")
@@ -204,6 +208,59 @@ func (e *Executor) writeBackToGitea(task *store.Task) error {
 
 	log.Printf("[INFO] Task %d result written back to %s#%d", task.ID, task.Repo, task.IssueID)
 	return nil
+}
+
+// writeFailureToGitea posts task failure details to the linked Gitea issue/PR.
+func (e *Executor) writeFailureToGitea(task *store.Task, taskErr error) error {
+	if e.giteaFactory == nil {
+		log.Printf("[DEBUG] No Gitea factory configured, skipping failure writeback for task %d", task.ID)
+		return nil
+	}
+	if task.IssueID == 0 {
+		log.Printf("[DEBUG] No issue ID for task %d, skipping failure writeback", task.ID)
+		return nil
+	}
+	if taskErr == nil {
+		return nil
+	}
+
+	agent, err := e.db.GetAgent(task.AgentID)
+	if err != nil {
+		return fmt.Errorf("load agent for failure writeback: %w", err)
+	}
+
+	client := e.giteaFactory.GetGiteaClient(agent.GiteaToken)
+
+	parts := strings.SplitN(task.Repo, "/", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid repo format: %s", task.Repo)
+	}
+	owner, repo := parts[0], parts[1]
+
+	targetID := task.IssueID
+	if task.TaskType == "review_pr" && task.PRID > 0 {
+		targetID = task.PRID
+	}
+
+	commentBody := workflow.FormatAgentComment(formatFailureComment(task, taskErr))
+	if err := client.IssueComment(owner, repo, targetID, commentBody); err != nil {
+		return fmt.Errorf("post failure comment: %w", err)
+	}
+
+	log.Printf("[INFO] Task %d failure written back to %s#%d", task.ID, task.Repo, targetID)
+	return nil
+}
+
+func formatFailureComment(task *store.Task, taskErr error) string {
+	var sb strings.Builder
+	sb.WriteString("❌ **任务执行失败**\n\n")
+	sb.WriteString("**错误原因：**\n")
+	sb.WriteString("```\n")
+	sb.WriteString(strings.TrimSpace(taskErr.Error()))
+	sb.WriteString("\n```\n\n")
+	sb.WriteString("---\n")
+	sb.WriteString(fmt.Sprintf("*Task ID: %d | Agent: %d | Type: %s*", task.ID, task.AgentID, task.TaskType))
+	return sb.String()
 }
 
 // formatComment formats the LLM result as a Gitea comment.

@@ -216,25 +216,9 @@ func (h *Handler) stringConfigValue(key string) string {
 
 func (h *Handler) resolveProvidersForTest(payload map[string]interface{}) map[string]config.ProviderConfig {
 	if raw, ok := payload["llm.providers"]; ok {
-		switch v := raw.(type) {
-		case map[string]interface{}:
-			out := make(map[string]config.ProviderConfig)
-			for name, item := range v {
-				if m, ok := item.(map[string]interface{}); ok {
-					out[name] = config.ProviderConfig{
-						BaseURL: asString(m["base_url"]),
-						APIKey:  asString(m["api_key"]),
-					}
-				}
-			}
-			if len(out) > 0 {
-				return out
-			}
-		case string:
-			var out map[string]config.ProviderConfig
-			if err := json.Unmarshal([]byte(v), &out); err == nil {
-				return out
-			}
+		providers, err := config.ParseProvidersFromInterface(raw)
+		if err == nil && len(providers) > 0 {
+			return providers
 		}
 	}
 
@@ -243,7 +227,8 @@ func (h *Handler) resolveProvidersForTest(payload map[string]interface{}) map[st
 		return nil
 	}
 	if raw, ok := display["llm.providers"]; ok {
-		if providers, ok := raw.(map[string]config.ProviderConfig); ok {
+		providers, err := config.ParseProvidersFromInterface(raw)
+		if err == nil {
 			return providers
 		}
 	}

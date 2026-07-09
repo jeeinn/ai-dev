@@ -88,8 +88,8 @@ type LLMConfig struct {
 }
 
 type ProviderConfig struct {
-	BaseURL string `yaml:"base_url"`
-	APIKey  string `yaml:"api_key"`
+	BaseURL string `yaml:"base_url" json:"base_url"`
+	APIKey  string `yaml:"api_key" json:"api_key"`
 }
 
 type AgentDefaultsConfig struct {

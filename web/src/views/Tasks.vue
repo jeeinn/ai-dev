@@ -52,9 +52,17 @@
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100">
+        <el-table-column label="操作" width="160">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click="viewTask(row)">详情</el-button>
+            <el-button
+              v-if="row.status === 'pending' || row.status === 'running'"
+              size="small"
+              type="warning"
+              link
+              :loading="resettingId === row.id"
+              @click="resetTask(row)"
+            >重置</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -101,12 +109,14 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '../api'
 import { Refresh } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const tasks = ref([])
 const agents = ref([])
 const showDetail = ref(false)
 const selectedTask = ref(null)
 const loading = ref(false)
+const resettingId = ref(null)
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -171,6 +181,28 @@ const loadAgents = async () => {
 const viewTask = (task) => {
   selectedTask.value = task
   showDetail.value = true
+}
+
+const resetTask = async (task) => {
+  try {
+    await ElMessageBox.confirm(
+      `将任务 #${task.id}（${task.status}）标记为失败，以便重新触发该 Issue。确认重置？`,
+      '重置任务状态',
+      { type: 'warning', confirmButtonText: '重置', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  resettingId.value = task.id
+  try {
+    const res = await api.post(`/tasks/${task.id}/reset`)
+    ElMessage.success(res?.message || '已重置')
+    await loadTasks()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '重置失败')
+  } finally {
+    resettingId.value = null
+  }
 }
 
 onMounted(() => {

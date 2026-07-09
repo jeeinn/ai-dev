@@ -11,7 +11,7 @@ type Task struct {
 	Event      string     `json:"event"`
 	Repo       string     `json:"repo"`
 	IssueID    int        `json:"issue_id"`
-	PRID       int        `json:"pr_id"`  // PR number for review_pr / solve_issue tasks (0 = no PR)
+	PRID       int        `json:"pr_id"` // PR number for review_pr / solve_issue tasks (0 = no PR)
 	AgentID    int64      `json:"agent_id"`
 	TaskType   string     `json:"task_type"`
 	Context    string     `json:"context"`
@@ -217,6 +217,41 @@ func (db *DB) HasPendingOrRunningTask(repo string, issueID int) (bool, error) {
 		return false, fmt.Errorf("check pending task: %w", err)
 	}
 	return count > 0, nil
+}
+
+// ResetTask marks a pending/running task as failed so the issue can accept new work.
+// Returns the updated task. No-op error if task is already terminal.
+func (db *DB) ResetTask(id int64, reason string) (*Task, error) {
+	task, err := db.GetTask(id)
+	if err != nil {
+		return nil, err
+	}
+	if task.Status != "pending" && task.Status != "running" {
+		return nil, fmt.Errorf("task %d status is %q; only pending/running can be reset", id, task.Status)
+	}
+	if reason == "" {
+		reason = "manually reset"
+	}
+	_, err = db.Exec(`UPDATE tasks SET status='failed', error=?, finished_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('pending','running')`,
+		reason, id)
+	if err != nil {
+		return nil, fmt.Errorf("reset task: %w", err)
+	}
+	return db.GetTask(id)
+}
+
+// FailOrphanedRunningTasks marks all running tasks as failed (e.g. after process crash/restart).
+func (db *DB) FailOrphanedRunningTasks(reason string) (int, error) {
+	if reason == "" {
+		reason = "gateway restarted; interrupted running task"
+	}
+	result, err := db.Exec(`UPDATE tasks SET status='failed', error=?, finished_at=CURRENT_TIMESTAMP
+		WHERE status='running'`, reason)
+	if err != nil {
+		return 0, fmt.Errorf("fail orphaned running tasks: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	return int(n), nil
 }
 
 // ResetStaleRunningTasks resets tasks that have been in "running" state too long.

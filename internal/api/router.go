@@ -71,6 +71,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/agents/{id}/tasks", h.authorizeWrap(h.listAgentTasks))
 	mux.HandleFunc("GET /api/tasks", h.authorizeWrap(h.listTasks))
 	mux.HandleFunc("GET /api/tasks/{id}", h.authorizeWrap(h.getTask))
+	mux.HandleFunc("POST /api/tasks/{id}/reset", h.authorizeWrap(h.resetTask))
 	mux.HandleFunc("GET /api/logs", h.authorizeWrap(h.listLogs))
 	mux.HandleFunc("GET /api/stats", h.authorizeWrap(h.getStats))
 	mux.HandleFunc("GET /api/templates", h.authorizeWrap(h.listTemplates))
@@ -306,46 +307,46 @@ func (h *Handler) deleteUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "deleted"})
 }
 
-	// AgentDTO is the API response for agents, hiding sensitive fields.
-	type AgentDTO struct {
-		ID              int64                  `json:"id"`
-		Name            string                 `json:"name"`
-		GiteaUsername   string                 `json:"gitea_username"`
-		AvatarURL       string                 `json:"avatar_url"`
-		Provider        string                 `json:"provider"`
-		Model           string                 `json:"model"`
-		MaxOutputTokens int                    `json:"max_output_tokens"`
-		MaxInputTokens  int                    `json:"max_input_tokens"`
-		Temperature     float64                `json:"temperature"`
-		Timeout         string                 `json:"timeout"`
-		SystemPrompt    string                 `json:"system_prompt"`
-		UserTemplate    string                 `json:"user_template"`
-		LoopConfig      *store.AgentLoopConfig `json:"loop_config,omitempty"`
-		Repos           []string               `json:"repos,omitempty"`
-		Role            string                 `json:"role"`
-		Status          string                 `json:"status"`
-	}
+// AgentDTO is the API response for agents, hiding sensitive fields.
+type AgentDTO struct {
+	ID              int64                  `json:"id"`
+	Name            string                 `json:"name"`
+	GiteaUsername   string                 `json:"gitea_username"`
+	AvatarURL       string                 `json:"avatar_url"`
+	Provider        string                 `json:"provider"`
+	Model           string                 `json:"model"`
+	MaxOutputTokens int                    `json:"max_output_tokens"`
+	MaxInputTokens  int                    `json:"max_input_tokens"`
+	Temperature     float64                `json:"temperature"`
+	Timeout         string                 `json:"timeout"`
+	SystemPrompt    string                 `json:"system_prompt"`
+	UserTemplate    string                 `json:"user_template"`
+	LoopConfig      *store.AgentLoopConfig `json:"loop_config,omitempty"`
+	Repos           []string               `json:"repos,omitempty"`
+	Role            string                 `json:"role"`
+	Status          string                 `json:"status"`
+}
 
-	func toAgentDTO(a *store.Agent) AgentDTO {
-		return AgentDTO{
-			ID:              a.ID,
-			Name:            a.Name,
-			GiteaUsername:   a.GiteaUsername,
-			AvatarURL:       a.AvatarURL,
-			Repos:           a.Repos,
-			Provider:        a.Provider,
-			Model:           a.Model,
-			MaxOutputTokens: a.MaxOutputTokens,
-			MaxInputTokens:  a.MaxInputTokens,
-			Temperature:     a.Temperature,
-			Timeout:         a.Timeout,
-			SystemPrompt:    a.SystemPrompt,
-			UserTemplate:    a.UserTemplate,
-			LoopConfig:      a.LoopConfig,
-			Role:            a.Role,
-			Status:          a.Status,
-		}
+func toAgentDTO(a *store.Agent) AgentDTO {
+	return AgentDTO{
+		ID:              a.ID,
+		Name:            a.Name,
+		GiteaUsername:   a.GiteaUsername,
+		AvatarURL:       a.AvatarURL,
+		Repos:           a.Repos,
+		Provider:        a.Provider,
+		Model:           a.Model,
+		MaxOutputTokens: a.MaxOutputTokens,
+		MaxInputTokens:  a.MaxInputTokens,
+		Temperature:     a.Temperature,
+		Timeout:         a.Timeout,
+		SystemPrompt:    a.SystemPrompt,
+		UserTemplate:    a.UserTemplate,
+		LoopConfig:      a.LoopConfig,
+		Role:            a.Role,
+		Status:          a.Status,
 	}
+}
 
 // --- Agent endpoints ---
 
@@ -428,24 +429,24 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid request body")
 		return
 	}
-		// Copy decoded fields to agent
-		agent.Name = req.Name
-		agent.Provider = req.Provider
-		agent.Model = req.Model
-		agent.MaxOutputTokens = req.MaxOutputTokens
-		agent.MaxInputTokens = req.MaxInputTokens
-		agent.Temperature = req.Temperature
-		agent.Timeout = req.Timeout
-		agent.SystemPrompt = req.SystemPrompt
-		agent.UserTemplate = req.UserTemplate
-		agent.Status = req.Status
-		agent.Repos = req.Repos
-		if req.Role != "" {
-			agent.Role = req.Role
-		}
-		if req.LoopConfig != nil {
-			agent.LoopConfig = req.LoopConfig
-		}
+	// Copy decoded fields to agent
+	agent.Name = req.Name
+	agent.Provider = req.Provider
+	agent.Model = req.Model
+	agent.MaxOutputTokens = req.MaxOutputTokens
+	agent.MaxInputTokens = req.MaxInputTokens
+	agent.Temperature = req.Temperature
+	agent.Timeout = req.Timeout
+	agent.SystemPrompt = req.SystemPrompt
+	agent.UserTemplate = req.UserTemplate
+	agent.Status = req.Status
+	agent.Repos = req.Repos
+	if req.Role != "" {
+		agent.Role = req.Role
+	}
+	if req.LoopConfig != nil {
+		agent.LoopConfig = req.LoopConfig
+	}
 	agent.ID = id
 	if err := h.manager.UpdateAgent(agent); err != nil {
 		writeError(w, 500, err.Error())
@@ -560,6 +561,33 @@ func (h *Handler) getTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, task)
+}
+
+func (h *Handler) resetTask(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r, "id")
+	if err != nil {
+		writeError(w, 400, "invalid id")
+		return
+	}
+	task, err := h.db.ResetTask(id, "manually reset from task list")
+	if err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "only pending/running") {
+			writeError(w, 400, msg)
+			return
+		}
+		if strings.Contains(msg, "get task") || strings.Contains(msg, "not found") {
+			writeError(w, 404, "task not found")
+			return
+		}
+		writeError(w, 500, msg)
+		return
+	}
+	writeJSON(w, 200, map[string]interface{}{
+		"ok":      true,
+		"message": "任务已重置为失败，可重新触发",
+		"task":    task,
+	})
 }
 
 // --- Log endpoints ---

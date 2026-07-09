@@ -163,6 +163,13 @@ func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *
 
 // Start initializes the executor workers, loads pending tasks, and starts the queue scanner.
 func (d *Dispatcher) Start() error {
+	// Mark orphaned running tasks as failed (e.g. previous process killed with Ctrl+C)
+	if n, err := d.db.FailOrphanedRunningTasks("gateway restarted; interrupted running task"); err != nil {
+		log.Printf("[WARN] Failed to clear orphaned running tasks: %v", err)
+	} else if n > 0 {
+		log.Printf("[INFO] Marked %d orphaned running task(s) as failed after restart", n)
+	}
+
 	// Load pending tasks from DB before starting workers
 	if err := d.queue.LoadPending(); err != nil {
 		return fmt.Errorf("load pending tasks: %w", err)

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **沙箱工具跨平台**: `list_files` / `tree` / `search_code` 在 Windows 走 PowerShell，在 Unix 走 `find`/`grep`；`run_command` 在 Windows 用 `cmd /C`，Unix 用 `sh -c`；修复 Windows 上 Agent Loop 因无 `find`/`sh` 空转耗尽迭代的问题
+- **任务卡住**: Ctrl+C 后 `running` 任务残留导致「已有任务正在处理」；启动时自动将孤儿 `running` 标为 failed；任务列表增加「重置」操作（`POST /api/tasks/{id}/reset`）
 
 ### Changed (Agent LLM 预算与超时统一)
 - **Token**：`max_tokens` → `max_output_tokens`；新增 `max_input_tokens`；删除 `loop_config.max_tokens` 与 `llm.defaults.max_tokens`

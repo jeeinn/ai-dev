@@ -35,6 +35,7 @@ type Issue struct {
 	Body      string  `json:"body"`
 	State     string  `json:"state"`
 	User      User    `json:"user"`
+	Assignee  *User   `json:"assignee,omitempty"` // Primary assignee (Gitea often puts this inside issue)
 	Assignees []User  `json:"assignees"`
 	Labels    []Label `json:"labels"`
 	HTMLURL   string  `json:"html_url"`
@@ -85,6 +86,12 @@ func ParseEvent(eventType, deliveryID string, payload []byte) (*WebhookEvent, er
 	}
 	evt.DeliveryID = deliveryID
 	evt.Event = eventType
+	// Gitea may send assignment as issue_assign; normalize to issues for resolver.
+	if evt.Event == "issue_assign" {
+		evt.Event = "issues"
+	}
+
+	normalizeAssignee(&evt)
 
 	// Normalize action names across Gitea versions
 	// Gitea 1.26+ sends "label_updated" instead of "labeled"
@@ -96,6 +103,27 @@ func ParseEvent(eventType, deliveryID string, payload []byte) (*WebhookEvent, er
 		eventType, evt.Action, evt.Repo.FullName, evt.Sender.Login)
 
 	return &evt, nil
+}
+
+// normalizeAssignee fills evt.Assignee when Gitea only sends issue.assignee or issue.assignees.
+func normalizeAssignee(evt *WebhookEvent) {
+	if evt.Assignee != nil {
+		return
+	}
+	if evt.Issue == nil {
+		return
+	}
+	if evt.Issue.Assignee != nil {
+		evt.Assignee = evt.Issue.Assignee
+		return
+	}
+	if evt.Action != "assigned" || len(evt.Issue.Assignees) == 0 {
+		return
+	}
+	// Gitea versions differ: some only populate issue.assignees on assign events.
+	last := evt.Issue.Assignees[len(evt.Issue.Assignees)-1]
+	evt.Assignee = &last
+	log.Printf("[DEBUG] Normalized assignee from issue.assignees: %s", last.Login)
 }
 
 // HasLabel checks if the issue has the given label.

@@ -106,6 +106,27 @@ func TestResolveAssignedUnknownUser(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func TestResolveAssignedFromIssueAssigneeField(t *testing.T) {
+	reg := setupRegistry()
+	resolver := NewResolver(reg)
+
+	evt, err := webhook.ParseEvent("issues", "del-1", []byte(`{
+		"action": "assigned",
+		"repository": {"id": 1, "name": "repo", "full_name": "owner/repo"},
+		"issue": {
+			"id": 1, "number": 1, "title": "Test", "state": "open",
+			"user": {"id": 1, "login": "human"},
+			"assignee": {"id": 100, "login": "analyze-007"}
+		},
+		"sender": {"id": 1, "login": "human"}
+	}`))
+	require.NoError(t, err)
+
+	result := resolver.Resolve(evt)
+	require.NotNil(t, result)
+	assert.Equal(t, "analyze_issue", result.TaskType)
+}
+
 func TestResolveAssignedNoAssigneeField(t *testing.T) {
 	reg := setupRegistry()
 	resolver := NewResolver(reg)

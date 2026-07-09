@@ -225,6 +225,71 @@ func TestParseEventPullRequestReviewRequested(t *testing.T) {
 	assert.Equal(t, "reviewer-gpt", evt.PR.RequestedReviewers[0].Login)
 }
 
+func TestParseEventIssueAssigneeInsideIssue(t *testing.T) {
+	payload := []byte(`{
+		"action": "assigned",
+		"repository": {
+			"id": 1,
+			"name": "repo",
+			"full_name": "jeeinn/ai-dev"
+		},
+		"issue": {
+			"id": 1,
+			"number": 5,
+			"title": "Test",
+			"state": "open",
+			"user": {"id": 1, "login": "jeeinn"},
+			"assignee": {"id": 2, "login": "issue-analyze"},
+			"assignees": [
+				{"id": 2, "login": "issue-analyze"}
+			]
+		},
+		"sender": {"id": 1, "login": "jeeinn"}
+	}`)
+
+	evt, err := ParseEvent("issues", "del-issue-assignee", payload)
+	require.NoError(t, err)
+	require.NotNil(t, evt.Assignee)
+	assert.Equal(t, "issue-analyze", evt.Assignee.Login)
+}
+
+func TestParseEventIssueAssignOnlyAssigneesList(t *testing.T) {
+	payload := []byte(`{
+		"action": "assigned",
+		"repository": {"id": 1, "name": "repo", "full_name": "jeeinn/ai-dev"},
+		"issue": {
+			"id": 1, "number": 5, "title": "Test", "state": "open",
+			"user": {"id": 1, "login": "jeeinn"},
+			"assignees": [{"id": 2, "login": "issue-analyze"}]
+		},
+		"sender": {"id": 1, "login": "jeeinn"}
+	}`)
+
+	evt, err := ParseEvent("issues", "del-assignees-only", payload)
+	require.NoError(t, err)
+	require.NotNil(t, evt.Assignee)
+	assert.Equal(t, "issue-analyze", evt.Assignee.Login)
+}
+
+func TestParseEventIssueAssignEventType(t *testing.T) {
+	payload := []byte(`{
+		"action": "assigned",
+		"repository": {"id": 1, "name": "repo", "full_name": "jeeinn/ai-dev"},
+		"issue": {
+			"id": 1, "number": 5, "title": "Test", "state": "open",
+			"user": {"id": 1, "login": "jeeinn"},
+			"assignee": {"id": 2, "login": "issue-analyze"}
+		},
+		"sender": {"id": 1, "login": "jeeinn"}
+	}`)
+
+	evt, err := ParseEvent("issue_assign", "del-issue-assign", payload)
+	require.NoError(t, err)
+	assert.Equal(t, "issues", evt.Event)
+	require.NotNil(t, evt.Assignee)
+	assert.Equal(t, "issue-analyze", evt.Assignee.Login)
+}
+
 func TestParseEventNoAssignee(t *testing.T) {
 	payload := []byte(`{
 		"action": "opened",

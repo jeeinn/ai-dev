@@ -61,7 +61,7 @@ func (db *DB) migrate() error {
 			provider           TEXT NOT NULL DEFAULT 'deepseek',
 			model              TEXT NOT NULL DEFAULT 'deepseek-chat',
 			max_output_tokens  INTEGER DEFAULT 2048,
-			max_input_tokens   INTEGER DEFAULT 8192,
+			max_input_tokens   INTEGER DEFAULT 65536,
 			temperature        REAL DEFAULT 0.3,
 			timeout            TEXT DEFAULT '5m',
 			system_prompt      TEXT NOT NULL DEFAULT '',
@@ -199,7 +199,7 @@ func (db *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN pr_id INTEGER NOT NULL DEFAULT 0`, // P0: PR number for review_pr tasks
 		`ALTER TABLE workflow_contexts ADD COLUMN previous_stage TEXT DEFAULT ''`,
 		`ALTER TABLE agents ADD COLUMN max_output_tokens INTEGER DEFAULT 2048`,
-		`ALTER TABLE agents ADD COLUMN max_input_tokens INTEGER DEFAULT 8192`,
+		`ALTER TABLE agents ADD COLUMN max_input_tokens INTEGER DEFAULT 65536`,
 		`ALTER TABLE agents ADD COLUMN timeout TEXT DEFAULT '5m'`,
 		`DROP TABLE IF EXISTS routes`, // v2: routes table removed (Assign model replaces Label trigger)
 	}
@@ -283,7 +283,7 @@ func (db *DB) migrateAgentTokenBudget() error {
 		}
 		in := r.in
 		if in <= 0 {
-			in = 8192
+			in = 65536
 		}
 		timeout := r.timeout
 		if timeout == "" {

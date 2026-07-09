@@ -31,7 +31,7 @@ func NewAgentLoop(provider llm.Provider, registry *ToolRegistry, model string, m
 		registry:       registry,
 		model:          model,
 		maxTokens:      maxTokens,
-		maxInputTokens: 8192,
+		maxInputTokens: 65536,
 		temperature:    temperature,
 		maxIterations:  20,
 	}
@@ -45,7 +45,7 @@ func NewAgentLoopWithConfig(provider llm.Provider, registry *ToolRegistry, model
 		maxIter = 20
 	}
 	if maxInputTokens <= 0 {
-		maxInputTokens = 8192
+		maxInputTokens = 65536
 	}
 
 	iterationInterval := time.Duration(0)

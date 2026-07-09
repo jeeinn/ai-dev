@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 import api from '../api'
 
 export const DEFAULT_AGENT_MAX_OUTPUT_TOKENS = 2048
-export const DEFAULT_AGENT_MAX_INPUT_TOKENS = 8192
+export const DEFAULT_AGENT_MAX_INPUT_TOKENS = 65536
 export const DEFAULT_AGENT_TIMEOUT = '5m'
 
 export const DEFAULT_LOOP_CONFIG = {

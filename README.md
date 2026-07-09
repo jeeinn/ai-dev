@@ -156,7 +156,7 @@ go build -o gateway .
 agents:
   defaults:
     max_output_tokens: 2048   # 每次调用输出上限（单次 + Loop 每轮共用）
-    max_input_tokens: 8192    # 每次请求输入上限（含 tools；估算为字符数/4）
+    max_input_tokens: 65536   # 每次请求输入上限（含 tools；估算为字符数/4）
     temperature: 0.3
     timeout: "5m"             # 单次任务总超时（analyze/review/reply）
   loop:

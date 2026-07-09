@@ -158,7 +158,7 @@ func DefaultAgentDefaults() AgentDefaultsConfig {
 		Provider:        "deepseek",
 		Model:           "deepseek-chat",
 		MaxOutputTokens: 2048,
-		MaxInputTokens:  8192,
+		MaxInputTokens:  65536,
 		Temperature:     0.3,
 		Timeout:         "5m",
 	}

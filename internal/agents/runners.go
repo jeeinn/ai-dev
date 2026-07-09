@@ -18,7 +18,7 @@ import (
 
 const (
 	fallbackMaxOutput = 2048
-	fallbackMaxInput  = 8192
+	fallbackMaxInput  = 65536
 	fallbackTemp      = 0.3
 	fallbackTimeout   = "5m"
 )

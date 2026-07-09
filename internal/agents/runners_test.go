@@ -2,12 +2,16 @@ package agents
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockProvider is a mock LLM provider for testing.
@@ -96,4 +100,40 @@ func TestAnalyzeRunnerRun(t *testing.T) {
 	if result.Action != "comment" {
 		t.Errorf("Expected action=comment, got %s", result.Action)
 	}
+}
+
+func TestSaveSessionBranch(t *testing.T) {
+	tmpDB, err := os.CreateTemp("", "runners-test-*.db")
+	require.NoError(t, err)
+	tmpDB.Close()
+
+	db, err := store.Open(tmpDB.Name())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		db.Close()
+		os.Remove(tmpDB.Name())
+	})
+
+	session := &store.AgentSession{
+		ID:     "sess-save-branch",
+		Repo:   "owner/repo",
+		Status: store.SessionActive,
+		Branch: "",
+	}
+	require.NoError(t, db.CreateSession(session))
+
+	factory := NewRunnerFactory(nil, nil, db, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil)
+	task := &store.Task{SessionID: session.ID}
+
+	saveSessionBranch(factory, task, "ai/dev/issue-2")
+
+	got, err := db.GetSession(session.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "ai/dev/issue-2", got.Branch)
+
+	// Idempotent when branch unchanged
+	saveSessionBranch(factory, task, "ai/dev/issue-2")
+	got, err = db.GetSession(session.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "ai/dev/issue-2", got.Branch)
 }

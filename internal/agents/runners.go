@@ -468,39 +468,49 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		// Check if the session workspace already has a git repo
 		gitDir := filepath.Join(sb.WorkDir, ".git")
 		if _, statErr := os.Stat(gitDir); statErr == nil {
-			// Existing repo — fetch latest
-			log.Printf("[INFO] Session workspace has existing repo, fetching latest")
-			fetchResult := sb.Execute("git", "fetch", "origin")
-			audit.LogCommand("git", []string{"fetch", "origin"}, fetchResult)
-			if fetchResult.Error != nil {
-				errMsg := fetchResult.Stderr
-				if errMsg == "" {
-					errMsg = fetchResult.Error.Error()
+			// Existing repo — clean poisoned fetch refspecs and fetch only what we need
+			log.Printf("[INFO] Session workspace has existing repo, syncing")
+			resetResult := git.ResetFetchRefspecs("origin")
+			audit.LogCommand("git", []string{"config", "reset-fetch-refspecs", "origin"}, resetResult)
+
+			syncBranch := sessionBranch
+			if syncBranch == "" {
+				syncBranch = defaultBranch
+			}
+			if git.RemoteBranchExists("origin", syncBranch) {
+				fetchResult := git.FetchBranch("origin", syncBranch)
+				audit.LogCommand("git", []string{"fetch", "origin", syncBranch}, fetchResult)
+				if fetchResult.Error != nil {
+					errMsg := fetchResult.Stderr
+					if errMsg == "" {
+						errMsg = fetchResult.Error.Error()
+					}
+					return nil, fmt.Errorf("git fetch %s: %s", syncBranch, errMsg)
 				}
-				return nil, fmt.Errorf("git fetch: %s", errMsg)
+			} else {
+				log.Printf("[INFO] Branch %s is local-only, skipping remote fetch", syncBranch)
 			}
-			// Checkout the session branch or repo default branch
-			branch := sessionBranch
-			if branch == "" {
-				branch = defaultBranch
-			}
-			checkoutResult := sb.Execute("git", "checkout", branch)
-			audit.LogCommand("git", []string{"checkout", branch}, checkoutResult)
+
+			checkoutResult := git.Checkout(syncBranch)
+			audit.LogCommand("git", []string{"checkout", syncBranch}, checkoutResult)
 			if checkoutResult.Error != nil {
 				errMsg := checkoutResult.Stderr
 				if errMsg == "" {
 					errMsg = checkoutResult.Error.Error()
 				}
-				return nil, fmt.Errorf("git checkout %s: %s", branch, errMsg)
+				return nil, fmt.Errorf("git checkout %s: %s", syncBranch, errMsg)
 			}
-			pullResult := sb.Execute("git", "pull", "origin", branch)
-			audit.LogCommand("git", []string{"pull", "origin", branch}, pullResult)
-			if pullResult.Error != nil {
-				errMsg := pullResult.Stderr
-				if errMsg == "" {
-					errMsg = pullResult.Error.Error()
+
+			if git.RemoteBranchExists("origin", syncBranch) {
+				pullResult := sb.Execute("git", "pull", "origin", syncBranch)
+				audit.LogCommand("git", []string{"pull", "origin", syncBranch}, pullResult)
+				if pullResult.Error != nil {
+					errMsg := pullResult.Stderr
+					if errMsg == "" {
+						errMsg = pullResult.Error.Error()
+					}
+					return nil, fmt.Errorf("git pull: %s", errMsg)
 				}
-				return nil, fmt.Errorf("git pull: %s", errMsg)
 			}
 		} else {
 			// New session workspace — clone
@@ -544,29 +554,40 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	}
 
 	if isExistingBranch {
-		// Fetch and checkout existing branch
-		// shallow clone only tracks default branch, so we need to add the target branch
-		sb.Execute("git", "remote", "set-branches", "--add", "origin", branchName)
-		fetchResult := sb.Execute("git", "fetch", "--depth", "1", "origin", branchName)
-		audit.LogCommand("git", []string{"fetch", "origin", branchName}, fetchResult)
-		if fetchResult.Error != nil {
-			errMsg := fetchResult.Stderr
-			if errMsg == "" {
-				errMsg = fetchResult.Error.Error()
+		localExists := git.LocalBranchExists(branchName)
+		remoteExists := git.RemoteBranchExists("origin", branchName)
+
+		if remoteExists {
+			fetchResult := git.FetchBranch("origin", branchName)
+			audit.LogCommand("git", []string{"fetch", "origin", branchName}, fetchResult)
+			if fetchResult.Error != nil {
+				errMsg := fetchResult.Stderr
+				if errMsg == "" {
+					errMsg = fetchResult.Error.Error()
+				}
+				return nil, fmt.Errorf("git fetch %s: %s", branchName, errMsg)
 			}
-			return nil, fmt.Errorf("git fetch %s: %s", branchName, errMsg)
 		}
-		// Try checkout first (if local branch exists), then create tracking branch
-		checkoutResult := sb.Execute("git", "checkout", branchName)
-		audit.LogCommand("git", []string{"checkout", branchName}, checkoutResult)
-		if checkoutResult.Error != nil {
+
+		var checkoutResult *sandbox.Result
+		switch {
+		case localExists:
+			checkoutResult = git.Checkout(branchName)
+			audit.LogCommand("git", []string{"checkout", branchName}, checkoutResult)
+		case remoteExists:
 			checkoutResult = sb.Execute("git", "checkout", "-b", branchName, "origin/"+branchName)
 			audit.LogCommand("git", []string{"checkout", "-b", branchName, "origin/" + branchName}, checkoutResult)
-			if checkoutResult.Error != nil {
-				return nil, fmt.Errorf("checkout branch %s: %s", branchName, checkoutResult.Stderr)
-			}
+		default:
+			return nil, fmt.Errorf("branch %s not found locally or on remote", branchName)
 		}
-		log.Printf("[INFO] Checked out existing branch: %s", branchName)
+		if checkoutResult.Error != nil {
+			errMsg := checkoutResult.Stderr
+			if errMsg == "" {
+				errMsg = checkoutResult.Error.Error()
+			}
+			return nil, fmt.Errorf("checkout branch %s: %s", branchName, errMsg)
+		}
+		log.Printf("[INFO] Checked out existing branch: %s (local=%v remote=%v)", branchName, localExists, remoteExists)
 	} else {
 		// Create new branch
 		branchResult := git.CreateBranch(branchName)
@@ -578,6 +599,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 			}
 			return nil, fmt.Errorf("create branch: %s", errMsg)
 		}
+		saveSessionBranch(factory, task, branchName)
 	}
 
 	// Get LLM provider
@@ -680,12 +702,9 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		return nil, fmt.Errorf("push: %s", errMsg)
 	}
 
-	// Update session branch if using session workspace
-	if useSessionWorkspace && task.SessionID != "" {
-		if session, sessErr := factory.db.GetSession(task.SessionID); sessErr == nil {
-			session.Branch = branchName
-			factory.db.UpdateSession(session)
-		}
+	// Update session branch after successful push
+	if useSessionWorkspace {
+		saveSessionBranch(factory, task, branchName)
 	}
 
 	if isExistingBranch {
@@ -730,4 +749,20 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		Action:  "pr",
 		PRID:    pr.Number,
 	}, nil
+}
+
+// saveSessionBranch persists the working branch on the session for workspace reuse.
+func saveSessionBranch(factory *RunnerFactory, task *store.Task, branchName string) {
+	if task.SessionID == "" || factory.db == nil {
+		return
+	}
+	session, err := factory.db.GetSession(task.SessionID)
+	if err != nil {
+		return
+	}
+	if session.Branch == branchName {
+		return
+	}
+	session.Branch = branchName
+	factory.db.UpdateSession(session)
 }

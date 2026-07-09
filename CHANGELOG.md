@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Dev 任务 Git 操作**: session 复用 workspace 时 checkout 使用仓库 `default_branch` 而非硬编码 `main`；clone 使用 Agent Token 认证 URL；`git fetch`/`pull` 失败时立即终止任务并回写失败评论
+- **Session 复用 fetch 失败**: 移除 `git remote set-branches --add` 对 `.git/config` 的污染；本地-only 分支跳过远程 fetch，改用一次性 refspec fetch；session 复用前重置 branch-specific fetch refspec；创建分支时立即持久化 `session.Branch`
 - **沙箱工具跨平台**: `list_files` / `tree` / `search_code` 在 Windows 走 PowerShell，在 Unix 走 `find`/`grep`；`run_command` 在 Windows 用 `cmd /C`，Unix 用 `sh -c`；修复 Windows 上 Agent Loop 因无 `find`/`sh` 空转耗尽迭代的问题
 - **任务卡住**: Ctrl+C 后 `running` 任务残留导致「已有任务正在处理」；启动时自动将孤儿 `running` 标为 failed；任务列表增加「重置」操作（`POST /api/tasks/{id}/reset`）
 

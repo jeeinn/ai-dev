@@ -67,11 +67,47 @@ func (g *Git) Commit(message string) *Result {
 	return g.sandbox.Execute("git", "commit", "-m", message)
 }
 
+// LocalBranchExists reports whether a local branch exists.
+func (g *Git) LocalBranchExists(branch string) bool {
+	result := g.sandbox.Execute("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	return result.Error == nil
+}
+
+// RemoteBranchExists reports whether a branch exists on the remote.
+func (g *Git) RemoteBranchExists(remote, branch string) bool {
+	result := g.sandbox.Execute("git", "ls-remote", "--heads", remote, branch)
+	if result.Error != nil {
+		return false
+	}
+	return strings.TrimSpace(result.Stdout) != ""
+}
+
+// FetchRef fetches using an explicit refspec, avoiding configured remote fetch refspecs.
+func (g *Git) FetchRef(remote, refspec string) *Result {
+	return g.sandbox.Execute("git", "fetch", "--depth", "1", remote, refspec)
+}
+
+// FetchBranch fetches a single branch from remote without modifying remote config.
+func (g *Git) FetchBranch(remote, branch string) *Result {
+	refspec := fmt.Sprintf("refs/heads/%s:refs/remotes/%s/%s", branch, remote, branch)
+	return g.FetchRef(remote, refspec)
+}
+
+// ResetFetchRefspecs restores the remote fetch config to the default wildcard refspec.
+// Removes branch-specific refspecs left by `git remote set-branches --add`.
+func (g *Git) ResetFetchRefspecs(remote string) *Result {
+	key := fmt.Sprintf("remote.%s.fetch", remote)
+	g.sandbox.Execute("git", "config", "--unset-all", key)
+	return g.sandbox.Execute("git", "config", "--add", key,
+		fmt.Sprintf("+refs/heads/*:refs/remotes/%s/*", remote))
+}
+
 // Push pushes the current branch to remote.
 // Uses --force to handle retries (branch may already exist from a previous attempt).
 func (g *Git) Push(remote, branch string) *Result {
-	// Fetch latest refs to avoid stale info with --force-with-lease
-	g.sandbox.Execute("git", "fetch", remote)
+	if g.RemoteBranchExists(remote, branch) {
+		g.FetchBranch(remote, branch)
+	}
 	result := g.sandbox.Execute("git", "push", "--force-with-lease", remote, branch)
 	if result.Error != nil {
 		// Fallback to plain --force if --force-with-lease still fails

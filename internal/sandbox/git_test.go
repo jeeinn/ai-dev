@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -168,4 +169,120 @@ func TestGenerateBranchName(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func setupGitRepoWithRemote(t *testing.T) (*Sandbox, *Git, string) {
+	t.Helper()
+	cfg := SandboxConfig{
+		Mode:           ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 30 * time.Second,
+		MaxOutput:      4096,
+		MaxFileSize:    4096,
+	}
+
+	s := New(cfg, 2001)
+	require.NoError(t, s.Setup())
+	t.Cleanup(func() { s.Cleanup() })
+
+	git := NewGit(s)
+	s.Execute("git", "init")
+	s.Execute("git", "config", "user.email", "test@test.com")
+	s.Execute("git", "config", "user.name", "Test")
+	require.NoError(t, s.WriteFile("README.md", []byte("hello")))
+	git.Add()
+	require.NoError(t, git.Commit("initial").Error)
+	require.NoError(t, s.Execute("git", "checkout", "-B", "main").Error)
+
+	bareDir := filepath.Join(t.TempDir(), "remote.git")
+	require.NoError(t, s.Execute("git", "init", "--bare", bareDir).Error)
+	require.NoError(t, s.Execute("git", "remote", "add", "origin", bareDir).Error)
+	require.NoError(t, s.Execute("git", "push", "-u", "origin", "HEAD:refs/heads/main").Error)
+
+	return s, git, bareDir
+}
+
+func TestLocalBranchExists(t *testing.T) {
+	_, git, _ := setupGitRepoWithRemote(t)
+
+	assert.True(t, git.LocalBranchExists("main"))
+	assert.False(t, git.LocalBranchExists("ai/dev/issue-1"))
+
+	require.NoError(t, git.CreateBranch("ai/dev/issue-1").Error)
+	assert.True(t, git.LocalBranchExists("ai/dev/issue-1"))
+}
+
+func TestRemoteBranchExists(t *testing.T) {
+	s, git, _ := setupGitRepoWithRemote(t)
+
+	assert.True(t, git.RemoteBranchExists("origin", "main"))
+	assert.False(t, git.RemoteBranchExists("origin", "ai/dev/issue-2"))
+
+	require.NoError(t, git.CreateBranch("ai/dev/issue-2").Error)
+	require.NoError(t, s.WriteFile("feature.txt", []byte("x")))
+	git.Add()
+	require.NoError(t, git.Commit("feature").Error)
+	require.NoError(t, git.Push("origin", "ai/dev/issue-2").Error)
+
+	assert.True(t, git.RemoteBranchExists("origin", "ai/dev/issue-2"))
+}
+
+func TestFetchBranchDoesNotRequireSetBranches(t *testing.T) {
+	s, git, _ := setupGitRepoWithRemote(t)
+
+	require.NoError(t, git.CreateBranch("ai/dev/issue-3").Error)
+	require.NoError(t, s.WriteFile("b.txt", []byte("b")))
+	git.Add()
+	require.NoError(t, git.Commit("on feature").Error)
+	require.NoError(t, git.Push("origin", "ai/dev/issue-3").Error)
+
+	require.NoError(t, git.Checkout("main").Error)
+
+	fetchResult := git.FetchBranch("origin", "ai/dev/issue-3")
+	require.NoError(t, fetchResult.Error, fetchResult.Stderr)
+
+	checkoutResult := git.Checkout("ai/dev/issue-3")
+	if checkoutResult.Error != nil {
+		checkoutResult = s.Execute("git", "checkout", "-b", "ai/dev/issue-3", "origin/ai/dev/issue-3")
+	}
+	require.NoError(t, checkoutResult.Error, checkoutResult.Stderr)
+
+	branch, err := git.GetCurrentBranch()
+	require.NoError(t, err)
+	assert.Equal(t, "ai/dev/issue-3", branch)
+}
+
+func TestResetFetchRefspecsRemovesBranchSpecificRefs(t *testing.T) {
+	s, git, _ := setupGitRepoWithRemote(t)
+
+	require.NoError(t, s.Execute("git", "remote", "set-branches", "--add", "origin", "ai/dev/issue-4").Error)
+
+	before := s.Execute("git", "config", "--get-all", "remote.origin.fetch")
+	require.NoError(t, before.Error)
+	assert.Contains(t, before.Stdout, "ai/dev/issue-4")
+
+	resetResult := git.ResetFetchRefspecs("origin")
+	require.NoError(t, resetResult.Error, resetResult.Stderr)
+
+	after := s.Execute("git", "config", "--get-all", "remote.origin.fetch")
+	require.NoError(t, after.Error)
+	assert.NotContains(t, after.Stdout, "ai/dev/issue-4")
+	assert.Contains(t, after.Stdout, "refs/heads/*")
+}
+
+func TestLocalOnlyBranchSkipsRemoteFetch(t *testing.T) {
+	s, git, _ := setupGitRepoWithRemote(t)
+
+	require.NoError(t, git.CreateBranch("ai/dev/issue-5").Error)
+	assert.True(t, git.LocalBranchExists("ai/dev/issue-5"))
+	assert.False(t, git.RemoteBranchExists("origin", "ai/dev/issue-5"))
+
+	// Poison config like the old set-branches path did.
+	require.NoError(t, s.Execute("git", "remote", "set-branches", "--add", "origin", "ai/dev/issue-5").Error)
+	git.ResetFetchRefspecs("origin")
+
+	require.NoError(t, git.Checkout("ai/dev/issue-5").Error)
+	branch, err := git.GetCurrentBranch()
+	require.NoError(t, err)
+	assert.Equal(t, "ai/dev/issue-5", branch)
 }

@@ -3,11 +3,13 @@ package agent
 import (
 	"context"
 	"fmt"
-	"log"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/logging"
 )
 
 // AgentLoop manages the multi-turn conversation between LLM and tools.
@@ -77,7 +79,7 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 
 	for i := 0; i < a.maxIterations; i++ {
 		if i > 0 && a.iterationInterval > 0 {
-			log.Printf("[DEBUG] Agent loop waiting %s before iteration %d/%d",
+			logging.Debugf("Agent loop waiting %s before iteration %d/%d",
 				a.iterationInterval, i+1, a.maxIterations)
 			timer := time.NewTimer(a.iterationInterval)
 			select {
@@ -88,7 +90,7 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 			}
 		}
 
-		log.Printf("[DEBUG] Agent loop iteration %d/%d", i+1, a.maxIterations)
+		logging.Debugf("Agent loop iteration %d/%d", i+1, a.maxIterations)
 
 		trimmed, err := TruncateMessages(messages, tools, a.maxInputTokens)
 		if err != nil {
@@ -107,8 +109,14 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 			return "", fmt.Errorf("LLM call: %w", err)
 		}
 
-		log.Printf("[DEBUG] LLM response: content_len=%d, tool_calls=%d, finish=%s",
+		logging.Debugf("LLM response: content_len=%d, tool_calls=%d, finish=%s",
 			len(resp.Content), len(resp.ToolCalls), resp.FinishReason)
+		if resp.Content != "" {
+			logging.Debugf("LLM content preview: %s", truncateForLog(resp.Content, 800))
+		}
+		for _, call := range resp.ToolCalls {
+			logging.Debugf("LLM tool_call: %s(%s)", call.Function.Name, truncateForLog(call.Function.Arguments, 500))
+		}
 
 		if len(resp.ToolCalls) == 0 {
 			return resp.Content, nil
@@ -121,13 +129,14 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 		})
 
 		for _, call := range resp.ToolCalls {
-			log.Printf("[DEBUG] Executing tool: %s(%s)", call.Function.Name, call.Function.Arguments)
+			logging.Debugf("Executing tool: %s(%s)", call.Function.Name, truncateForLog(call.Function.Arguments, 500))
 
 			result, err := a.registry.ExecuteTool(call)
 			if err != nil {
 				result = fmt.Sprintf("Error: %v", err)
-				log.Printf("[WARN] Tool execution failed: %v", err)
+				logging.Warnf("Tool execution failed: %v", err)
 			}
+			logging.Debugf("Tool result %s: %s", call.Function.Name, truncateForLog(result, 1200))
 
 			messages = append(messages, llm.Message{
 				Role:       "tool",
@@ -138,4 +147,14 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 	}
 
 	return "", fmt.Errorf("max iterations (%d) reached", a.maxIterations)
+}
+
+func truncateForLog(s string, maxRunes int) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.TrimSpace(s)
+	if maxRunes <= 0 || utf8.RuneCountInString(s) <= maxRunes {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:maxRunes]) + "…(truncated)"
 }

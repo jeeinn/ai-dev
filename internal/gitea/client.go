@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"gitea-agent-gateway/internal/logging"
 )
 
 // Client is a Gitea API client.
@@ -28,12 +30,14 @@ func NewClient(baseURL, token string) *Client {
 }
 
 func (c *Client) do(method, path string, body interface{}) ([]byte, error) {
+	var reqBody []byte
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
 		if err != nil {
 			return nil, fmt.Errorf("marshal body: %w", err)
 		}
+		reqBody = data
 		bodyReader = bytes.NewReader(data)
 	}
 
@@ -45,20 +49,36 @@ func (c *Client) do(method, path string, body interface{}) ([]byte, error) {
 	req.Header.Set("Authorization", "token "+c.Token)
 	req.Header.Set("Content-Type", "application/json")
 
+	respBody, status, err := c.execute(req, reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if status >= 400 {
+		return nil, fmt.Errorf("API error %d: %s", status, string(respBody))
+	}
+	return respBody, nil
+}
+
+func (c *Client) execute(req *http.Request, reqBody []byte) ([]byte, int, error) {
+	logGiteaRequest(req, reqBody)
+
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
+		logGiteaTransportError(req, err)
+		return nil, 0, fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		return nil, resp.StatusCode, fmt.Errorf("read response: %w", err)
 	}
 
+	logGiteaResponse(req, resp.StatusCode, respBody)
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+		logging.Debugf("Gitea API error: %s %s status=%d body=%s",
+			req.Method, req.URL.Path, resp.StatusCode, truncateForLog(string(respBody), debugBodyLimit))
 	}
 
-	return respBody, nil
+	return respBody, resp.StatusCode, nil
 }

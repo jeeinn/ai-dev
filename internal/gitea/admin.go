@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 )
 
@@ -104,19 +103,12 @@ func (c *Client) CreateTokenWithCredentials(username, password, tokenName string
 	req.SetBasicAuth(username, password)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.HTTPClient.Do(req)
+	body, status, err := c.execute(req, data)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+	if status >= 400 {
+		return nil, fmt.Errorf("API error %d: %s", status, string(body))
 	}
 
 	var token TokenResponse

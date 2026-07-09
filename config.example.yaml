@@ -38,6 +38,7 @@ database:
 
 logging:
   # 日志级别: debug / info / warn / error
+  # debug 时会记录所有 Gitea API 请求与响应摘要（敏感字段自动脱敏）
   level: "info"
   # 日志目录
   path: "./data/logs"

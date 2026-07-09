@@ -3,7 +3,6 @@ package gitea
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 )
 
@@ -63,7 +62,6 @@ func (c *Client) PRGet(owner, repo string, prID int) (map[string]interface{}, er
 
 // PRDiff returns the diff of a pull request.
 func (c *Client) PRDiff(owner, repo string, prID int) (string, error) {
-	// Gitea API returns diff as text/plain
 	req, err := http.NewRequest("GET",
 		fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls/%d.diff", c.BaseURL, owner, repo, prID), nil)
 	if err != nil {
@@ -71,23 +69,14 @@ func (c *Client) PRDiff(owner, repo string, prID int) (string, error) {
 	}
 	req.Header.Set("Authorization", "token "+c.Token)
 
-	resp, err := c.HTTPClient.Do(req)
+	respBody, status, err := c.execute(req, nil)
 	if err != nil {
-		return "", fmt.Errorf("do request: %w", err)
+		return "", err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+	if status >= 400 {
+		return "", fmt.Errorf("API error %d: %s", status, string(respBody))
 	}
-
-	diff, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read response: %w", err)
-	}
-
-	return string(diff), nil
+	return string(respBody), nil
 }
 
 // PRFiles returns the list of files changed in a pull request.

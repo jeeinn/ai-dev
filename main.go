@@ -20,6 +20,7 @@ import (
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/dispatcher"
 	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/logging"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
 	"gitea-agent-gateway/internal/workflow"
@@ -65,6 +66,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("[FATAL] Failed to load config: %v", err)
 	}
+	logging.SetLevel(cfg.Logging.Level)
+	closeLog, err := logging.SetupOutput(cfg.Logging.Path)
+	if err != nil {
+		log.Fatalf("[FATAL] Failed to setup logging: %v", err)
+	}
+	defer closeLog()
 
 	// Open database
 	db, err := store.Open(cfg.Database.Path)

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **沙箱工具跨平台**: `list_files` / `tree` / `search_code` 在 Windows 走 PowerShell，在 Unix 走 `find`/`grep`；`run_command` 在 Windows 用 `cmd /C`，Unix 用 `sh -c`；修复 Windows 上 Agent Loop 因无 `find`/`sh` 空转耗尽迭代的问题
+
 ### Changed (Agent LLM 预算与超时统一)
 - **Token**：`max_tokens` → `max_output_tokens`；新增 `max_input_tokens`；删除 `loop_config.max_tokens` 与 `llm.defaults.max_tokens`
 - **超时**：删除 `dispatcher.timeout` 与 `loop.timeout`；单次任务用 `agents.defaults.timeout` / `agent.timeout`；Loop 仅用 `total_timeout`

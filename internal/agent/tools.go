@@ -147,7 +147,7 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 	// list_files
 	registry.Register(&ToolDef{
 		Name:        "list_files",
-		Description: "List files and directories at the given path. Returns a tree-like structure.",
+		Description: "List files under the given path (max depth 3). Returns one path per line.",
 		Parameters: llm.Parameters{
 			Type: "object",
 			Properties: map[string]llm.Property{
@@ -159,9 +159,13 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 		},
 		Fn: func(params map[string]interface{}) (string, error) {
 			path, _ := params["path"].(string)
-			result := sb.Execute("find", path, "-maxdepth", "3", "-type", "f")
-			if result.Error != nil {
-				return fmt.Sprintf("Error: %v", result.Error), nil
+			cmd, args := listFilesCmd(path)
+			result := sb.Execute(cmd, args...)
+			if result.Error != nil && result.Stdout == "" {
+				return fmt.Sprintf("Error: %v\n%s", result.Error, result.Stderr), nil
+			}
+			if result.Stdout == "" {
+				return "(no files found)", nil
 			}
 			return result.Stdout, nil
 		},
@@ -170,7 +174,7 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 	// search_code
 	registry.Register(&ToolDef{
 		Name:        "search_code",
-		Description: "Search for a pattern in the codebase using grep. Returns matching lines with file paths.",
+		Description: "Search for a pattern in the codebase. Returns matching lines with file paths and line numbers.",
 		Parameters: llm.Parameters{
 			Type: "object",
 			Properties: map[string]llm.Property{
@@ -188,15 +192,14 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 		Fn: func(params map[string]interface{}) (string, error) {
 			pattern, _ := params["pattern"].(string)
 			path, _ := params["path"].(string)
-			if path == "" {
-				path = "."
-			}
 			if pattern == "" {
 				return "", fmt.Errorf("pattern is required")
 			}
-			result := sb.Execute("grep", "-rn", "--include=*.go", "--include=*.py", "--include=*.js", "--include=*.ts", pattern, path)
-			if result.Error != nil && result.ExitCode != 1 {
-				return fmt.Sprintf("Error: %v", result.Error), nil
+			cmd, args := searchCodeCmd(pattern, path)
+			result := sb.Execute(cmd, args...)
+			// grep exit 1 = no matches; PowerShell may return empty stdout
+			if result.Error != nil && result.ExitCode != 1 && result.Stdout == "" {
+				return fmt.Sprintf("Error: %v\n%s", result.Error, result.Stderr), nil
 			}
 			if result.Stdout == "" {
 				return "No matches found.", nil
@@ -208,13 +211,13 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 	// run_command
 	registry.Register(&ToolDef{
 		Name:        "run_command",
-		Description: "Execute a shell command in the workspace. Use for building, testing, or inspecting the project.",
+		Description: "Execute a shell command in the workspace. On Windows uses cmd /C; on Unix uses sh -c. Prefer portable commands (go, git) when possible.",
 		Parameters: llm.Parameters{
 			Type: "object",
 			Properties: map[string]llm.Property{
 				"command": {
 					Type:        "string",
-					Description: "The command to execute (e.g., 'go build ./...', 'go test ./...', 'ls -la').",
+					Description: "The command to execute (e.g., 'go build ./...', 'go test ./...'). On Windows use cmd syntax (dir); on Unix use sh syntax (ls -la).",
 				},
 			},
 			Required: []string{"command"},
@@ -256,14 +259,12 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 			if diff == "" {
 				return "", fmt.Errorf("diff is required")
 			}
-			// Write diff to temp file
 			if err := sb.WriteFile("_patch.diff", []byte(diff)); err != nil {
 				return fmt.Sprintf("Error writing diff: %v", err), nil
 			}
-			// Apply patch
 			result := sb.Execute("git", "apply", "_patch.diff")
-			// Clean up
-			sb.Execute("rm", "_patch.diff")
+			rmCmd, rmArgs := removeFileCmd("_patch.diff")
+			sb.Execute(rmCmd, rmArgs...)
 			if result.Error != nil {
 				return fmt.Sprintf("Error applying diff: %v\n%s", result.Error, result.Stderr), nil
 			}
@@ -274,7 +275,7 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 	// tree - Show directory structure
 	registry.Register(&ToolDef{
 		Name:        "tree",
-		Description: "Show directory structure as a tree. Useful for understanding project layout.",
+		Description: "Show directory structure (files and directories). Useful for understanding project layout.",
 		Parameters: llm.Parameters{
 			Type: "object",
 			Properties: map[string]llm.Property{
@@ -290,16 +291,17 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 		},
 		Fn: func(params map[string]interface{}) (string, error) {
 			path, _ := params["path"].(string)
-			if path == "" {
-				path = "."
-			}
 			depth := 3
 			if d, ok := params["depth"].(float64); ok && d > 0 {
 				depth = int(d)
 			}
-			result := sb.Execute("find", path, "-maxdepth", fmt.Sprintf("%d", depth), "-type", "f", "-o", "-type", "d")
-			if result.Error != nil {
-				return fmt.Sprintf("Error: %v", result.Error), nil
+			cmd, args := treeCmd(path, depth)
+			result := sb.Execute(cmd, args...)
+			if result.Error != nil && result.Stdout == "" {
+				return fmt.Sprintf("Error: %v\n%s", result.Error, result.Stderr), nil
+			}
+			if result.Stdout == "" {
+				return "(empty)", nil
 			}
 			return result.Stdout, nil
 		},

@@ -91,17 +91,19 @@ func New(cfg SandboxConfig, taskID int64) *Sandbox {
 		WorkDir: workDir,
 		AllowedCmds: map[string]bool{
 			// Shell
-			"sh": true, "bash": true, "cmd": true,
+			"sh": true, "bash": true, "cmd": true, "powershell": true, "pwsh": true,
 			// Git commands
 			"git": true,
 			// Build tools
 			"go": true, "make": true, "cargo": true,
 			// Runtimes
 			"python": true, "python3": true, "node": true, "npm": true, "npx": true,
-			// Utilities
+			// Utilities (Unix)
 			"cat": true, "ls": true, "pwd": true, "echo": true, "grep": true,
 			"find": true, "head": true, "tail": true, "wc": true, "sort": true,
-			"mkdir": true, "cp": true, "mv": true, "touch": true,
+			"mkdir": true, "cp": true, "mv": true, "touch": true, "rm": true,
+			// Utilities (Windows)
+			"dir": true, "type": true, "where": true, "findstr": true, "tree": true,
 			// Testing
 			"pytest": true, "jest": true, "mocha": true,
 		},
@@ -223,9 +225,7 @@ func (s *Sandbox) Execute(command string, args ...string) *Result {
 }
 
 // ExecuteShell runs a shell command in the sandbox workspace.
-func (s *Sandbox) ExecuteShell(command string) *Result {
-	return s.Execute("sh", "-c", command)
-}
+// Implementation is platform-specific (see shell_unix.go / shell_windows.go).
 
 // IsAllowed checks if a command is in the whitelist.
 func (s *Sandbox) IsAllowed(command string) bool {

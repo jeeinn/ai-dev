@@ -56,8 +56,9 @@ func LoadCodeContext(sb *sandbox.Sandbox, maxTokens int) (*CodeContext, error) {
 
 // loadDirectoryStructure recursively loads the directory structure.
 func loadDirectoryStructure(sb *sandbox.Sandbox, dir string, maxDepth int) (string, error) {
-	result := sb.Execute("find", dir, "-maxdepth", fmt.Sprintf("%d", maxDepth), "-not", "-path", "*/.git/*")
-	if result.Error != nil {
+	cmd, args := treeCmd(dir, maxDepth)
+	result := sb.Execute(cmd, args...)
+	if result.Error != nil && result.Stdout == "" {
 		return "", result.Error
 	}
 	return result.Stdout, nil

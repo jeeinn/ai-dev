@@ -3,6 +3,7 @@ package sandbox
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -169,7 +170,7 @@ func TestSandboxIsAllowed(t *testing.T) {
 	}
 
 	// Disallowed commands
-	disallowed := []string{"rm", "dd", "mkfs", "shutdown", "reboot"}
+	disallowed := []string{"dd", "mkfs", "shutdown", "reboot", "format"}
 	for _, cmd := range disallowed {
 		assert.False(t, s.IsAllowed(cmd), "Command '%s' should NOT be allowed", cmd)
 	}
@@ -187,12 +188,12 @@ func TestSandboxExecute(t *testing.T) {
 	s.Setup()
 	defer s.Cleanup()
 
-	// Execute echo command
-	result := s.Execute("echo", "hello")
+	// Use shell so echo works on both Windows (cmd) and Unix (sh)
+	result := s.ExecuteShell("echo hello")
 
 	require.NoError(t, result.Error)
 	assert.Equal(t, 0, result.ExitCode)
-	assert.Equal(t, "hello\n", result.Stdout)
+	assert.Contains(t, strings.TrimSpace(result.Stdout), "hello")
 }
 
 func TestSandboxExecuteDisallowed(t *testing.T) {
@@ -208,7 +209,7 @@ func TestSandboxExecuteDisallowed(t *testing.T) {
 	defer s.Cleanup()
 
 	// Try to execute disallowed command
-	result := s.Execute("rm", "-rf", "/")
+	result := s.Execute("dd", "if=/dev/zero", "of=/tmp/x")
 
 	assert.Error(t, result.Error, "Execute should fail for disallowed command")
 	assert.Equal(t, -1, result.ExitCode)
@@ -230,7 +231,7 @@ func TestSandboxExecuteShell(t *testing.T) {
 	result := s.ExecuteShell("echo hello world")
 
 	require.NoError(t, result.Error)
-	assert.Equal(t, "hello world\n", result.Stdout)
+	assert.Equal(t, "hello world", strings.TrimSpace(result.Stdout))
 }
 
 func TestDefaultConfig(t *testing.T) {

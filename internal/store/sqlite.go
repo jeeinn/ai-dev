@@ -176,6 +176,20 @@ func (db *DB) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_repo_issue ON agent_sessions(repo, issue_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_status ON agent_sessions(status)`,
+		`CREATE TABLE IF NOT EXISTS task_conversation_logs (
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			task_id      INTEGER NOT NULL,
+			iteration    INTEGER NOT NULL,
+			seq          INTEGER NOT NULL,
+			role         TEXT NOT NULL,
+			content      TEXT DEFAULT '',
+			tool_calls   TEXT DEFAULT '',
+			tool_call_id TEXT DEFAULT '',
+			created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_task_conv_logs_task_id ON task_conversation_logs(task_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_task_conv_logs_task_iter ON task_conversation_logs(task_id, iteration)`,
 	}
 
 	for _, m := range migrations {

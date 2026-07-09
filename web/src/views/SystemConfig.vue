@@ -160,7 +160,27 @@
           </el-form>
         </el-tab-pane>
 
-        <!-- Tab 5: Prompt 模板 -->
+        <!-- Tab 5: 调试 -->
+        <el-tab-pane label="调试" name="debug">
+          <el-alert title="调试功能默认关闭。开启后会将 Agent Loop 的 LLM 对话写入数据库，便于排查问题。" type="warning" :closable="false" style="margin-bottom: 16px" />
+          <el-form label-width="180px" class="config-form">
+            <el-form-item label="记录 Agent 对话">
+              <el-switch v-model="form['debug.conversation_log.enabled']" />
+              <div class="form-tip">
+                开启后，solve / fix_bug 等多轮任务的每轮 LLM 消息与 tool call 将持久化到 <code>task_conversation_logs</code> 表
+                <el-tag v-if="sourceTag('debug.conversation_log.enabled')" size="small" :type="sourceTag('debug.conversation_log.enabled') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
+                  {{ sourceTag('debug.conversation_log.enabled') }}
+                </el-tag>
+              </div>
+            </el-form-item>
+            <el-form-item label="单条内容最大字符">
+              <el-input-number v-model.number="form['debug.conversation_log.max_content_chars']" :min="0" :max="500000" :step="10000" />
+              <div class="form-tip">写入数据库前截断 message / tool result 长度；0 表示不截断（默认 100000）</div>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+
+        <!-- Tab 6: Prompt 模板 -->
         <el-tab-pane label="Prompt 模板" name="prompts">
           <el-alert title="管理内置 Prompt 模板。自定义模板优先级高于内置模板（DB > 内置）。" type="info" :closable="false" style="margin-bottom: 16px" />
           <div style="margin-bottom: 12px">
@@ -294,6 +314,12 @@ const applyConfigData = (data) => {
     sources.value = next._meta.sources
     delete next._meta
   }
+  if (next['debug.conversation_log.enabled'] === undefined) {
+    next['debug.conversation_log.enabled'] = false
+  }
+  if (next['debug.conversation_log.max_content_chars'] === undefined) {
+    next['debug.conversation_log.max_content_chars'] = 100000
+  }
   form.value = next
   if (data['llm.providers']) {
     providersJson.value = formatProvidersJson(data['llm.providers'])
@@ -377,9 +403,9 @@ const saveAll = async () => {
     const entries = {}
     for (const [key, value] of Object.entries(form.value)) {
       if (key === 'llm.providers') continue // handle separately
-      if (value !== null && value !== undefined && value !== '') {
-        entries[key] = String(value)
-      }
+      if (value === null || value === undefined) continue
+      if (value === '' && typeof value !== 'boolean') continue
+      entries[key] = String(value)
     }
     entries['llm.providers'] = JSON.stringify(providersData)
 

@@ -60,7 +60,7 @@ func NewTestEnv(t *testing.T) *TestEnv {
 		},
 			Dispatcher: config.DispatcherConfig{
 				MaxConcurrent: 2,
-				RetryCount:    0,
+				TaskRetryCount: 0,
 				QueueSize:     10,
 			},
 			Agents: config.AgentsConfig{

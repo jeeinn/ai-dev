@@ -25,9 +25,9 @@ workspace:
 dispatcher:
   # 最大并发 Agent 数
   max_concurrent: 2
-  # 失败重试次数
-  retry_count: 1
-  # LLM 返回 429 时的退避等待（秒）；0 表示关闭
+  # 整任务失败后的重试次数（clone/runner 整次失败；不含 loop 内轮次）
+  task_retry_count: 1
+  # LLM 返回 429 时的退避等待（秒）；0 表示关闭 429 重试
   rate_limit_backoff: 30
   # 任务队列大小
   queue_size: 100
@@ -67,6 +67,9 @@ llm:
   defaults:
     provider: "deepseek"
     model: "deepseek-chat"
+
+  # 单次 ChatCompletion 遇 HTTP 429 后的重试次数（需 rate_limit_backoff > 0）
+  rate_limit_retries: 1
 
 # API 管理接口配置
 api:

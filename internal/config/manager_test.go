@@ -49,7 +49,7 @@ func TestGetDisplayMapPrefersDBAndFallsBackToFile(t *testing.T) {
 				"deepseek": {BaseURL: "https://api.deepseek.com/v1", APIKey: "sk-file"},
 			},
 		},
-		Dispatcher: DispatcherConfig{MaxConcurrent: 2, RetryCount: 1},
+		Dispatcher: DispatcherConfig{MaxConcurrent: 2, TaskRetryCount: 1},
 		Agents: AgentsConfig{
 			Defaults: AgentDefaultsConfig{
 				Provider:        "deepseek",
@@ -88,7 +88,7 @@ func TestGetDisplayMapTreatsEmptyDBValueAsUnset(t *testing.T) {
 		LLM: LLMConfig{
 			Defaults: LLMDefaultsConfig{Provider: "deepseek", Model: "deepseek-chat"},
 		},
-		Dispatcher: DispatcherConfig{MaxConcurrent: 2, RetryCount: 1},
+		Dispatcher: DispatcherConfig{MaxConcurrent: 2, TaskRetryCount: 1},
 		Agents: AgentsConfig{
 			Defaults: AgentDefaultsConfig{
 				Provider:        "deepseek",

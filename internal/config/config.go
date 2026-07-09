@@ -59,8 +59,16 @@ func applyDefaults(cfg *Config) {
 	if cfg.Dispatcher.MaxConcurrent == 0 {
 		cfg.Dispatcher.MaxConcurrent = 3
 	}
-	if cfg.Dispatcher.RetryCount == 0 {
-		cfg.Dispatcher.RetryCount = 1
+	// Migrate deprecated dispatcher.retry_count → task_retry_count
+	if cfg.Dispatcher.TaskRetryCount == 0 && cfg.Dispatcher.RetryCount > 0 {
+		cfg.Dispatcher.TaskRetryCount = cfg.Dispatcher.RetryCount
+	}
+	if cfg.Dispatcher.TaskRetryCount == 0 {
+		cfg.Dispatcher.TaskRetryCount = 1
+	}
+	cfg.Dispatcher.RetryCount = 0 // clear deprecated field after migration
+	if cfg.LLM.RateLimitRetries == 0 {
+		cfg.LLM.RateLimitRetries = 1
 	}
 	if cfg.Dispatcher.QueueSize == 0 {
 		cfg.Dispatcher.QueueSize = 100

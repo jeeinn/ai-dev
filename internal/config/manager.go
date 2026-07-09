@@ -110,6 +110,22 @@ func (m *ConfigManager) MigrateLegacyConfigKeys() error {
 		}
 	}
 
+	// dispatcher.retry_count → task_retry_count; also seed llm.rate_limit_retries once
+	if _, ok := entries["dispatcher.task_retry_count"]; !ok {
+		if v, ok := entries["dispatcher.retry_count"]; ok && strings.TrimSpace(v) != "" {
+			if err := m.store.SetConfig("dispatcher.task_retry_count", v); err != nil {
+				return err
+			}
+		}
+	}
+	if _, ok := entries["llm.rate_limit_retries"]; !ok {
+		if v, ok := entries["dispatcher.retry_count"]; ok && strings.TrimSpace(v) != "" {
+			if err := m.store.SetConfig("llm.rate_limit_retries", v); err != nil {
+				return err
+			}
+		}
+	}
+
 	legacyKeys := []string{
 		"llm.defaults.max_tokens",
 		"llm.defaults.temperature",
@@ -117,6 +133,7 @@ func (m *ConfigManager) MigrateLegacyConfigKeys() error {
 		"agents.loop.max_tokens",
 		"agents.loop.timeout",
 		"dispatcher.timeout",
+		"dispatcher.retry_count",
 	}
 	for _, key := range legacyKeys {
 		if _, ok := entries[key]; ok {
@@ -247,8 +264,9 @@ func (m *ConfigManager) getActiveMap() map[string]interface{} {
 		"llm.defaults.model":              cfg.LLM.Defaults.Model,
 		"llm.providers":                   cfg.LLM.Providers,
 		"dispatcher.max_concurrent":       cfg.Dispatcher.MaxConcurrent,
-		"dispatcher.retry_count":          cfg.Dispatcher.RetryCount,
+		"dispatcher.task_retry_count":     cfg.Dispatcher.TaskRetryCount,
 		"dispatcher.rate_limit_backoff":   cfg.Dispatcher.RateLimitBackoff,
+		"llm.rate_limit_retries":          cfg.LLM.RateLimitRetries,
 		"agents.defaults.provider":        cfg.Agents.Defaults.Provider,
 		"agents.defaults.model":           cfg.Agents.Defaults.Model,
 		"agents.defaults.max_output_tokens": cfg.Agents.Defaults.MaxOutputTokens,
@@ -269,8 +287,9 @@ var configKeys = []string{
 	"llm.defaults.model",
 	"llm.providers",
 	"dispatcher.max_concurrent",
-	"dispatcher.retry_count",
+	"dispatcher.task_retry_count",
 	"dispatcher.rate_limit_backoff",
+	"llm.rate_limit_retries",
 	"agents.defaults.provider",
 	"agents.defaults.model",
 	"agents.defaults.max_output_tokens",
@@ -284,7 +303,8 @@ var configKeys = []string{
 
 func parseConfigValue(key, value string) (interface{}, error) {
 	switch key {
-	case "dispatcher.max_concurrent", "dispatcher.retry_count", "dispatcher.rate_limit_backoff",
+	case "dispatcher.max_concurrent", "dispatcher.task_retry_count", "dispatcher.rate_limit_backoff",
+		"llm.rate_limit_retries",
 		"agents.defaults.max_output_tokens", "agents.defaults.max_input_tokens",
 		"agents.loop.max_iterations", "agents.loop.iteration_interval":
 		n, err := strconv.Atoi(value)
@@ -325,10 +345,12 @@ func getConfigValueTyped(cfg *Config, key string) interface{} {
 		return cfg.LLM.Providers
 	case "dispatcher.max_concurrent":
 		return cfg.Dispatcher.MaxConcurrent
-	case "dispatcher.retry_count":
-		return cfg.Dispatcher.RetryCount
+	case "dispatcher.task_retry_count":
+		return cfg.Dispatcher.TaskRetryCount
 	case "dispatcher.rate_limit_backoff":
 		return cfg.Dispatcher.RateLimitBackoff
+	case "llm.rate_limit_retries":
+		return cfg.LLM.RateLimitRetries
 	case "agents.defaults.provider":
 		return cfg.Agents.Defaults.Provider
 	case "agents.defaults.model":
@@ -382,18 +404,24 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 			return fmt.Errorf("not a number: %s", value)
 		}
 		cfg.Dispatcher.MaxConcurrent = n
-	case "dispatcher.retry_count":
+	case "dispatcher.task_retry_count":
 		n, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("not a number: %s", value)
 		}
-		cfg.Dispatcher.RetryCount = n
+		cfg.Dispatcher.TaskRetryCount = n
 	case "dispatcher.rate_limit_backoff":
 		n, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("not a number: %s", value)
 		}
 		cfg.Dispatcher.RateLimitBackoff = n
+	case "llm.rate_limit_retries":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("not a number: %s", value)
+		}
+		cfg.LLM.RateLimitRetries = n
 	case "agents.defaults.provider":
 		cfg.Agents.Defaults.Provider = value
 	case "agents.defaults.model":
@@ -466,10 +494,12 @@ func getConfigEntry(cfg *Config, key string) string {
 		return string(data)
 	case "dispatcher.max_concurrent":
 		return strconv.Itoa(cfg.Dispatcher.MaxConcurrent)
-	case "dispatcher.retry_count":
-		return strconv.Itoa(cfg.Dispatcher.RetryCount)
+	case "dispatcher.task_retry_count":
+		return strconv.Itoa(cfg.Dispatcher.TaskRetryCount)
 	case "dispatcher.rate_limit_backoff":
 		return strconv.Itoa(cfg.Dispatcher.RateLimitBackoff)
+	case "llm.rate_limit_retries":
+		return strconv.Itoa(cfg.LLM.RateLimitRetries)
 	case "agents.defaults.provider":
 		return cfg.Agents.Defaults.Provider
 	case "agents.defaults.model":

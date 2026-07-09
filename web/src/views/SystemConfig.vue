@@ -100,13 +100,17 @@
               <el-input-number v-model.number="form['dispatcher.max_concurrent']" :min="1" :max="20" />
               <div class="form-tip">同时执行的 Agent 任务数量（默认 3）</div>
             </el-form-item>
-            <el-form-item label="失败重试次数">
-              <el-input-number v-model.number="form['dispatcher.retry_count']" :min="0" :max="5" />
-              <div class="form-tip">任务失败后自动重试次数（默认 1）</div>
+            <el-form-item label="任务重试次数">
+              <el-input-number v-model.number="form['dispatcher.task_retry_count']" :min="0" :max="5" />
+              <div class="form-tip">整任务失败后自动重试次数（clone/runner 整次；默认 1）</div>
             </el-form-item>
             <el-form-item label="429 退避时间">
               <el-input-number v-model.number="form['dispatcher.rate_limit_backoff']" :min="0" :max="300" :step="5" />
               <div class="form-tip">LLM 返回 429 时等待秒数后再重试；0 表示关闭（默认 0）</div>
+            </el-form-item>
+            <el-form-item label="429 重试次数">
+              <el-input-number v-model.number="form['llm.rate_limit_retries']" :min="0" :max="10" />
+              <div class="form-tip">单次 ChatCompletion 遇 429 后的重试次数（需退避 &gt; 0；默认 1）</div>
             </el-form-item>
           </el-form>
         </el-tab-pane>

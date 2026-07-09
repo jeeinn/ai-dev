@@ -96,7 +96,7 @@ workspace:
 
 dispatcher:
   max_concurrent: 3           # 最大并发 Agent 数
-  retry_count: 1              # 失败重试次数
+  task_retry_count: 1         # 整任务失败重试次数
   rate_limit_backoff: 30      # LLM 429 退避（秒）
   queue_size: 100             # 任务队列大小
 
@@ -108,6 +108,7 @@ llm:
   defaults:
     provider: "deepseek"
     model: "deepseek-chat"
+  rate_limit_retries: 1       # 单次 ChatCompletion 遇 429 后的重试次数
 
 auth:
   jwt_secret: "${JWT_SECRET:-change-me-in-production}"

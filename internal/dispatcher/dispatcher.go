@@ -66,7 +66,7 @@ func NewDispatcher(
 	}
 	executor := NewExecutor(
 		dispatcherCfg.MaxConcurrent,
-		dispatcherCfg.RetryCount,
+		dispatcherCfg.TaskRetryCount,
 		llmRegistry,
 		db,
 		agentDefaults,

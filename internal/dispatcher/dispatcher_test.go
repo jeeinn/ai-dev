@@ -100,7 +100,7 @@ func TestDispatcherHandleEvent(t *testing.T) {
 	}
 	dispatcherCfg := &config.DispatcherConfig{
 			MaxConcurrent: 1,
-			RetryCount:    0,
+			TaskRetryCount: 0,
 			QueueSize:     10,
 		}
 

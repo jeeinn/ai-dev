@@ -68,9 +68,12 @@ type WorkspaceConfig struct {
 
 type DispatcherConfig struct {
 	MaxConcurrent    int `yaml:"max_concurrent"`
-	RetryCount       int `yaml:"retry_count"`
+	TaskRetryCount   int `yaml:"task_retry_count"` // whole-task retries after runner failure; 0 = no retry
 	QueueSize        int `yaml:"queue_size"`
 	RateLimitBackoff int `yaml:"rate_limit_backoff"` // seconds to wait on HTTP 429; 0 = disabled
+
+	// Deprecated: use TaskRetryCount. Kept for YAML/DB migration only.
+	RetryCount int `yaml:"retry_count,omitempty"`
 }
 
 type DatabaseConfig struct {
@@ -83,8 +86,9 @@ type LoggingConfig struct {
 }
 
 type LLMConfig struct {
-	Providers map[string]ProviderConfig `yaml:"providers"`
-	Defaults  LLMDefaultsConfig         `yaml:"defaults"`
+	Providers        map[string]ProviderConfig `yaml:"providers"`
+	Defaults         LLMDefaultsConfig         `yaml:"defaults"`
+	RateLimitRetries int                       `yaml:"rate_limit_retries"` // retries after HTTP 429; 0 = no retry (still needs rate_limit_backoff > 0)
 }
 
 type ProviderConfig struct {

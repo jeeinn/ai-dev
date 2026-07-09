@@ -4,6 +4,8 @@ gateway.exe*
 
 # Local config (contains tokens)
 config.yaml
+.codegraph/
+.claude/
 
 # Database and runtime data
 data/

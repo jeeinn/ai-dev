@@ -79,6 +79,10 @@
                   {{ sourceTag('llm.providers') }}
                 </el-tag>
               </div>
+              <div v-if="maskedProvidersJson" class="masked-reference">
+                <span class="masked-label">密钥参考（脱敏）：</span>
+                <pre class="masked-preview">{{ maskedProvidersJson }}</pre>
+              </div>
             </el-form-item>
             <el-form-item label="默认 Provider">
               <el-select v-model="form['llm.defaults.provider']" placeholder="选择默认 Provider" style="width: 100%">
@@ -271,6 +275,7 @@ import ProviderConfigHelp from '../components/ProviderConfigHelp.vue'
 const activeTab = ref('gitea')
 const form = ref({})
 const sources = ref({})
+const maskedValues = ref({})
 const saving = ref(false)
 const testingGitea = ref(false)
 const testingLLM = ref(false)
@@ -294,6 +299,11 @@ const providers = computed(() => {
 })
 
 const providerNames = computed(() => Object.keys(providers.value))
+
+const maskedProvidersJson = computed(() => {
+  if (!maskedValues.value['llm.providers']) return ''
+  return formatProvidersJson(maskedValues.value['llm.providers'])
+})
 
 const normalizeProviders = (raw) => {
   const out = {}
@@ -325,6 +335,11 @@ const applyConfigData = (data) => {
   const next = { ...data }
   if (next._meta?.sources) {
     sources.value = next._meta.sources
+  }
+  if (next._meta?.masked) {
+    maskedValues.value = next._meta.masked
+  }
+  if (next._meta) {
     delete next._meta
   }
   if (next['debug.conversation_log.enabled'] === undefined) {
@@ -537,5 +552,29 @@ onMounted(() => {
   display: block;
   margin-top: 4px;
   color: #67c23a;
+}
+
+.masked-reference {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+}
+
+.masked-label {
+  font-size: 12px;
+  color: #909399;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.masked-preview {
+  font-size: 12px;
+  color: #606266;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+  line-height: 1.5;
 }
 </style>

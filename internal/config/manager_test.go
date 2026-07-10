@@ -76,13 +76,19 @@ func TestGetDisplayMapPrefersDBAndFallsBackToFile(t *testing.T) {
 	assert.Equal(t, "file-token", display["gitea.admin_token"])
 	assert.Equal(t, "deepseek-chat", display["llm.defaults.model"])
 
-	// Providers fallback should be masked
+	// Providers in display should be REAL values (not masked) — for editing
 	providers := display["llm.providers"].(map[string]ProviderConfig)
-	assert.Equal(t, "sk-f***", providers["deepseek"].APIKey)
+	assert.Equal(t, "sk-file-key-12345", providers["deepseek"].APIKey, "display providers should have real api_key for editing")
 	assert.Equal(t, "https://api.deepseek.com/v1", providers["deepseek"].BaseURL)
 
+	// Masked version in _meta.masked should show masked api_key
 	meta := display["_meta"].(map[string]interface{})
 	sources := meta["sources"].(map[string]string)
+	maskedData := meta["masked"].(map[string]interface{})
+	maskedProviders := maskedData["llm.providers"].(map[string]ProviderConfig)
+	assert.Equal(t, "sk-f****2345", maskedProviders["deepseek"].APIKey, "masked providers should have masked api_key")
+	assert.Equal(t, "https://api.deepseek.com/v1", maskedProviders["deepseek"].BaseURL)
+
 	assert.Equal(t, "db", sources["gitea.url"])
 	assert.Equal(t, "file", sources["gitea.admin_token"])
 	assert.Equal(t, "file", sources["llm.providers"])
@@ -171,11 +177,17 @@ func TestGetDisplayMapSemanticEmptyJSONFallsBack(t *testing.T) {
 			sources := meta["sources"].(map[string]string)
 			assert.Equal(t, tt.wantSrc, sources["llm.providers"], "source for llm.providers")
 
-			// Should show file config providers (masked)
+			// Display should show file config providers with REAL api_key (for editing)
 			providers := display["llm.providers"].(map[string]ProviderConfig)
 			assert.Equal(t, 2, len(providers))
-			assert.Equal(t, "sk-f***", providers["deepseek"].APIKey)
-			assert.Equal(t, "sk-o***", providers["openai"].APIKey)
+			assert.Equal(t, "sk-file-abcde", providers["deepseek"].APIKey)
+			assert.Equal(t, "sk-open-key", providers["openai"].APIKey)
+
+			// Masked should show masked api_key
+			maskedData := meta["masked"].(map[string]interface{})
+			maskedProviders := maskedData["llm.providers"].(map[string]ProviderConfig)
+			assert.Equal(t, "sk-f****bcde", maskedProviders["deepseek"].APIKey)
+			assert.Equal(t, "sk-o****-key", maskedProviders["openai"].APIKey)
 		})
 	}
 }
@@ -211,11 +223,17 @@ func TestGetDisplayMapDBProvidersMasked(t *testing.T) {
 	display, err := m.GetDisplayMap()
 	require.NoError(t, err)
 
+	// Display should have REAL values (not masked) — for editing
 	providers := display["llm.providers"].(map[string]ProviderConfig)
-	assert.Equal(t, "sk-d***", providers["deepseek"].APIKey, "DB api_key should be masked")
+	assert.Equal(t, "sk-db-long-key-1234567890", providers["deepseek"].APIKey, "display should show real api_key for editing")
 	assert.Equal(t, "https://api.deepseek.com/v1", providers["deepseek"].BaseURL)
 
+	// Masked in _meta should be masked
 	meta := display["_meta"].(map[string]interface{})
+	maskedData := meta["masked"].(map[string]interface{})
+	maskedProviders := maskedData["llm.providers"].(map[string]ProviderConfig)
+	assert.Equal(t, "sk-d****7890", maskedProviders["deepseek"].APIKey, "masked should show first4****last4")
+
 	sources := meta["sources"].(map[string]string)
 	assert.Equal(t, "db", sources["llm.providers"])
 }
@@ -225,12 +243,13 @@ func TestMaskAPIKey(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"", "***"},
-		{"abc", "***"},
-		{"sk-", "***"},
-		{"sk-x", "***"},
-		{"sk-abcd***", "sk-a***"},
-		{"sk-long-api-key-12345", "sk-l***"},
+		{"", ""},
+		{"abc", "****"},
+		{"sk-", "****"},
+		{"sk-xxxx", "****"},
+		{"sk-xxxxx", "****"},     // 7 chars, still <= 8
+		{"sk-long-key-12345", "sk-l****2345"}, // 18 chars: first4 + **** + last4
+		{"abcdefgh9xyzwvu", "abcd****zwvu"},    // 15 chars: first4=abcd, last4=zwvu
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {

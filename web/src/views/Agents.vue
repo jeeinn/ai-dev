@@ -83,13 +83,48 @@
         </el-form-item>
         <el-form-item label="Provider">
           <el-col :span="11">
-            <el-select v-model="form.provider" placeholder="选择 Provider" style="width: 100%">
+            <el-select
+              v-model="form.provider"
+              placeholder="选择 Provider"
+              style="width: 100%"
+              @change="onProviderChange"
+            >
               <el-option v-for="name in effectiveProviderNames(form.provider)" :key="name" :label="name" :value="name" />
             </el-select>
           </el-col>
           <el-col :span="2" style="text-align: center; line-height: 32px">:</el-col>
           <el-col :span="11">
-            <el-input v-model="form.model" placeholder="模型名称" />
+            <el-select
+              v-model="form.model"
+              placeholder="选择模型"
+              style="width: 100%"
+              filterable
+              allow-create
+              default-first-option
+              :loading="modelLoading"
+            >
+              <template #header>
+                <div v-if="modelSource === 'builtin'" class="model-source-hint">
+                  <el-tag size="small" type="info">内置目录</el-tag>
+                </div>
+                <div v-if="modelSource === 'custom'" class="model-source-hint">
+                  <el-tag size="small" type="success">自定义</el-tag>
+                </div>
+              </template>
+              <el-option
+                v-for="m in currentModels"
+                :key="m.id"
+                :label="m.name || m.id"
+                :value="m.id"
+              >
+                <span>{{ m.name || m.id }}</span>
+                <span class="model-tags">
+                  <el-tag v-if="m.is_reasoning" size="small" type="warning" class="model-tag">推理</el-tag>
+                  <el-tag v-if="m.supports_tools" size="small" type="success" class="model-tag">工具</el-tag>
+                  <el-tag v-if="m.context_window" size="small" type="info" class="model-tag">{{ formatContextWindow(m.context_window) }}</el-tag>
+                </span>
+              </el-option>
+            </el-select>
           </el-col>
         </el-form-item>
 
@@ -115,13 +150,22 @@
             <el-divider content-position="left">LLM Token</el-divider>
             <el-form-item label="最大输出 Tokens（每次调用）">
               <el-input-number v-model="form.max_output_tokens" :min="256" :max="128000" :step="512" />
+              <div v-if="selectedModelMeta?.max_output" class="form-tip">
+                模型上限 {{ formatContextWindow(selectedModelMeta.max_output) }}
+              </div>
             </el-form-item>
             <el-form-item label="最大输入 Tokens">
               <el-input-number v-model="form.max_input_tokens" :min="1024" :max="200000" :step="1024" />
-              <div class="form-tip">含 tools；估算为字符数/4</div>
+              <div v-if="selectedModelMeta?.context_window" class="form-tip">
+                模型上下文 {{ formatContextWindow(selectedModelMeta.context_window) }}；建议不超过 {{ Math.floor(selectedModelMeta.context_window * 0.9).toLocaleString() }}
+              </div>
+              <div v-else class="form-tip">含 tools；估算为字符数/4</div>
             </el-form-item>
             <el-form-item label="Temperature">
               <el-slider v-model="form.temperature" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
+              <div v-if="selectedModelMeta?.default_params?.temperature !== undefined" class="form-tip">
+                模型默认 {{ selectedModelMeta.default_params.temperature }}
+              </div>
             </el-form-item>
             <el-form-item label="单次任务超时">
               <el-input v-model="form.timeout" placeholder="5m" style="width: 200px" />
@@ -190,6 +234,70 @@ const repoList = ref([])
 
 const form = ref(createEmptyAgentForm())
 
+// Model selection state
+const currentModels = ref([])
+const modelLoading = ref(false)
+const modelSource = ref('')
+const modelCatalog = ref({})
+
+const selectedModelMeta = computed(() => {
+  if (!form.value.model || !form.value.provider) return null
+  const models = modelCatalog.value[form.value.provider] || currentModels.value
+  return models.find(m => m.id === form.value.model) || null
+})
+
+const formatContextWindow = (n) => {
+  if (n >= 1000) return (n / 1000).toFixed(0) + 'K'
+  return n.toString()
+}
+
+const loadModelCatalog = async () => {
+  try {
+    const data = await api.get('/config')
+    if (data?._meta?.models) {
+      modelCatalog.value = data._meta.models
+    }
+  } catch {
+    modelCatalog.value = {}
+  }
+}
+
+const loadModelsForProvider = async (providerName) => {
+  if (!providerName) {
+    currentModels.value = []
+    modelSource.value = ''
+    return
+  }
+  // Check catalog first
+  if (modelCatalog.value[providerName]) {
+    currentModels.value = modelCatalog.value[providerName]
+    modelSource.value = 'builtin'
+    return
+  }
+  // Try API
+  modelLoading.value = true
+  try {
+    const data = await api.get(`/config/providers/${providerName}/models`)
+    if (data?.models) {
+      currentModels.value = data.models
+      modelSource.value = data.source || 'builtin'
+    } else {
+      currentModels.value = []
+      modelSource.value = ''
+    }
+  } catch {
+    currentModels.value = []
+    modelSource.value = ''
+  } finally {
+    modelLoading.value = false
+  }
+}
+
+const onProviderChange = (providerName) => {
+  form.value.model = ''
+  loadModelsForProvider(providerName)
+}
+
 const loadAgents = async () => {
   agents.value = await api.get('/agents')
 }
@@ -230,14 +338,17 @@ const applyTemplate = (name) => {
 
 const openCreateDialog = async () => {
   await loadAgentConfig()
+  await loadModelCatalog()
   editingAgent.value = null
   form.value = createEmptyAgentForm()
   selectedTemplate.value = ''
   showCreateDialog.value = true
+  await loadModelsForProvider(form.value.provider)
 }
 
 const editAgent = async (agent) => {
   await loadAgentConfig()
+  await loadModelCatalog()
   editingAgent.value = agent
   form.value = {
     ...agent,
@@ -245,6 +356,7 @@ const editAgent = async (agent) => {
   }
   selectedTemplate.value = ''
   showCreateDialog.value = true
+  await loadModelsForProvider(form.value.provider)
 }
 
 const closeDialog = () => {
@@ -316,5 +428,19 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+.model-source-hint {
+  padding: 4px 12px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.model-tags {
+  float: right;
+  margin-left: 8px;
+}
+
+.model-tag {
+  margin-left: 4px;
 }
 </style>

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"gitea-agent-gateway/internal/sandbox"
@@ -114,11 +115,18 @@ func identifyKeyFiles(structure string) []string {
 	return files
 }
 
+var cjkRegex = regexp.MustCompile(`[\p{Han}\p{Katakana}\p{Hiragana}\p{Hangul}]+`)
+
 // estimateTokens estimates the token count for a string.
-// Rough approximation: 1 token ≈ 4 characters for English, 2 characters for Chinese.
+// Uses differentiated approximation: CJK ≈ 2 chars/token, other ≈ 4 chars/token.
 func estimateTokens(s string) int {
-	// Simple approximation
-	return len(s) / 4
+	matches := cjkRegex.FindAllString(s, -1)
+	cjkLen := 0
+	for _, m := range matches {
+		cjkLen += len(m)
+	}
+	otherLen := len(s) - cjkLen
+	return (cjkLen / 2) + (otherLen / 4)
 }
 
 // FormatCodeContext formats the code context for the LLM prompt.

@@ -73,6 +73,30 @@ func TestBuildDevPromptIncludesToolInstructions(t *testing.T) {
 	}
 }
 
+func TestEstimateTokensDifferentiatesCJK(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		min   int
+		max   int
+	}{
+		{"empty", "", 0, 0},
+		{"english 16 chars", "hello world test", 3, 5},       // 16/4 = 4
+		{"chinese 6 chars", "你好世界测试", 8, 10},           // 18 bytes -> 18/2 = 9
+		{"mixed", "hello你好", 3, 6},                        // 5 + 6 = 11 bytes -> 5/4 + 6/2 = 1 + 3 = 4
+		{"long english", strings.Repeat("a", 100), 24, 26},  // 100/4 = 25
+		{"long chinese", strings.Repeat("中", 50), 70, 80},  // 150 bytes -> 150/2 = 75
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := estimateTokens(tt.input)
+			if got < tt.min || got > tt.max {
+				t.Errorf("estimateTokens(%q) = %d, want between %d and %d", tt.input, got, tt.min, tt.max)
+			}
+		})
+	}
+}
+
 func TestBuildBugfixPromptIncludesToolInstructions(t *testing.T) {
 	task := TaskContext{
 		IssueTitle: "Null pointer crash",

@@ -249,10 +249,48 @@ func (m *ConfigManager) GetDisplayMap() (map[string]interface{}, error) {
 		sources[key] = "file"
 	}
 
+	// Build models metadata from file config providers
+	modelsMeta := make(map[string][]ModelDefinition)
+	for name, pc := range base.LLM.Providers {
+		modelsMeta[name] = m.resolveProviderModels(name, pc)
+	}
+
 	result["_meta"] = map[string]interface{}{
 		"sources": sources,
+		"models":  modelsMeta,
 	}
 	return result, nil
+}
+
+// resolveProviderModels determines the effective model list for a provider.
+// Priority: user-defined (non-empty) > builtin catalog.
+func (m *ConfigManager) resolveProviderModels(name string, pc ProviderConfig) []ModelDefinition {
+	if len(pc.Models) > 0 {
+		return pc.Models
+	}
+	if builtin, ok := BuiltinModelCatalog[name]; ok {
+		return builtin
+	}
+	return nil
+}
+
+// GetProviderModels returns the effective model list for a provider.
+// This is used by the Web UI for model selection dropdowns.
+func (m *ConfigManager) GetProviderModels(providerName string) ([]ModelDefinition, error) {
+	m.mu.RLock()
+	base := m.base
+	m.mu.RUnlock()
+
+	pc, ok := base.LLM.Providers[providerName]
+	if !ok {
+		return nil, fmt.Errorf("provider not found: %s", providerName)
+	}
+
+	models := m.resolveProviderModels(providerName, pc)
+	if models == nil {
+		return []ModelDefinition{}, nil
+	}
+	return models, nil
 }
 
 func (m *ConfigManager) getActiveMap() map[string]interface{} {

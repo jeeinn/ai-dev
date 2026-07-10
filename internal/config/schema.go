@@ -112,8 +112,34 @@ type LLMConfig struct {
 }
 
 type ProviderConfig struct {
-	BaseURL string `yaml:"base_url" json:"base_url"`
-	APIKey  string `yaml:"api_key" json:"api_key"`
+	BaseURL       string            `yaml:"base_url" json:"base_url"`
+	APIKey        string            `yaml:"api_key" json:"api_key"`
+	Type          string            `yaml:"type" json:"type"` // openai_compatible | anthropic
+	DefaultParams ModelParams       `yaml:"default_params" json:"default_params"`
+	Models        []ModelDefinition `yaml:"models" json:"models"`
+}
+
+// ModelDefinition holds metadata for a single LLM model.
+type ModelDefinition struct {
+	ID            string      `yaml:"id" json:"id"`
+	Name          string      `yaml:"name" json:"name"`
+	ContextWindow int         `yaml:"context_window" json:"context_window"`
+	MaxOutput     int         `yaml:"max_output" json:"max_output"`
+	SupportsTools bool        `yaml:"supports_tools" json:"supports_tools"`
+	IsReasoning   bool        `yaml:"is_reasoning" json:"is_reasoning"`
+	DefaultParams ModelParams `yaml:"default_params" json:"default_params"`
+	Description   string      `yaml:"description" json:"description"`
+	InputPrice    float64     `yaml:"input_price" json:"input_price"`
+	OutputPrice   float64     `yaml:"output_price" json:"output_price"`
+}
+
+// ModelParams holds per-model or per-provider default generation parameters.
+type ModelParams struct {
+	Temperature      *float64 `yaml:"temperature" json:"temperature,omitempty"`
+	TopP             *float64 `yaml:"top_p" json:"top_p,omitempty"`
+	MaxOutputTokens  *int     `yaml:"max_output_tokens" json:"max_output_tokens,omitempty"`
+	FrequencyPenalty *float64 `yaml:"frequency_penalty" json:"frequency_penalty,omitempty"`
+	PresencePenalty  *float64 `yaml:"presence_penalty" json:"presence_penalty,omitempty"`
 }
 
 // LLMDefaultsConfig holds LLM connectivity defaults (provider/model only).

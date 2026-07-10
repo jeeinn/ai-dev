@@ -74,3 +74,111 @@ func pickString(m map[string]interface{}, keys ...string) string {
 	}
 	return ""
 }
+
+func floatPtr(f float64) *float64 {
+	return &f
+}
+
+func intPtr(i int) *int {
+	return &i
+}
+
+// BuiltinModelCatalog is the built-in model metadata for common providers.
+// Users can override or extend via ProviderConfig.Models.
+var BuiltinModelCatalog = map[string][]ModelDefinition{
+	"deepseek": {
+		{
+			ID:            "deepseek-v4",
+			Name:          "DeepSeek V4",
+			ContextWindow: 128000,
+			MaxOutput:     16384,
+			SupportsTools: true,
+			IsReasoning:   false,
+			Description:   "DeepSeek V4 旗舰模型，综合能力强",
+			InputPrice:    0.015,
+			OutputPrice:   0.025,
+		},
+		{
+			ID:            "deepseek-v4-flash",
+			Name:          "DeepSeek V4 Flash",
+			ContextWindow: 128000,
+			MaxOutput:     16384,
+			SupportsTools: true,
+			IsReasoning:   false,
+			Description:   "DeepSeek V4 快速版本，性价比高",
+			InputPrice:    0.008,
+			OutputPrice:   0.012,
+			DefaultParams: ModelParams{Temperature: floatPtr(0.5)},
+		},
+		{
+			ID:            "deepseek-reasoner",
+			Name:          "DeepSeek Reasoner",
+			ContextWindow: 64000,
+			MaxOutput:     8192,
+			SupportsTools: false,
+			IsReasoning:   true,
+			Description:   "推理专用模型，支持思维链输出",
+			InputPrice:    0.02,
+			OutputPrice:   0.03,
+		},
+	},
+	"openai": {
+		{
+			ID:            "gpt-4o",
+			Name:          "GPT-4o",
+			ContextWindow: 128000,
+			MaxOutput:     4096,
+			SupportsTools: true,
+			IsReasoning:   false,
+			Description:   "OpenAI 旗舰多模态模型",
+			InputPrice:    0.005,
+			OutputPrice:   0.015,
+		},
+		{
+			ID:            "gpt-4o-mini",
+			Name:          "GPT-4o Mini",
+			ContextWindow: 128000,
+			MaxOutput:     16384,
+			SupportsTools: true,
+			IsReasoning:   false,
+			Description:   "GPT-4o 轻量版，性价比极高",
+			InputPrice:    0.0015,
+			OutputPrice:   0.006,
+		},
+		{
+			ID:            "o3-mini",
+			Name:          "o3 Mini",
+			ContextWindow: 200000,
+			MaxOutput:     8192,
+			SupportsTools: true,
+			IsReasoning:   true,
+			Description:   "推理优化模型，支持思考模式",
+			InputPrice:    0.003,
+			OutputPrice:   0.012,
+		},
+	},
+	"claude": {
+		{
+			ID:            "claude-sonnet-4-5",
+			Name:          "Claude Sonnet 4.5",
+			ContextWindow: 200000,
+			MaxOutput:     4096,
+			SupportsTools: true,
+			IsReasoning:   false,
+			Description:   "Claude 旗舰模型，长上下文能力强",
+			InputPrice:    0.003,
+			OutputPrice:   0.015,
+		},
+		{
+			ID:            "claude-haiku-4-5",
+			Name:          "Claude Haiku 4.5",
+			ContextWindow: 200000,
+			MaxOutput:     4096,
+			SupportsTools: true,
+			IsReasoning:   false,
+			Description:   "Claude 轻量版，速度快成本低",
+			InputPrice:    0.00075,
+			OutputPrice:   0.003,
+		},
+	},
+}

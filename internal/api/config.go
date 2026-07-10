@@ -99,6 +99,31 @@ func (h *Handler) deleteConfigEntry(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, display)
 }
 
+func (h *Handler) getProviderModels(w http.ResponseWriter, r *http.Request) {
+	if h.cfgManager == nil {
+		writeError(w, 500, "config manager not initialized")
+		return
+	}
+
+	providerName := r.PathValue("name")
+	if providerName == "" {
+		writeError(w, 400, "missing provider name")
+		return
+	}
+
+	models, err := h.cfgManager.GetProviderModels(providerName)
+	if err != nil {
+		writeError(w, 404, err.Error())
+		return
+	}
+
+	writeJSON(w, 200, map[string]interface{}{
+		"success": true,
+		"source":  "builtin",
+		"models":  models,
+	})
+}
+
 func (h *Handler) notifyConfigChange() {
 	if h.onConfigChange != nil {
 		h.onConfigChange(h.cfgManager.Get())

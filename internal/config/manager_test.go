@@ -272,3 +272,93 @@ func TestDebugConversationLogConfigRoundTrip(t *testing.T) {
 	assert.Equal(t, 5000, display["debug.conversation_log.max_content_chars"])
 	assert.True(t, m.Get().Debug.ConversationLog.Enabled)
 }
+
+func TestGetProviderModelsReturnsBuiltinCatalog(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"deepseek": {BaseURL: "https://api.deepseek.com/v1", APIKey: "sk-test"},
+			},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+
+	models, err := m.GetProviderModels("deepseek")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(models), 1, "deepseek should have builtin models")
+
+	// Verify known model exists
+	found := false
+	for _, mm := range models {
+		if mm.ID == "deepseek-v4" {
+			found = true
+			assert.Equal(t, "DeepSeek V4", mm.Name)
+			assert.Equal(t, 128000, mm.ContextWindow)
+			assert.True(t, mm.SupportsTools)
+			assert.False(t, mm.IsReasoning)
+		}
+	}
+	assert.True(t, found, "deepseek-v4 should be in builtin catalog")
+}
+
+func TestGetProviderModelsReturnsCustomModels(t *testing.T) {
+	customModels := []ModelDefinition{
+		{ID: "custom-model", Name: "Custom Model", ContextWindow: 32000, SupportsTools: true},
+	}
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"myprovider": {
+					BaseURL: "https://example.com",
+					APIKey:  "sk-test",
+					Models:  customModels,
+				},
+			},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+
+	models, err := m.GetProviderModels("myprovider")
+	require.NoError(t, err)
+	require.Len(t, models, 1)
+	assert.Equal(t, "custom-model", models[0].ID)
+	assert.Equal(t, "Custom Model", models[0].Name)
+}
+
+func TestGetProviderModelsReturnsEmptyForUnknownProvider(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+
+	_, err := m.GetProviderModels("unknown")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestGetDisplayMapIncludesModelsMeta(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"deepseek": {BaseURL: "https://api.deepseek.com/v1", APIKey: "sk-test"},
+				"openai":   {BaseURL: "https://api.openai.com/v1", APIKey: "sk-test"},
+			},
+		},
+		Agents: AgentsConfig{
+			Defaults: DefaultAgentDefaults(),
+			Loop:     DefaultAgentLoopConfig(),
+		},
+	}
+	m := NewConfigManager(fileCfg)
+
+	display, err := m.GetDisplayMap()
+	require.NoError(t, err)
+
+	meta := display["_meta"].(map[string]interface{})
+	modelsMeta := meta["models"].(map[string][]ModelDefinition)
+	require.NotNil(t, modelsMeta)
+	assert.GreaterOrEqual(t, len(modelsMeta["deepseek"]), 1, "deepseek models should be present")
+	assert.GreaterOrEqual(t, len(modelsMeta["openai"]), 1, "openai models should be present")
+}

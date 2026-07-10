@@ -22,6 +22,40 @@ type PRResponse struct {
 	HTMLURL string `json:"html_url"`
 }
 
+type pullRequestListItem struct {
+	Number  int    `json:"number"`
+	Title   string `json:"title"`
+	State   string `json:"state"`
+	HTMLURL string `json:"html_url"`
+	Head    struct {
+		Ref string `json:"ref"`
+	} `json:"head"`
+}
+
+// FindOpenPRByHead returns an open pull request whose head ref matches headBranch, or nil if none.
+func (c *Client) FindOpenPRByHead(owner, repo, headBranch string) (*PRResponse, error) {
+	body, err := c.do("GET", fmt.Sprintf("/repos/%s/%s/pulls?state=open&limit=50", owner, repo), nil)
+	if err != nil {
+		return nil, fmt.Errorf("list open PRs: %w", err)
+	}
+
+	var prs []pullRequestListItem
+	if err := json.Unmarshal(body, &prs); err != nil {
+		return nil, fmt.Errorf("unmarshal PR list: %w", err)
+	}
+
+	for _, pr := range prs {
+		if pr.Head.Ref == headBranch && pr.State == "open" {
+			return &PRResponse{
+				Number:  pr.Number,
+				Title:   pr.Title,
+				HTMLURL: pr.HTMLURL,
+			}, nil
+		}
+	}
+	return nil, nil
+}
+
 // CreatePR creates a new pull request.
 func (c *Client) CreatePR(owner, repo string, req CreatePRRequest) (*PRResponse, error) {
 	body, err := c.do("POST", fmt.Sprintf("/repos/%s/%s/pulls", owner, repo), req)

@@ -7,6 +7,76 @@ import (
 	"testing"
 )
 
+func TestFindOpenPRByHead(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("Expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/v1/repos/owner/repo/pulls" {
+			t.Errorf("Unexpected path: %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("state") != "open" {
+			t.Errorf("Expected state=open, got %s", r.URL.Query().Get("state"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{
+				"number":   3,
+				"title":    "Other PR",
+				"state":    "open",
+				"html_url": "http://localhost/owner/repo/pulls/3",
+				"head":     map[string]string{"ref": "feature/other"},
+			},
+			{
+				"number":   5,
+				"title":    "Target PR",
+				"state":    "open",
+				"html_url": "http://localhost/owner/repo/pulls/5",
+				"head":     map[string]string{"ref": "ai/dev/issue-2"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	pr, err := client.FindOpenPRByHead("owner", "repo", "ai/dev/issue-2")
+	if err != nil {
+		t.Fatalf("FindOpenPRByHead failed: %v", err)
+	}
+	if pr == nil {
+		t.Fatal("Expected PR, got nil")
+	}
+	if pr.Number != 5 {
+		t.Errorf("Expected PR number=5, got %d", pr.Number)
+	}
+}
+
+func TestFindOpenPRByHeadNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{
+				"number": 1,
+				"state":  "open",
+				"head":   map[string]string{"ref": "other-branch"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	pr, err := client.FindOpenPRByHead("owner", "repo", "ai/dev/issue-2")
+	if err != nil {
+		t.Fatalf("FindOpenPRByHead failed: %v", err)
+	}
+	if pr != nil {
+		t.Errorf("Expected nil PR, got #%d", pr.Number)
+	}
+}
+
 func TestPRDiff(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {

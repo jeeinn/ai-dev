@@ -2,6 +2,9 @@ package agents
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -136,4 +139,58 @@ func TestSaveSessionBranch(t *testing.T) {
 	got, err = db.GetSession(session.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "ai/dev/issue-2", got.Branch)
+}
+
+func TestFinalizeWriteTaskPRCreatesWhenNoOpenPR(t *testing.T) {
+	var createCalled bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/repos/owner/repo/pulls":
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]map[string]interface{}{})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/repos/owner/repo/pulls":
+			createCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(gitea.PRResponse{
+				Number:  3,
+				HTMLURL: "http://localhost/owner/repo/pulls/3",
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client := gitea.NewClient(server.URL, "test-token")
+	task := &store.Task{ID: 35, Event: "Issue 2", IssueID: 2}
+	result, err := finalizeWriteTaskPR(client, "owner", "repo", "ai/dev/issue-2", "main", task, "dev", "done")
+	require.NoError(t, err)
+	assert.True(t, createCalled)
+	assert.Equal(t, "pr", result.Action)
+	assert.Equal(t, 3, result.PRID)
+}
+
+func TestFinalizeWriteTaskPRCommentsWhenOpenPRExists(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/api/v1/repos/owner/repo/pulls", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{
+				"number":   3,
+				"state":    "open",
+				"html_url": "http://localhost/owner/repo/pulls/3",
+				"head":     map[string]string{"ref": "ai/dev/issue-2"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := gitea.NewClient(server.URL, "test-token")
+	task := &store.Task{ID: 35, Event: "Issue 2", IssueID: 2}
+	result, err := finalizeWriteTaskPR(client, "owner", "repo", "ai/dev/issue-2", "main", task, "dev", "done")
+	require.NoError(t, err)
+	assert.Equal(t, "comment", result.Action)
+	assert.Equal(t, 3, result.PRID)
+	assert.Contains(t, result.Content, "Updated PR branch")
 }

@@ -708,45 +708,52 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		saveSessionBranch(factory, task, branchName)
 	}
 
-	if isExistingBranch {
-		// Existing branch: PR already exists, just comment on it
-		log.Printf("[INFO] Task %d updated existing branch: %s", task.ID, branchName)
+	adminClient := factory.giteaFactory.GetAdminGiteaClient()
+	return finalizeWriteTaskPR(adminClient, owner, repo, branchName, repoInfo.DefaultBranch, task, taskSubType, result)
+}
+
+// finalizeWriteTaskPR comments on an existing open PR or creates one if the branch has no open PR yet.
+func finalizeWriteTaskPR(adminClient *gitea.Client, owner, repo, branchName, baseBranch string, task *store.Task, taskSubType, agentResult string) (*Result, error) {
+	existingPR, err := adminClient.FindOpenPRByHead(owner, repo, branchName)
+	if err != nil {
+		return nil, fmt.Errorf("find open PR: %w", err)
+	}
+	if existingPR != nil {
+		log.Printf("[INFO] Task %d updated existing branch: %s (PR #%d)", task.ID, branchName, existingPR.Number)
 		return &Result{
-			Content: fmt.Sprintf("Updated PR branch `%s` with new changes.\n\n%s", branchName, result),
+			Content: fmt.Sprintf("Updated PR branch `%s` with new changes.\n\n%s", branchName, agentResult),
 			Action:  "comment",
+			PRID:    existingPR.Number,
 		}, nil
 	}
 
-	// New branch: create PR
 	prTitle := fmt.Sprintf("AI Solution: %s", task.Event)
 	if taskSubType == "bugfix" {
 		prTitle = fmt.Sprintf("Bugfix: %s", task.Event)
 	}
-	contentPreview := result
+	contentPreview := agentResult
 	if len(contentPreview) > 500 {
 		contentPreview = contentPreview[:500] + "..."
 	}
-	// Link PR to issue via "Fixes #N" keyword (Gitea auto-closes issue on merge)
 	issueLink := ""
 	if task.IssueID > 0 {
 		issueLink = fmt.Sprintf("\n\nFixes #%d", task.IssueID)
 	}
 	prBody := fmt.Sprintf("## AI Generated Solution\n\n%s\n\n---\n*Task ID: %d*%s", contentPreview, task.ID, issueLink)
-	adminClient := factory.giteaFactory.GetAdminGiteaClient()
+
 	pr, err := adminClient.CreatePR(owner, repo, gitea.CreatePRRequest{
 		Title: prTitle,
 		Body:  prBody,
 		Head:  branchName,
-		Base:  repoInfo.DefaultBranch,
+		Base:  baseBranch,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create PR: %w", err)
 	}
 
 	log.Printf("[INFO] Task %d PR created: %s (PR #%d)", task.ID, pr.HTMLURL, pr.Number)
-
 	return &Result{
-		Content: fmt.Sprintf("PR created: %s\n\n%s", pr.HTMLURL, result),
+		Content: fmt.Sprintf("PR created: %s\n\n%s", pr.HTMLURL, agentResult),
 		Action:  "pr",
 		PRID:    pr.Number,
 	}, nil

@@ -52,6 +52,16 @@ func (g *Git) Checkout(branch string) *Result {
 	return g.sandbox.Execute("git", "checkout", branch)
 }
 
+// Stash saves uncommitted changes (including untracked files).
+func (g *Git) Stash(message string) *Result {
+	return g.sandbox.Execute("git", "stash", "push", "-u", "-m", message)
+}
+
+// StashPop restores the most recent stash.
+func (g *Git) StashPop() *Result {
+	return g.sandbox.Execute("git", "stash", "pop")
+}
+
 // Add stages all changes.
 func (g *Git) Add() *Result {
 	return g.sandbox.Execute("git", "add", ".")

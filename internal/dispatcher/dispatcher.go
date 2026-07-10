@@ -290,6 +290,7 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 
 	// Step 4: WorkflowContext transition
 	var sessionID string
+	var sessionBranch string
 	if d.wfMgr != nil {
 		ctx, err := d.db.GetOrCreateWorkflowContext(repo, issueID)
 		if err != nil {
@@ -362,10 +363,8 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 				return false
 			}
 			sessionID = session.ID
-
-			// Set base branch from session for coder continuation
 			if result.Role == store.RoleCoder && session.Branch != "" {
-				// Will be used below for task.BaseBranch
+				sessionBranch = session.Branch
 			}
 		}
 
@@ -395,9 +394,12 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 		DeliveryID: evt.DeliveryID,
 	}
 
-	// For PR events, capture the head branch
+	// PR head branch, or session branch for coder continuation when webhook omits pull_request.
 	if evt.PR != nil && evt.PR.Head.Ref != "" {
-		task.BaseBranch = evt.PR.Head.Ref
+		task.BaseBranch = strings.TrimSpace(evt.PR.Head.Ref)
+	}
+	if task.BaseBranch == "" && sessionBranch != "" {
+		task.BaseBranch = sessionBranch
 	}
 
 	if err := d.queue.Enqueue(task); err != nil {

@@ -75,15 +75,28 @@
                 <span v-if="providerNames.length" class="provider-tags">
                   已识别：{{ providerNames.join('、') }}
                 </span>
+                <el-tag v-if="sourceTag('llm.providers')" size="small" :type="sourceTag('llm.providers') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
+                  {{ sourceTag('llm.providers') }}
+                </el-tag>
               </div>
             </el-form-item>
             <el-form-item label="默认 Provider">
               <el-select v-model="form['llm.defaults.provider']" placeholder="选择默认 Provider" style="width: 100%">
                 <el-option v-for="(_, name) in providers" :key="name" :label="name" :value="name" />
               </el-select>
+              <div class="form-tip">
+                <el-tag v-if="sourceTag('llm.defaults.provider')" size="small" :type="sourceTag('llm.defaults.provider') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
+                  {{ sourceTag('llm.defaults.provider') }}
+                </el-tag>
+              </div>
             </el-form-item>
             <el-form-item label="默认模型">
               <el-input v-model="form['llm.defaults.model']" placeholder="deepseek-chat" />
+              <div class="form-tip">
+                <el-tag v-if="sourceTag('llm.defaults.model')" size="small" :type="sourceTag('llm.defaults.model') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
+                  {{ sourceTag('llm.defaults.model') }}
+                </el-tag>
+              </div>
             </el-form-item>
             <el-form-item>
               <el-button :loading="testingLLM" @click="testLLM">测试 LLM 连接</el-button>

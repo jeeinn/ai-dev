@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,6 +72,50 @@ func (r *recordingRecorder) RecordIteration(taskID int64, iteration int, message
 		hasFinal:  finalAssistant != nil,
 	})
 	return nil
+}
+
+func TestAgentLoopPersistAfterTruncate(t *testing.T) {
+	provider := &countingProvider{}
+	registry := NewToolRegistry()
+	recorder := &recordingRecorder{}
+	loop := NewAgentLoopWithConfig(provider, registry, "test-model", 1024, 400, 0.3, config.AgentLoopConfig{
+		MaxIterations: 3,
+	})
+	loop.SetConversationRecorder(recorder, 42)
+
+	messages := []llm.Message{
+		{Role: "system", Content: "You are a coder."},
+		{Role: "user", Content: "Fix the bug."},
+	}
+	for i := 0; i < 20; i++ {
+		messages = append(messages,
+			llm.Message{
+				Role:    "assistant",
+				Content: "",
+				ToolCalls: []llm.ToolCall{{
+					ID:   fmt.Sprintf("call-%d", i),
+					Type: "function",
+					Function: llm.FuncCall{
+						Name:      "read_file",
+						Arguments: `{"path":"README.md"}`,
+					},
+				}},
+			},
+			llm.Message{
+				Role:       "tool",
+				Content:    strings.Repeat("x", 200),
+				ToolCallID: fmt.Sprintf("call-%d", i),
+			},
+		)
+	}
+
+	_, err := loop.Run(context.Background(), messages)
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+	if len(recorder.calls) == 0 {
+		t.Fatal("expected conversation recorder to be called")
+	}
 }
 
 func TestAgentLoopPersistsIterations(t *testing.T) {

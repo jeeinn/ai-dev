@@ -166,7 +166,7 @@ func truncateContentToBudget(messages []llm.Message, idx int, budget int) string
 	// content tokens ≈ len/4 → max chars = remain * 4
 	maxChars := remain * 4
 	content := messages[idx].Content
-	if len(content) <= maxChars {
+	if maxChars <= 0 || len(content) <= maxChars {
 		return content
 	}
 	if maxChars < 20 {

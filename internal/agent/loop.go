@@ -103,13 +103,13 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 
 		logging.Debugf("Agent loop iteration %d/%d", i+1, a.maxIterations)
 
-		msgStart := len(messages)
-
 		trimmed, err := TruncateMessages(messages, tools, a.maxInputTokens)
 		if err != nil {
 			return "", fmt.Errorf("truncate messages: %w", err)
 		}
 		messages = trimmed
+		// Record delta after truncate: msgStart captured before truncate can exceed len(messages) and panic.
+		msgStart := len(messages)
 
 		resp, err := a.provider.ChatCompletion(ctx, &llm.ChatRequest{
 			Model:       a.model,

@@ -283,8 +283,9 @@ func TestGetProviderModelsReturnsBuiltinCatalog(t *testing.T) {
 	}
 	m := NewConfigManager(fileCfg)
 
-	models, err := m.GetProviderModels("deepseek")
+	models, source, err := m.GetProviderModels("deepseek")
 	require.NoError(t, err)
+	assert.Equal(t, "builtin", source)
 	require.GreaterOrEqual(t, len(models), 1, "deepseek should have builtin models")
 
 	// Verify known model exists
@@ -318,8 +319,9 @@ func TestGetProviderModelsReturnsCustomModels(t *testing.T) {
 	}
 	m := NewConfigManager(fileCfg)
 
-	models, err := m.GetProviderModels("myprovider")
+	models, source, err := m.GetProviderModels("myprovider")
 	require.NoError(t, err)
+	assert.Equal(t, "custom", source)
 	require.Len(t, models, 1)
 	assert.Equal(t, "custom-model", models[0].ID)
 	assert.Equal(t, "Custom Model", models[0].Name)
@@ -333,7 +335,7 @@ func TestGetProviderModelsReturnsEmptyForUnknownProvider(t *testing.T) {
 	}
 	m := NewConfigManager(fileCfg)
 
-	_, err := m.GetProviderModels("unknown")
+	_, _, err := m.GetProviderModels("unknown")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }

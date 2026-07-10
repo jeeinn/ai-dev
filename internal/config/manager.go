@@ -252,7 +252,8 @@ func (m *ConfigManager) GetDisplayMap() (map[string]interface{}, error) {
 	// Build models metadata from file config providers
 	modelsMeta := make(map[string][]ModelDefinition)
 	for name, pc := range base.LLM.Providers {
-		modelsMeta[name] = m.resolveProviderModels(name, pc)
+		models, _ := m.resolveProviderModels(name, pc)
+		modelsMeta[name] = models
 	}
 
 	result["_meta"] = map[string]interface{}{
@@ -264,33 +265,34 @@ func (m *ConfigManager) GetDisplayMap() (map[string]interface{}, error) {
 
 // resolveProviderModels determines the effective model list for a provider.
 // Priority: user-defined (non-empty) > builtin catalog.
-func (m *ConfigManager) resolveProviderModels(name string, pc ProviderConfig) []ModelDefinition {
+// Returns the models and their source ("custom" or "builtin").
+func (m *ConfigManager) resolveProviderModels(name string, pc ProviderConfig) ([]ModelDefinition, string) {
 	if len(pc.Models) > 0 {
-		return pc.Models
+		return pc.Models, "custom"
 	}
 	if builtin, ok := BuiltinModelCatalog[name]; ok {
-		return builtin
+		return builtin, "builtin"
 	}
-	return nil
+	return nil, ""
 }
 
 // GetProviderModels returns the effective model list for a provider.
 // This is used by the Web UI for model selection dropdowns.
-func (m *ConfigManager) GetProviderModels(providerName string) ([]ModelDefinition, error) {
+func (m *ConfigManager) GetProviderModels(providerName string) ([]ModelDefinition, string, error) {
 	m.mu.RLock()
 	base := m.base
 	m.mu.RUnlock()
 
 	pc, ok := base.LLM.Providers[providerName]
 	if !ok {
-		return nil, fmt.Errorf("provider not found: %s", providerName)
+		return nil, "", fmt.Errorf("provider not found: %s", providerName)
 	}
 
-	models := m.resolveProviderModels(providerName, pc)
+	models, source := m.resolveProviderModels(providerName, pc)
 	if models == nil {
-		return []ModelDefinition{}, nil
+		return []ModelDefinition{}, source, nil
 	}
-	return models, nil
+	return models, source, nil
 }
 
 func (m *ConfigManager) getActiveMap() map[string]interface{} {

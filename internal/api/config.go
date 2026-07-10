@@ -111,7 +111,7 @@ func (h *Handler) getProviderModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	models, err := h.cfgManager.GetProviderModels(providerName)
+	models, source, err := h.cfgManager.GetProviderModels(providerName)
 	if err != nil {
 		writeError(w, 404, err.Error())
 		return
@@ -119,7 +119,7 @@ func (h *Handler) getProviderModels(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, 200, map[string]interface{}{
 		"success": true,
-		"source":  "builtin",
+		"source":  source,
 		"models":  models,
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -99,8 +100,36 @@ func (e *Executor) Start(queue *TaskQueue) {
 func (e *Executor) worker(queue *TaskQueue) {
 	for task := range queue.Dequeue() {
 		e.sem <- struct{}{} // acquire
-		e.execute(task)
+		e.executeSafely(task)
 		<-e.sem // release
+	}
+}
+
+// executeSafely runs execute and converts panics into a failed task without crashing the worker.
+func (e *Executor) executeSafely(task *store.Task) {
+	defer func() {
+		if r := recover(); r != nil {
+			e.handleTaskPanic(task, r)
+		}
+	}()
+	e.execute(task)
+}
+
+func (e *Executor) handleTaskPanic(task *store.Task, recovered any) {
+	log.Printf("[ERROR] Task %d panicked: %v\n%s", task.ID, recovered, debug.Stack())
+
+	err := fmt.Errorf("task panicked: %v", recovered)
+	finished := time.Now()
+	task.FinishedAt = &finished
+	task.Status = "failed"
+	task.Error = err.Error()
+	e.db.UpdateTaskStatus(task.ID, "failed", "", task.Error)
+
+	if writeErr := e.writeFailureToGitea(task, err); writeErr != nil {
+		log.Printf("[ERROR] Task %d failure writeback failed: %v", task.ID, writeErr)
+	}
+	if e.onFailed != nil {
+		e.onFailed(task)
 	}
 }
 
@@ -243,6 +272,21 @@ func (e *Executor) runTask(ctx context.Context, task *store.Task, agent *store.A
 	return nil
 }
 
+// writebackTargetID returns the Gitea issue/PR index to post comments on.
+// For review_pr with PRID set, comments go on the PR (Gitea uses issue API index).
+func writebackTargetID(task *store.Task) (targetID int, ok bool) {
+	if task == nil {
+		return 0, false
+	}
+	if task.TaskType == "review_pr" && task.PRID > 0 {
+		return task.PRID, true
+	}
+	if task.IssueID > 0 {
+		return task.IssueID, true
+	}
+	return 0, false
+}
+
 // writeBackToGitea posts the LLM result as a comment on the Gitea issue/PR.
 func (e *Executor) writeBackToGitea(task *store.Task) error {
 	if e.giteaFactory == nil {
@@ -255,8 +299,9 @@ func (e *Executor) writeBackToGitea(task *store.Task) error {
 		return nil
 	}
 
-	if task.IssueID == 0 {
-		log.Printf("[DEBUG] No issue ID for task %d, skipping writeback", task.ID)
+	targetID, ok := writebackTargetID(task)
+	if !ok {
+		log.Printf("[DEBUG] No issue/PR target for task %d, skipping writeback", task.ID)
 		return nil
 	}
 
@@ -275,16 +320,11 @@ func (e *Executor) writeBackToGitea(task *store.Task) error {
 
 	commentBody := formatComment(task)
 
-	targetID := task.IssueID
-	if task.TaskType == "review_pr" && task.PRID > 0 {
-		targetID = task.PRID
-	}
-
 	if err := client.IssueComment(owner, repo, targetID, commentBody); err != nil {
 		return fmt.Errorf("post comment: %w", err)
 	}
 
-	log.Printf("[INFO] Task %d result written back to %s#%d", task.ID, task.Repo, task.IssueID)
+	log.Printf("[INFO] Task %d result written back to %s (target #%d)", task.ID, task.Repo, targetID)
 	return nil
 }
 
@@ -294,11 +334,13 @@ func (e *Executor) writeFailureToGitea(task *store.Task, taskErr error) error {
 		log.Printf("[DEBUG] No Gitea factory configured, skipping failure writeback for task %d", task.ID)
 		return nil
 	}
-	if task.IssueID == 0 {
-		log.Printf("[DEBUG] No issue ID for task %d, skipping failure writeback", task.ID)
+	if taskErr == nil {
 		return nil
 	}
-	if taskErr == nil {
+
+	targetID, ok := writebackTargetID(task)
+	if !ok {
+		log.Printf("[DEBUG] No issue/PR target for task %d, skipping failure writeback", task.ID)
 		return nil
 	}
 
@@ -314,11 +356,6 @@ func (e *Executor) writeFailureToGitea(task *store.Task, taskErr error) error {
 		return fmt.Errorf("invalid repo format: %s", task.Repo)
 	}
 	owner, repo := parts[0], parts[1]
-
-	targetID := task.IssueID
-	if task.TaskType == "review_pr" && task.PRID > 0 {
-		targetID = task.PRID
-	}
 
 	commentBody := workflow.FormatAgentComment(formatFailureComment(task, taskErr))
 	if err := client.IssueComment(owner, repo, targetID, commentBody); err != nil {

@@ -145,6 +145,16 @@ func (g *Git) DiffStaged() *Result {
 	return g.sandbox.Execute("git", "diff", "--cached")
 }
 
+// DiffCachedStat returns staged diff statistics.
+func (g *Git) DiffCachedStat() *Result {
+	return g.sandbox.Execute("git", "diff", "--cached", "--stat")
+}
+
+// DiffCachedNameStatus returns staged file change list (M/A/D).
+func (g *Git) DiffCachedNameStatus() *Result {
+	return g.sandbox.Execute("git", "diff", "--cached", "--name-status")
+}
+
 // Log returns the git log.
 func (g *Git) Log(count int) *Result {
 	return g.sandbox.Execute("git", "log", fmt.Sprintf("-%d", count), "--oneline")

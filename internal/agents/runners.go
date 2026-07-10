@@ -597,10 +597,16 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 
 	// Stage and commit
 	git.Add()
-	commitMsg := fmt.Sprintf("feat: AI solution for task %d", task.ID)
-	if taskSubType == "bugfix" {
-		commitMsg = fmt.Sprintf("fix: AI bugfix for task %d", task.ID)
-	}
+	commitMsg := GenerateCommitMessage(ctx, CommitMessageInput{
+		Git:          git,
+		Provider:     provider,
+		Model:        agentCfg.Model,
+		Temperature:  factory.resolveTemperature(agentCfg.Temperature),
+		TaskSubType:  taskSubType,
+		Task:         task,
+		AgentSummary: result,
+	})
+	log.Printf("[INFO] Task %d commit message: %s", task.ID, commitMsg)
 	commitResult := git.Commit(commitMsg)
 	audit.LogCommand("git", []string{"commit"}, commitResult)
 	if commitResult.Error != nil {

@@ -216,8 +216,7 @@ func (m *ConfigManager) GetMap() map[string]interface{} {
 // GetDisplayMap returns config for Web UI display.
 // Per-field: non-empty DB value wins; otherwise file config (config.yaml) is used.
 // JSON-type fields with semantically empty DB values (e.g. "{}") fall back to file config.
-// Sensitive fields are returned as real values (for editing); masked versions are
-// provided in _meta.masked for display reference only.
+// Sensitive fields are returned as real values (for editing).
 func (m *ConfigManager) GetDisplayMap() (map[string]interface{}, error) {
 	dbEntries := map[string]string{}
 	if m.store != nil {
@@ -234,7 +233,6 @@ func (m *ConfigManager) GetDisplayMap() (map[string]interface{}, error) {
 
 	result := make(map[string]interface{}, len(configKeys)+1)
 	sources := make(map[string]string, len(configKeys))
-	masked := make(map[string]interface{}, len(configKeys))
 
 	for _, key := range configKeys {
 		if dbVal, ok := dbEntries[key]; ok && strings.TrimSpace(dbVal) != "" && !isSemanticallyEmptyConfigValue(key, dbVal) {
@@ -243,19 +241,16 @@ func (m *ConfigManager) GetDisplayMap() (map[string]interface{}, error) {
 				return nil, fmt.Errorf("invalid db config %s: %w", key, err)
 			}
 			result[key] = val
-			masked[key] = maskSensitiveDisplayValue(key, val)
 			sources[key] = "db"
 			continue
 		}
 		val := getConfigValueTyped(base, key)
 		result[key] = val
-		masked[key] = maskSensitiveDisplayValue(key, val)
 		sources[key] = "file"
 	}
 
 	result["_meta"] = map[string]interface{}{
 		"sources": sources,
-		"masked":  masked,
 	}
 	return result, nil
 }
@@ -612,36 +607,3 @@ func isSemanticallyEmptyConfigValue(key, dbVal string) bool {
 	return false
 }
 
-// maskSensitiveDisplayValue masks api_key fields in provider configs for display reference.
-// Returns a masked copy; the original val is untouched. Other config keys pass through unchanged.
-func maskSensitiveDisplayValue(key string, val interface{}) interface{} {
-	if key != "llm.providers" {
-		return val
-	}
-	providers, ok := val.(map[string]ProviderConfig)
-	if !ok {
-		return val
-	}
-	masked := make(map[string]ProviderConfig, len(providers))
-	for name, cfg := range providers {
-		// Struct copy preserves all fields; only override the sensitive one
-		entry := cfg
-		entry.APIKey = maskAPIKey(cfg.APIKey)
-		masked[name] = entry
-	}
-	return masked
-}
-
-// maskAPIKey masks an API key for display reference: shows first 4 + "****" + last 4 chars
-// if long enough; short keys show "****" only; empty keys stay empty.
-func maskAPIKey(key string) string {
-	if key == "" {
-		return ""
-	}
-	runes := []rune(key)
-	n := len(runes)
-	if n <= 8 {
-		return "****"
-	}
-	return string(runes[:4]) + "****" + string(runes[n-4:])
-}

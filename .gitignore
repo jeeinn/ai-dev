@@ -6,6 +6,7 @@ gateway.exe*
 config.yaml
 .codegraph/
 .claude/
+.workbuddy/
 
 # Database and runtime data
 data/

@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dev/Bugfix 工具使用指引**: `BuildSolveToolPrompt()` 明确要求使用 `write_file`/`apply_diff` 实现变更、`run_command` 跑测试，并说明 Gateway 会自动 commit/push/PR
 
 ### Fixed
+- **review_pr 失败不回写**: `review_pr` 任务在 `IssueID=0` 但 `PRID>0` 时，成功/失败评论写入 PR，不再因缺少 Issue ID 跳过
+- **DevRunner 复用分支未开 PR**: 推送至已存在的 session/本地分支后，先查询 Gitea 是否存在 head 匹配的 open PR；若无则自动 CreatePR，避免仅回写 comment 而用户需手动开 PR
+- **review_requested 无响应**: 解析 Gitea 顶层 `requested_reviewer` 字段并归一化到 `PR.RequestedReviewers`；通过 WebUI 创建 Agent 后立即刷新内存 Registry，无需重启 Gateway
 - **DevRunner 忽略 WebUI system_prompt**: `runWriteTask` 在 `BuildDevPrompt`/`BuildBugfixPrompt` 基础上通过 `MergeAgentSystemPrompt` 合并 Agent 自定义指令（`## Agent-specific instructions` 段落）
 - **Dev 任务 Git 操作**: session 复用 workspace 时 checkout 使用仓库 `default_branch` 而非硬编码 `main`；clone 使用 Agent Token 认证 URL；`git fetch`/`pull` 失败时立即终止任务并回写失败评论
 - **Session 复用 fetch 失败**: 移除 `git remote set-branches --add` 对 `.git/config` 的污染；本地-only 分支跳过远程 fetch，改用一次性 refspec fetch；session 复用前重置 branch-specific fetch refspec；创建分支时立即持久化 `session.Branch`

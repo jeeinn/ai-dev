@@ -225,6 +225,65 @@ func TestParseEventPullRequestReviewRequested(t *testing.T) {
 	assert.Equal(t, "reviewer-gpt", evt.PR.RequestedReviewers[0].Login)
 }
 
+func TestParseEventPullRequestReviewRequestedGiteaFormat(t *testing.T) {
+	payload := []byte(`{
+		"action": "review_requested",
+		"repository": {
+			"id": 1,
+			"name": "repo",
+			"full_name": "owner/repo"
+		},
+		"pull_request": {
+			"id": 10,
+			"number": 3,
+			"title": "Fix bug",
+			"state": "open",
+			"user": {"id": 1, "login": "coder-ds"},
+			"head": {"ref": "fix-3", "repo": {"full_name": "owner/repo"}},
+			"base": {"ref": "main", "repo": {"full_name": "owner/repo"}}
+		},
+		"requested_reviewer": {"id": 5, "login": "reviewer-gpt"},
+		"sender": {"id": 1, "login": "coder-ds"}
+	}`)
+
+	evt, err := ParseEvent("pull_request", "del-review-gitea", payload)
+	require.NoError(t, err)
+
+	require.NotNil(t, evt.PR)
+	require.Len(t, evt.PR.RequestedReviewers, 1)
+	assert.Equal(t, "reviewer-gpt", evt.PR.RequestedReviewers[0].Login)
+	assert.Equal(t, 5, evt.PR.RequestedReviewers[0].ID)
+}
+
+func TestParseEventPullRequestOpenedWithGiteaReviewer(t *testing.T) {
+	payload := []byte(`{
+		"action": "opened",
+		"repository": {
+			"id": 1,
+			"name": "repo",
+			"full_name": "owner/repo"
+		},
+		"pull_request": {
+			"id": 11,
+			"number": 4,
+			"title": "New feature",
+			"state": "open",
+			"user": {"id": 1, "login": "coder-ds"},
+			"head": {"ref": "feat-4", "repo": {"full_name": "owner/repo"}},
+			"base": {"ref": "main", "repo": {"full_name": "owner/repo"}}
+		},
+		"requested_reviewer": {"id": 5, "login": "reviewer-gpt"},
+		"sender": {"id": 1, "login": "coder-ds"}
+	}`)
+
+	evt, err := ParseEvent("pull_request", "del-opened-review", payload)
+	require.NoError(t, err)
+
+	require.NotNil(t, evt.PR)
+	require.Len(t, evt.PR.RequestedReviewers, 1)
+	assert.Equal(t, "reviewer-gpt", evt.PR.RequestedReviewers[0].Login)
+}
+
 func TestParseEventIssueAssigneeInsideIssue(t *testing.T) {
 	payload := []byte(`{
 		"action": "assigned",

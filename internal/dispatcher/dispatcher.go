@@ -241,7 +241,20 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 	// Step 2: Resolve event via EventResolver
 	result := d.resolver.Resolve(evt)
 	if result == nil {
-		log.Printf("[DEBUG] Event %s/%s not handled by resolver, ignoring", evt.Event, evt.Action)
+		if evt.Event == "pull_request" && evt.Action == "review_requested" {
+			var reviewers []string
+			prNum := 0
+			if evt.PR != nil {
+				prNum = evt.PR.Number
+				for _, r := range evt.PR.RequestedReviewers {
+					reviewers = append(reviewers, r.Login)
+				}
+			}
+			log.Printf("[INFO] review_requested not handled: repo=%s pr=%d reviewers=%v sender=%q",
+				evt.Repo.FullName, prNum, reviewers, evt.Sender.Login)
+		} else {
+			log.Printf("[DEBUG] Event %s/%s not handled by resolver, ignoring", evt.Event, evt.Action)
+		}
 		return true // Not an error, just not handled
 	}
 

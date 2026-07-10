@@ -195,6 +195,7 @@ func main() {
 
 	// Management API
 	manager := agents.NewManager(db, &activeCfg.Gitea)
+	manager.SetRegistry(registry)
 	apiHandler := api.NewHandler(db, manager, activeCfg, jwtManager, cfgManager, func(newCfg *config.Config) {
 		// Hot-reload LLM providers when config changes
 		llmRegistry.Reload(&newCfg.LLM)

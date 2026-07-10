@@ -14,8 +14,9 @@ type WebhookEvent struct {
 	Issue      *Issue       `json:"issue,omitempty"`
 	PR         *PullRequest `json:"pull_request,omitempty"`
 	Comment    *Comment     `json:"comment,omitempty"`
-	Assignee   *User        `json:"assignee,omitempty"` // Single assignee from issues.assigned event
-	Sender     User         `json:"sender"`
+	Assignee          *User `json:"assignee,omitempty"`          // Single assignee from issues.assigned event
+	RequestedReviewer *User `json:"requested_reviewer,omitempty"` // Single reviewer from pull_request.review_requested (Gitea format)
+	Sender            User  `json:"sender"`
 }
 
 type Repository struct {
@@ -92,6 +93,7 @@ func ParseEvent(eventType, deliveryID string, payload []byte) (*WebhookEvent, er
 	}
 
 	normalizeAssignee(&evt)
+	normalizeRequestedReviewers(&evt)
 
 	// Normalize action names across Gitea versions
 	// Gitea 1.26+ sends "label_updated" instead of "labeled"
@@ -124,6 +126,18 @@ func normalizeAssignee(evt *WebhookEvent) {
 	last := evt.Issue.Assignees[len(evt.Issue.Assignees)-1]
 	evt.Assignee = &last
 	log.Printf("[DEBUG] Normalized assignee from issue.assignees: %s", last.Login)
+}
+
+// normalizeRequestedReviewers fills PR.RequestedReviewers when Gitea sends top-level requested_reviewer.
+func normalizeRequestedReviewers(evt *WebhookEvent) {
+	if evt.PR == nil || len(evt.PR.RequestedReviewers) > 0 {
+		return
+	}
+	if evt.RequestedReviewer == nil || evt.RequestedReviewer.Login == "" {
+		return
+	}
+	evt.PR.RequestedReviewers = []User{*evt.RequestedReviewer}
+	log.Printf("[DEBUG] Normalized requested reviewer from requested_reviewer: %s", evt.RequestedReviewer.Login)
 }
 
 // HasLabel checks if the issue has the given label.

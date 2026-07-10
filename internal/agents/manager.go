@@ -16,9 +16,10 @@ const agentTokenName = "gateway-agent"
 
 // Manager handles agent lifecycle (create, update, delete) and Gitea account registration.
 type Manager struct {
-	db    *store.DB
-	gitea *gitea.Client
-	cfg   *config.GiteaConfig
+	db       *store.DB
+	gitea    *gitea.Client
+	cfg      *config.GiteaConfig
+	registry *Registry
 }
 
 // NewManager creates a new agent Manager.
@@ -28,6 +29,11 @@ func NewManager(db *store.DB, cfg *config.GiteaConfig) *Manager {
 		gitea: gitea.NewClient(cfg.URL, cfg.AdminToken),
 		cfg:   cfg,
 	}
+}
+
+// SetRegistry wires the in-memory agent registry for hot refresh on CRUD.
+func (m *Manager) SetRegistry(registry *Registry) {
+	m.registry = registry
 }
 
 	// CreateAgentRequest is the payload for creating a new agent.
@@ -163,6 +169,9 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 	}
 
 	log.Printf("[INFO] Agent created: id=%d name=%s gitea=%s", agent.ID, agent.Name, agent.GiteaUsername)
+	if m.registry != nil {
+		m.registry.Refresh(agent)
+	}
 	return agent, nil
 }
 
@@ -178,7 +187,13 @@ func (m *Manager) UpdateAgent(agent *store.Agent) error {
 	if userCreated {
 		log.Printf("[INFO] Provisioned Gitea user for agent id=%d username=%s", agent.ID, agent.GiteaUsername)
 	}
-	return m.db.UpdateAgent(agent)
+	if err := m.db.UpdateAgent(agent); err != nil {
+		return err
+	}
+	if m.registry != nil {
+		m.registry.Refresh(agent)
+	}
+	return nil
 }
 
 // DeleteAgent deletes an agent and optionally the Gitea user.
@@ -198,7 +213,13 @@ func (m *Manager) DeleteAgent(id int64, deleteGiteaUser bool) error {
 		}
 	}
 
-	return m.db.DeleteAgent(id)
+	if err := m.db.DeleteAgent(id); err != nil {
+		return err
+	}
+	if m.registry != nil {
+		m.registry.Remove(id)
+	}
+	return nil
 }
 
 func generatePassword() string {

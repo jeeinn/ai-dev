@@ -353,12 +353,46 @@
               </div>
             </el-form-item>
             <el-form-item v-if="providerForm.model_discovery === 'custom'" label="自定义模型">
-              <el-input
-                v-model="providerForm.models_text"
-                type="textarea"
-                :rows="4"
-                placeholder="每行一个模型 ID，如：&#10;deepseek-chat&#10;deepseek-reasoner"
-              />
+              <div class="model-list-toolbar">
+                <el-button type="primary" size="small" @click="openModelDialog()">
+                  <el-icon><Plus /></el-icon> 新增模型
+                </el-button>
+                <span class="form-tip" style="margin-left: 8px">共 {{ providerForm.models.length }} 个模型</span>
+              </div>
+              <el-table :data="providerForm.models" border size="small" style="width: 100%; margin-top: 8px" empty-text="暂无模型">
+                <el-table-column prop="id" label="模型 ID" width="180" />
+                <el-table-column prop="name" label="显示名" width="160" />
+                <el-table-column label="上下文窗口" width="120">
+                  <template #default="{ row }">
+                    <span v-if="row.context_window">{{ row.context_window.toLocaleString() }}</span>
+                    <span v-else class="text-muted">-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="最大输出" width="100">
+                  <template #default="{ row }">
+                    <span v-if="row.max_output">{{ row.max_output.toLocaleString() }}</span>
+                    <span v-else class="text-muted">-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="工具调用" width="80" align="center">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.supports_tools" size="small" type="success">支持</el-tag>
+                    <span v-else class="text-muted">-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="推理模型" width="80" align="center">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.is_reasoning" size="small" type="warning">是</el-tag>
+                    <span v-else class="text-muted">-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="140" fixed="right">
+                  <template #default="{ row, $index }">
+                    <el-button size="small" type="primary" link @click="openModelDialog(row, $index)">编辑</el-button>
+                    <el-button size="small" type="danger" link @click="deleteModel($index)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
             </el-form-item>
           </el-collapse-item>
         </el-collapse>
@@ -366,6 +400,44 @@
       <template #footer>
         <el-button @click="providerDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="saveProvider">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 模型编辑弹窗 -->
+    <el-dialog
+      v-model="modelDialogVisible"
+      :title="editingModelIndex >= 0 ? '编辑模型' : '新增模型'"
+      width="520px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="modelForm" label-width="120px">
+        <el-form-item label="模型 ID" required>
+          <el-input v-model="modelForm.id" placeholder="如 deepseek-v4" />
+        </el-form-item>
+        <el-form-item label="显示名称">
+          <el-input v-model="modelForm.name" placeholder="如 DeepSeek V4" />
+        </el-form-item>
+        <el-form-item label="上下文窗口">
+          <el-input-number v-model.number="modelForm.context_window" :min="0" :max="2000000" :step="1024" style="width: 100%" />
+          <div class="form-tip">单位：tokens，0 表示未设置</div>
+        </el-form-item>
+        <el-form-item label="最大输出">
+          <el-input-number v-model.number="modelForm.max_output" :min="0" :max="200000" :step="256" style="width: 100%" />
+          <div class="form-tip">单位：tokens，0 表示未设置</div>
+        </el-form-item>
+        <el-form-item label="支持工具调用">
+          <el-switch v-model="modelForm.supports_tools" />
+        </el-form-item>
+        <el-form-item label="推理模型">
+          <el-switch v-model="modelForm.is_reasoning" />
+        </el-form-item>
+        <el-form-item label="模型描述">
+          <el-input v-model="modelForm.description" type="textarea" :rows="2" placeholder="可选" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="modelDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveModel">保存</el-button>
       </template>
     </el-dialog>
 
@@ -410,7 +482,20 @@ const providerForm = ref({
   base_url: '',
   api_key: '',
   model_discovery: 'builtin', // auto | builtin | custom
-  models_text: ''
+  models: []
+})
+
+// 模型编辑弹窗状态
+const modelDialogVisible = ref(false)
+const editingModelIndex = ref(-1)
+const modelForm = ref({
+  id: '',
+  name: '',
+  context_window: 0,
+  max_output: 0,
+  supports_tools: false,
+  is_reasoning: false,
+  description: ''
 })
 
 const providerList = computed(() => {
@@ -460,14 +545,22 @@ const openProviderDialog = (row = null, index = -1) => {
       base_url: row.base_url || '',
       api_key: row.api_key || '',
       model_discovery: 'builtin',
-      models_text: ''
+      models: []
     }
     // 检测模型发现模式
     const cfg = providers.value[row.name]
     if (cfg) {
       if (cfg.models && Array.isArray(cfg.models) && cfg.models.length > 0) {
         providerForm.value.model_discovery = 'custom'
-        providerForm.value.models_text = cfg.models.map(m => m.id || m).join('\n')
+        providerForm.value.models = cfg.models.map(m => ({
+          id: m.id || m,
+          name: m.name || m.id || m,
+          context_window: m.context_window || 0,
+          max_output: m.max_output || 0,
+          supports_tools: !!m.supports_tools,
+          is_reasoning: !!m.is_reasoning,
+          description: m.description || ''
+        }))
       } else if (cfg.models && Array.isArray(cfg.models) && cfg.models.length === 0) {
         providerForm.value.model_discovery = 'auto'
       } else {
@@ -481,7 +574,7 @@ const openProviderDialog = (row = null, index = -1) => {
       base_url: '',
       api_key: '',
       model_discovery: 'builtin',
-      models_text: ''
+      models: []
     }
   }
   providerAdvancedOpen.value = []
@@ -519,11 +612,16 @@ const saveProvider = () => {
       entry.models = []
       break
     case 'custom':
-      const ids = providerForm.value.models_text
-        .split('\n')
-        .map(s => s.trim())
-        .filter(s => s)
-      entry.models = ids.map(id => ({ id, name: id }))
+      entry.models = providerForm.value.models.map(m => {
+        const out = { id: m.id }
+        if (m.name) out.name = m.name
+        if (m.context_window > 0) out.context_window = m.context_window
+        if (m.max_output > 0) out.max_output = m.max_output
+        if (m.supports_tools) out.supports_tools = true
+        if (m.is_reasoning) out.is_reasoning = true
+        if (m.description) out.description = m.description
+        return out
+      })
       break
     // builtin: 不设置 models 字段
   }
@@ -532,6 +630,73 @@ const saveProvider = () => {
   providersJson.value = formatProvidersJson(current)
   providerDialogVisible.value = false
   ElMessage.success(editingProviderIndex.value >= 0 ? '已更新 Provider' : '已添加 Provider')
+}
+
+// 打开模型编辑弹窗
+const openModelDialog = (row = null, index = -1) => {
+  editingModelIndex.value = index
+  if (row) {
+    modelForm.value = {
+      id: row.id || '',
+      name: row.name || '',
+      context_window: row.context_window || 0,
+      max_output: row.max_output || 0,
+      supports_tools: !!row.supports_tools,
+      is_reasoning: !!row.is_reasoning,
+      description: row.description || ''
+    }
+  } else {
+    modelForm.value = {
+      id: '',
+      name: '',
+      context_window: 0,
+      max_output: 0,
+      supports_tools: false,
+      is_reasoning: false,
+      description: ''
+    }
+  }
+  modelDialogVisible.value = true
+}
+
+// 保存模型
+const saveModel = () => {
+  const id = modelForm.value.id.trim()
+  if (!id) {
+    ElMessage.warning('请填写模型 ID')
+    return
+  }
+
+  // 检查 ID 重复（新增时）
+  if (editingModelIndex.value < 0 && providerForm.value.models.some(m => m.id === id)) {
+    ElMessage.warning('模型 ID 已存在')
+    return
+  }
+
+  const modelData = {
+    id,
+    name: modelForm.value.name.trim(),
+    context_window: modelForm.value.context_window || 0,
+    max_output: modelForm.value.max_output || 0,
+    supports_tools: !!modelForm.value.supports_tools,
+    is_reasoning: !!modelForm.value.is_reasoning,
+    description: modelForm.value.description.trim()
+  }
+
+  if (editingModelIndex.value >= 0) {
+    providerForm.value.models.splice(editingModelIndex.value, 1, modelData)
+  } else {
+    providerForm.value.models.push(modelData)
+  }
+
+  modelDialogVisible.value = false
+  ElMessage.success(editingModelIndex.value >= 0 ? '已更新模型' : '已添加模型')
+}
+
+// 删除模型
+const deleteModel = (index) => {
+  providerForm.value.models.splice(index, 1)
+  ElMessage.success('已删除模型')
 }
 
 // 删除 Provider
@@ -807,5 +972,15 @@ onMounted(() => {
 
 .provider-advanced {
   margin-top: 8px;
+}
+
+.model-list-toolbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.text-muted {
+  color: #c0c4cc;
 }
 </style>

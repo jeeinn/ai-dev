@@ -91,6 +91,9 @@ func main() {
 		log.Printf("[WARN] Failed to apply DB config overrides: %v", err)
 	}
 
+	// Register model discovery function for dynamic model listing
+	config.SetModelDiscoveryFunc(llm.DiscoverModels)
+
 	// Ensure workspace directory exists
 	if err := os.MkdirAll(cfg.Workspace.BaseDir, 0755); err != nil {
 		log.Fatalf("[FATAL] Failed to create workspace dir: %v", err)
@@ -108,6 +111,7 @@ func main() {
 	d.SetDebugConfigGetter(func() config.DebugConfig {
 		return cfgManager.Get().Debug
 	})
+	d.SetModelMetaProvider(cfgManager)
 
 	// Initialize v2 workflow components
 	registry := agents.NewRegistry()

@@ -27,10 +27,12 @@ func NewAnthropicProvider(apiKey string) *AnthropicProvider {
 }
 
 type anthropicRequest struct {
-	Model     string         `json:"model"`
-	MaxTokens int            `json:"max_tokens"`
-	System    string         `json:"system,omitempty"`
-	Messages  []anthropicMsg `json:"messages"`
+	Model            string         `json:"model"`
+	MaxTokens        int            `json:"max_tokens"`
+	System           string         `json:"system,omitempty"`
+	Messages         []anthropicMsg `json:"messages"`
+	Temperature      float64        `json:"temperature,omitempty"`
+	TopP             float64        `json:"top_p,omitempty"`
 }
 
 type anthropicMsg struct {
@@ -65,10 +67,12 @@ func (p *AnthropicProvider) ChatCompletion(ctx context.Context, req *ChatRequest
 	}
 
 	body := anthropicRequest{
-		Model:     req.Model,
-		MaxTokens: req.MaxTokens,
-		System:    systemMsg,
-		Messages:  messages,
+		Model:       req.Model,
+		MaxTokens:   req.MaxTokens,
+		System:      systemMsg,
+		Messages:    messages,
+		Temperature: req.Temperature,
+		TopP:        req.TopP,
 	}
 
 	data, err := json.Marshal(body)

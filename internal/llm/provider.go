@@ -1,10 +1,33 @@
 package llm
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"time"
+)
 
 // Provider is the interface for LLM API providers.
 type Provider interface {
 	ChatCompletion(ctx context.Context, req *ChatRequest) (*ChatResponse, error)
+}
+
+// DiscoverModels discovers available models for a provider by type.
+// Returns model IDs and an error.
+func DiscoverModels(providerName, baseURL, apiKey, providerType string) ([]string, error) {
+	switch providerType {
+	case "openai_compatible":
+		if baseURL == "" {
+			return nil, fmt.Errorf("base_url not configured")
+		}
+		p := NewOpenAICompatibleProvider(baseURL, apiKey)
+		// Use a shorter timeout for discovery
+		p.HTTPClient.Timeout = 10 * time.Second
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return p.ListModels(ctx)
+	default:
+		return nil, fmt.Errorf("dynamic discovery not supported for provider type: %s", providerType)
+	}
 }
 
 // Message represents a chat message.
@@ -56,11 +79,14 @@ type FuncCall struct {
 
 // ChatRequest is the request payload for chat completion.
 type ChatRequest struct {
-	Model       string    `json:"model"`
-	Messages    []Message `json:"messages"`
-	Tools       []Tool    `json:"tools,omitempty"`
-	MaxTokens   int       `json:"max_tokens"`
-	Temperature float64   `json:"temperature"`
+	Model            string    `json:"model"`
+	Messages         []Message `json:"messages"`
+	Tools            []Tool    `json:"tools,omitempty"`
+	MaxTokens        int       `json:"max_tokens"`
+	Temperature      float64   `json:"temperature"`
+	TopP             float64   `json:"top_p,omitempty"`
+	FrequencyPenalty float64   `json:"frequency_penalty,omitempty"`
+	PresencePenalty  float64   `json:"presence_penalty,omitempty"`
 }
 
 // ChatResponse is the response from chat completion.

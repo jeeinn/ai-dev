@@ -8,10 +8,91 @@ import (
 // ProviderConfigFromMap normalizes provider fields from UI/DB JSON objects.
 // Accepts both snake_case (base_url, api_key) and legacy PascalCase (BaseURL, APIKey).
 func ProviderConfigFromMap(m map[string]interface{}) ProviderConfig {
-	return ProviderConfig{
+	pc := ProviderConfig{
 		BaseURL: pickString(m, "base_url", "BaseURL"),
 		APIKey:  pickString(m, "api_key", "APIKey"),
+		Type:    pickString(m, "type", "Type"),
 	}
+
+	// Parse default_params
+	if params, ok := m["default_params"]; ok {
+		if pm, ok := params.(map[string]interface{}); ok {
+			pc.DefaultParams = parseModelParams(pm)
+		}
+	}
+	if params, ok := m["DefaultParams"]; ok {
+		if pm, ok := params.(map[string]interface{}); ok {
+			pc.DefaultParams = parseModelParams(pm)
+		}
+	}
+
+	// Parse models
+	if models, ok := m["models"]; ok {
+		pc.Models = parseModelDefinitions(models)
+	}
+	if models, ok := m["Models"]; ok {
+		pc.Models = parseModelDefinitions(models)
+	}
+
+	return pc
+}
+
+func parseModelParams(m map[string]interface{}) ModelParams {
+	var mp ModelParams
+	if v, ok := pickFloat64(m, "temperature", "Temperature"); ok {
+		mp.Temperature = &v
+	}
+	if v, ok := pickFloat64(m, "top_p", "TopP"); ok {
+		mp.TopP = &v
+	}
+	if v, ok := pickInt(m, "max_output_tokens", "MaxOutputTokens"); ok {
+		mp.MaxOutputTokens = &v
+	}
+	if v, ok := pickFloat64(m, "frequency_penalty", "FrequencyPenalty"); ok {
+		mp.FrequencyPenalty = &v
+	}
+	if v, ok := pickFloat64(m, "presence_penalty", "PresencePenalty"); ok {
+		mp.PresencePenalty = &v
+	}
+	return mp
+}
+
+func parseModelDefinitions(raw interface{}) []ModelDefinition {
+	arr, ok := raw.([]interface{})
+	if !ok {
+		return nil
+	}
+	result := make([]ModelDefinition, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		md := ModelDefinition{
+			ID:            pickString(m, "id", "ID"),
+			Name:          pickString(m, "name", "Name"),
+			Description:   pickString(m, "description", "Description"),
+			ContextWindow: pickIntDefault(m, 0, "context_window", "ContextWindow"),
+			MaxOutput:     pickIntDefault(m, 0, "max_output", "MaxOutput"),
+			SupportsTools: pickBoolDefault(m, false, "supports_tools", "SupportsTools"),
+			IsReasoning:   pickBoolDefault(m, false, "is_reasoning", "IsReasoning"),
+		}
+		if v, ok := pickFloat64(m, "input_price", "InputPrice"); ok {
+			md.InputPrice = v
+		}
+		if v, ok := pickFloat64(m, "output_price", "OutputPrice"); ok {
+			md.OutputPrice = v
+		}
+		if params, ok := m["default_params"]; ok {
+			if pm, ok := params.(map[string]interface{}); ok {
+				md.DefaultParams = parseModelParams(pm)
+			}
+		}
+		if md.ID != "" {
+			result = append(result, md)
+		}
+	}
+	return result
 }
 
 // ParseProvidersJSON parses llm.providers from a JSON string.
@@ -73,6 +154,57 @@ func pickString(m map[string]interface{}, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func pickFloat64(m map[string]interface{}, keys ...string) (float64, bool) {
+	for _, key := range keys {
+		if v, ok := m[key]; ok {
+			switch t := v.(type) {
+			case float64:
+				return t, true
+			case int:
+				return float64(t), true
+			case int64:
+				return float64(t), true
+			}
+		}
+	}
+	return 0, false
+}
+
+func pickInt(m map[string]interface{}, keys ...string) (int, bool) {
+	for _, key := range keys {
+		if v, ok := m[key]; ok {
+			switch t := v.(type) {
+			case int:
+				return t, true
+			case int64:
+				return int(t), true
+			case float64:
+				return int(t), true
+			}
+		}
+	}
+	return 0, false
+}
+
+func pickIntDefault(m map[string]interface{}, def int, keys ...string) int {
+	if v, ok := pickInt(m, keys...); ok {
+		return v
+	}
+	return def
+}
+
+func pickBoolDefault(m map[string]interface{}, def bool, keys ...string) bool {
+	for _, key := range keys {
+		if v, ok := m[key]; ok {
+			switch t := v.(type) {
+			case bool:
+				return t
+			}
+		}
+	}
+	return def
 }
 
 func floatPtr(f float64) *float64 {

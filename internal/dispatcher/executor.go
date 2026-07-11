@@ -89,6 +89,13 @@ func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory, getDebugCon
 	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.agentDefaults, e.defaultLoop, getDebugConfig)
 }
 
+// SetModelMetaProvider sets the model metadata provider for adaptive token limits.
+func (e *Executor) SetModelMetaProvider(m agents.ModelMetaProvider) {
+	if e.runnerFactory != nil {
+		e.runnerFactory.SetModelMetaProvider(m)
+	}
+}
+
 // Start begins the executor workers.
 func (e *Executor) Start(queue *TaskQueue) {
 	for i := 0; i < e.maxConcurrent; i++ {

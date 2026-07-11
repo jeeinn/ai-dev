@@ -364,3 +364,222 @@ func TestGetDisplayMapIncludesModelsMeta(t *testing.T) {
 	assert.GreaterOrEqual(t, len(modelsMeta["deepseek"]), 1, "deepseek models should be present")
 	assert.GreaterOrEqual(t, len(modelsMeta["openai"]), 1, "openai models should be present")
 }
+
+func TestProviderConfigFromMapAllFields(t *testing.T) {
+	m := map[string]interface{}{
+		"base_url": "https://api.example.com/v1",
+		"api_key":  "sk-test-123",
+		"type":     "openai_compatible",
+		"default_params": map[string]interface{}{
+			"temperature":       0.7,
+			"top_p":             0.9,
+			"max_output_tokens": float64(2048),
+		},
+		"models": []interface{}{
+			map[string]interface{}{
+				"id":             "model-1",
+				"name":           "Model One",
+				"context_window": float64(128000),
+				"max_output":     float64(4096),
+				"supports_tools": true,
+				"is_reasoning":   false,
+			},
+			map[string]interface{}{
+				"id":   "model-2",
+				"name": "Model Two",
+			},
+		},
+	}
+
+	pc := ProviderConfigFromMap(m)
+	assert.Equal(t, "https://api.example.com/v1", pc.BaseURL)
+	assert.Equal(t, "sk-test-123", pc.APIKey)
+	assert.Equal(t, "openai_compatible", pc.Type)
+
+	// default_params
+	assert.NotNil(t, pc.DefaultParams.Temperature)
+	assert.Equal(t, 0.7, *pc.DefaultParams.Temperature)
+	assert.NotNil(t, pc.DefaultParams.TopP)
+	assert.Equal(t, 0.9, *pc.DefaultParams.TopP)
+	assert.NotNil(t, pc.DefaultParams.MaxOutputTokens)
+	assert.Equal(t, 2048, *pc.DefaultParams.MaxOutputTokens)
+
+	// models
+	require.Len(t, pc.Models, 2)
+	assert.Equal(t, "model-1", pc.Models[0].ID)
+	assert.Equal(t, "Model One", pc.Models[0].Name)
+	assert.Equal(t, 128000, pc.Models[0].ContextWindow)
+	assert.Equal(t, 4096, pc.Models[0].MaxOutput)
+	assert.True(t, pc.Models[0].SupportsTools)
+	assert.False(t, pc.Models[0].IsReasoning)
+	assert.Equal(t, "model-2", pc.Models[1].ID)
+}
+
+func TestProviderConfigFromMapPascalCase(t *testing.T) {
+	m := map[string]interface{}{
+		"BaseURL": "https://api.example.com/v1",
+		"APIKey":  "sk-pascal",
+		"Type":    "anthropic",
+	}
+
+	pc := ProviderConfigFromMap(m)
+	assert.Equal(t, "https://api.example.com/v1", pc.BaseURL)
+	assert.Equal(t, "sk-pascal", pc.APIKey)
+	assert.Equal(t, "anthropic", pc.Type)
+}
+
+func TestCopyConfigDeepCopiesModels(t *testing.T) {
+	src := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"test": {
+					BaseURL: "https://example.com",
+					APIKey:  "sk-test",
+					Models: []ModelDefinition{
+						{ID: "m1", Name: "Model 1"},
+						{ID: "m2", Name: "Model 2"},
+					},
+				},
+			},
+		},
+	}
+
+	dst := copyConfig(src)
+
+	// Modify src models
+	src.LLM.Providers["test"].Models[0].Name = "Modified"
+
+	// dst should be unchanged
+	assert.Equal(t, "Model 1", dst.LLM.Providers["test"].Models[0].Name, "dst models should not be affected by src changes")
+}
+
+func TestInvalidateModelCache(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"deepseek": {BaseURL: "https://api.deepseek.com/v1", APIKey: "sk-test"},
+			},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+
+	// First call populates cache
+	_, _, err := m.GetProviderModels("deepseek")
+	require.NoError(t, err)
+
+	// Verify cache exists
+	m.mu.RLock()
+	_, ok := m.modelCache["deepseek"]
+	m.mu.RUnlock()
+	assert.True(t, ok, "cache should exist after first call")
+
+	// Invalidate
+	m.InvalidateModelCache("deepseek")
+
+	// Verify cache is gone
+	m.mu.RLock()
+	_, ok = m.modelCache["deepseek"]
+	m.mu.RUnlock()
+	assert.False(t, ok, "cache should be cleared after invalidation")
+}
+
+func TestInvalidateAllModelCache(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"deepseek": {BaseURL: "https://api.deepseek.com/v1", APIKey: "sk-test"},
+				"openai":   {BaseURL: "https://api.openai.com/v1", APIKey: "sk-test"},
+			},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+
+	// Populate caches
+	m.GetProviderModels("deepseek")
+	m.GetProviderModels("openai")
+
+	m.mu.RLock()
+	cacheCount := len(m.modelCache)
+	m.mu.RUnlock()
+	assert.Equal(t, 2, cacheCount, "should have 2 cached entries")
+
+	// Invalidate all
+	m.InvalidateAllModelCache()
+
+	m.mu.RLock()
+	cacheCount = len(m.modelCache)
+	m.mu.RUnlock()
+	assert.Equal(t, 0, cacheCount, "all caches should be cleared")
+}
+
+func TestUpdateProvidersInvalidatesCache(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"deepseek": {BaseURL: "https://api.deepseek.com/v1", APIKey: "sk-test"},
+			},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+	m.SetStore(&mockConfigStore{data: map[string]string{}})
+
+	// Populate cache
+	m.GetProviderModels("deepseek")
+
+	m.mu.RLock()
+	_, ok := m.modelCache["deepseek"]
+	m.mu.RUnlock()
+	assert.True(t, ok, "cache should exist")
+
+	// Update providers
+	err := m.Update("llm.providers", `{"deepseek":{"base_url":"https://new-url.com/v1","api_key":"sk-new"}}`)
+	require.NoError(t, err)
+
+	m.mu.RLock()
+	_, ok = m.modelCache["deepseek"]
+	m.mu.RUnlock()
+	assert.False(t, ok, "cache should be invalidated after llm.providers update")
+}
+
+func TestGetModelMeta(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"deepseek": {BaseURL: "https://api.deepseek.com/v1", APIKey: "sk-test"},
+			},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+
+	// Known model
+	meta := m.GetModelMeta("deepseek", "deepseek-v4")
+	require.NotNil(t, meta)
+	assert.Equal(t, "DeepSeek V4", meta.Name)
+	assert.Equal(t, 128000, meta.ContextWindow)
+
+	// Unknown model
+	meta = m.GetModelMeta("deepseek", "nonexistent-model")
+	assert.Nil(t, meta)
+
+	// Unknown provider
+	meta = m.GetModelMeta("unknown", "deepseek-v4")
+	assert.Nil(t, meta)
+}
+
+func TestParseProvidersFromInterface(t *testing.T) {
+	// Test with map[string]ProviderConfig
+	providers := map[string]ProviderConfig{
+		"test": {BaseURL: "https://example.com", APIKey: "sk-test"},
+	}
+	result, err := ParseProvidersFromInterface(providers)
+	require.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "https://example.com", result["test"].BaseURL)
+
+	// Test with JSON string
+	jsonStr := `{"test":{"base_url":"https://api.example.com","api_key":"sk-json"}}`
+	result, err = ParseProvidersFromInterface(jsonStr)
+	require.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "sk-json", result["test"].APIKey)
+}

@@ -62,22 +62,69 @@
         <el-tab-pane label="LLM 配置" name="llm">
           <el-alert title="配置 LLM Provider 后，Agent 创建时可从已配置的 Provider 中选择" type="info" :closable="false" style="margin-bottom: 16px" />
           <el-form label-width="140px" class="config-form">
-            <el-form-item label="Provider 配置">
-              <el-input
-                v-model="providersJson"
-                type="textarea"
-                :rows="8"
-                placeholder='{"deepseek":{"base_url":"https://api.deepseek.com/v1","api_key":"sk-xxx"}}'
-              />
-              <div class="form-tip">
-                JSON 格式，可配置多个 Provider；字段名使用 <code>base_url</code> 与 <code>api_key</code>
-                <el-button type="primary" link size="small" class="help-link" @click="$refs.providerHelp.show()">点击查看配置示例</el-button>
-                <span v-if="providerNames.length" class="provider-tags">
-                  已识别：{{ providerNames.join('、') }}
-                </span>
-                <el-tag v-if="sourceTag('llm.providers')" size="small" :type="sourceTag('llm.providers') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
+            <el-form-item label="Provider 列表">
+              <div class="provider-toolbar">
+                <el-button type="primary" size="small" @click="openProviderDialog()">
+                  <el-icon><Plus /></el-icon> 新增 Provider
+                </el-button>
+                <el-button size="small" @click="providerEditMode = providerEditMode === 'json' ? 'form' : 'json'">
+                  <el-icon v-if="providerEditMode === 'json'"><Document /></el-icon>
+                  <el-icon v-else><Edit /></el-icon>
+                  {{ providerEditMode === 'json' ? '表单编辑' : 'JSON 编辑' }}
+                </el-button>
+                <el-tag v-if="sourceTag('llm.providers')" size="small" :type="sourceTag('llm.providers') === '数据库' ? 'success' : 'info'">
                   {{ sourceTag('llm.providers') }}
                 </el-tag>
+              </div>
+
+              <!-- 表单模式：Provider 表格 -->
+              <div v-if="providerEditMode === 'form'" class="provider-table-wrap">
+                <el-table :data="providerList" border style="width: 100%" empty-text="暂无 Provider，点击上方按钮添加">
+                  <el-table-column prop="name" label="名称" width="140" />
+                  <el-table-column label="类型" width="120">
+                    <template #default="{ row }">
+                      <el-tag size="small" :type="row.type === 'anthropic' ? 'warning' : 'primary'">
+                        {{ row.type === 'anthropic' ? 'Anthropic' : 'OpenAI 兼容' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="base_url" label="Base URL">
+                    <template #default="{ row }">
+                      <span class="text-muted" v-if="!row.base_url">-</span>
+                      <span v-else>{{ row.base_url }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="API Key" width="120">
+                    <template #default="{ row }">
+                      <span v-if="row.api_key" class="api-key-masked">••••••••</span>
+                      <span v-else class="text-muted">-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="140" fixed="right">
+                    <template #default="{ row, $index }">
+                      <el-button size="small" type="primary" link @click="openProviderDialog(row, $index)">编辑</el-button>
+                      <el-button size="small" type="danger" link @click="deleteProvider($index)">删除</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+
+              <!-- JSON 模式：textarea -->
+              <div v-else class="provider-json-wrap">
+                <el-input
+                  v-model="providersJson"
+                  type="textarea"
+                  :rows="10"
+                  placeholder='{"deepseek":{"base_url":"https://api.deepseek.com/v1","api_key":"sk-xxx"}}'
+                  @input="onProvidersJsonInput"
+                />
+                <div class="form-tip">
+                  字段名使用 <code>base_url</code> 与 <code>api_key</code>
+                  <el-button type="primary" link size="small" class="help-link" @click="$refs.providerHelp.show()">查看配置示例</el-button>
+                  <span v-if="providerNames.length" class="provider-tags">
+                    已识别：{{ providerNames.join('、') }}
+                  </span>
+                </div>
               </div>
             </el-form-item>
             <el-form-item label="默认 Provider">
@@ -255,15 +302,82 @@
       </template>
     </el-dialog>
 
+    <!-- Provider 编辑对话框 -->
+    <el-dialog
+      v-model="providerDialogVisible"
+      :title="editingProviderIndex >= 0 ? '编辑 Provider' : '新增 Provider'"
+      width="560px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="providerForm" label-width="120px">
+        <el-form-item label="Provider 名称" required>
+          <el-input
+            v-model="providerForm.name"
+            placeholder="如 deepseek、openai、ollama"
+            :disabled="editingProviderIndex >= 0"
+          />
+          <div class="form-tip">唯一标识，创建后不可修改</div>
+        </el-form-item>
+        <el-form-item label="类型">
+          <el-select v-model="providerForm.type" style="width: 100%">
+            <el-option label="OpenAI 兼容（DeepSeek、Qwen、Ollama 等）" value="openai_compatible" />
+            <el-option label="Anthropic (Claude)" value="anthropic" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="Base URL">
+          <el-input
+            v-model="providerForm.base_url"
+            placeholder="https://api.deepseek.com/v1"
+          />
+          <div class="form-tip">Anthropic 可留空</div>
+        </el-form-item>
+        <el-form-item label="API Key" required>
+          <el-input
+            v-model="providerForm.api_key"
+            type="password"
+            show-password
+            placeholder="sk-xxx"
+          />
+        </el-form-item>
+
+        <el-collapse v-model="providerAdvancedOpen" class="provider-advanced">
+          <el-collapse-item title="高级配置" name="advanced">
+            <el-form-item label="模型发现模式">
+              <el-radio-group v-model="providerForm.model_discovery">
+                <el-radio value="auto">自动发现（调用 /models API）</el-radio>
+                <el-radio value="builtin">使用内置目录</el-radio>
+                <el-radio value="custom">自定义列表</el-radio>
+              </el-radio-group>
+              <div class="form-tip">
+                自动发现：尝试调用 Provider 的 /models 接口获取模型列表；失败时回退到内置目录
+              </div>
+            </el-form-item>
+            <el-form-item v-if="providerForm.model_discovery === 'custom'" label="自定义模型">
+              <el-input
+                v-model="providerForm.models_text"
+                type="textarea"
+                :rows="4"
+                placeholder="每行一个模型 ID，如：&#10;deepseek-chat&#10;deepseek-reasoner"
+              />
+            </el-form-item>
+          </el-collapse-item>
+        </el-collapse>
+      </el-form>
+      <template #footer>
+        <el-button @click="providerDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveProvider">保存</el-button>
+      </template>
+    </el-dialog>
+
     <TemplateHelp ref="templateHelp" />
     <ProviderConfigHelp ref="providerHelp" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import api from '../api'
-import { Check, Plus } from '@element-plus/icons-vue'
+import { Check, Plus, Document, Edit } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TemplateHelp from '../components/TemplateHelp.vue'
 import ProviderConfigHelp from '../components/ProviderConfigHelp.vue'
@@ -285,6 +399,30 @@ const viewingTemplate = ref(null)
 const showAddTemplate = ref(false)
 const newTemplate = ref({ name: '', system_prompt: '', user_template: '' })
 
+// Provider 可视化编辑状态
+const providerEditMode = ref('form') // form | json
+const providerDialogVisible = ref(false)
+const editingProviderIndex = ref(-1)
+const providerAdvancedOpen = ref([])
+const providerForm = ref({
+  name: '',
+  type: 'openai_compatible',
+  base_url: '',
+  api_key: '',
+  model_discovery: 'builtin', // auto | builtin | custom
+  models_text: ''
+})
+
+const providerList = computed(() => {
+  const map = providers.value
+  return Object.entries(map).map(([name, cfg]) => ({
+    name,
+    type: cfg.type || 'openai_compatible',
+    base_url: cfg.base_url || '',
+    api_key: cfg.api_key || ''
+  }))
+})
+
 const providers = computed(() => {
   try {
     return normalizeProviders(JSON.parse(providersJson.value))
@@ -301,13 +439,119 @@ const normalizeProviders = (raw) => {
     if (!cfg || typeof cfg !== 'object') continue
     out[name] = {
       base_url: cfg.base_url || cfg.BaseURL || '',
-      api_key: cfg.api_key || cfg.APIKey || ''
+      api_key: cfg.api_key || cfg.APIKey || '',
+      type: cfg.type || 'openai_compatible',
+      models: cfg.models || undefined,
+      default_params: cfg.default_params || undefined
     }
   }
   return out
 }
 
 const formatProvidersJson = (raw) => JSON.stringify(normalizeProviders(raw), null, 2)
+
+// 打开 Provider 编辑对话框
+const openProviderDialog = (row = null, index = -1) => {
+  editingProviderIndex.value = index
+  if (row) {
+    providerForm.value = {
+      name: row.name,
+      type: row.type || 'openai_compatible',
+      base_url: row.base_url || '',
+      api_key: row.api_key || '',
+      model_discovery: 'builtin',
+      models_text: ''
+    }
+    // 检测模型发现模式
+    const cfg = providers.value[row.name]
+    if (cfg) {
+      if (cfg.models && Array.isArray(cfg.models) && cfg.models.length > 0) {
+        providerForm.value.model_discovery = 'custom'
+        providerForm.value.models_text = cfg.models.map(m => m.id || m).join('\n')
+      } else if (cfg.models && Array.isArray(cfg.models) && cfg.models.length === 0) {
+        providerForm.value.model_discovery = 'auto'
+      } else {
+        providerForm.value.model_discovery = 'builtin'
+      }
+    }
+  } else {
+    providerForm.value = {
+      name: '',
+      type: 'openai_compatible',
+      base_url: '',
+      api_key: '',
+      model_discovery: 'builtin',
+      models_text: ''
+    }
+  }
+  providerAdvancedOpen.value = []
+  providerDialogVisible.value = true
+}
+
+// 保存 Provider
+const saveProvider = () => {
+  const name = providerForm.value.name.trim()
+  if (!name) {
+    ElMessage.warning('请填写 Provider 名称')
+    return
+  }
+  if (!providerForm.value.api_key.trim()) {
+    ElMessage.warning('请填写 API Key')
+    return
+  }
+
+  // 检查名称重复（新增时）
+  if (editingProviderIndex.value < 0 && providers.value[name]) {
+    ElMessage.warning('Provider 名称已存在')
+    return
+  }
+
+  const current = JSON.parse(providersJson.value || '{}')
+  const entry = {
+    base_url: providerForm.value.base_url.trim(),
+    api_key: providerForm.value.api_key.trim(),
+    type: providerForm.value.type
+  }
+
+  // 根据模型发现模式设置 models 字段
+  switch (providerForm.value.model_discovery) {
+    case 'auto':
+      entry.models = []
+      break
+    case 'custom':
+      const ids = providerForm.value.models_text
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s)
+      entry.models = ids.map(id => ({ id, name: id }))
+      break
+    // builtin: 不设置 models 字段
+  }
+
+  current[name] = entry
+  providersJson.value = formatProvidersJson(current)
+  providerDialogVisible.value = false
+  ElMessage.success(editingProviderIndex.value >= 0 ? '已更新 Provider' : '已添加 Provider')
+}
+
+// 删除 Provider
+const deleteProvider = async (index) => {
+  const row = providerList.value[index]
+  try {
+    await ElMessageBox.confirm(`确定删除 Provider "${row.name}"？`, '确认', { type: 'warning' })
+    const current = JSON.parse(providersJson.value || '{}')
+    delete current[row.name]
+    providersJson.value = formatProvidersJson(current)
+    ElMessage.success('已删除')
+  } catch {
+    // cancel
+  }
+}
+
+// JSON 输入时同步（防止格式错误时丢失数据）
+const onProvidersJsonInput = () => {
+  // 无需额外处理，providers computed 会自动解析
+}
 
 const setupHint = computed(() => {
   const fileCount = Object.values(sources.value).filter(v => v === 'file').length
@@ -539,5 +783,29 @@ onMounted(() => {
   display: block;
   margin-top: 4px;
   color: #67c23a;
+}
+
+.provider-toolbar {
+  margin-bottom: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.provider-table-wrap {
+  margin-top: 8px;
+}
+
+.provider-json-wrap {
+  margin-top: 8px;
+}
+
+.api-key-masked {
+  font-family: monospace;
+  letter-spacing: 2px;
+}
+
+.provider-advanced {
+  margin-top: 8px;
 }
 </style>

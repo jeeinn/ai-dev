@@ -83,6 +83,46 @@ func TestRegistryGetNotFound(t *testing.T) {
 	}
 }
 
+func TestIsOllamaURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		baseURL  string
+		expected bool
+	}{
+		{"localhost:11434", "http://localhost:11434/v1", true},
+		{"127.0.0.1:11434", "http://127.0.0.1:11434/v1", true},
+		{"ollama in hostname", "http://ollama.local:11434/v1", true},
+		{"deepseek api", "https://api.deepseek.com/v1", false},
+		{"openai api", "https://api.openai.com/v1", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isOllamaURL(tt.baseURL)
+			if result != tt.expected {
+				t.Errorf("isOllamaURL(%q) = %v, want %v", tt.baseURL, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestDiscoverModelsOpenAICompatible(t *testing.T) {
+	_, err := DiscoverModels("test", "", "sk-test", "openai_compatible")
+	if err == nil {
+		t.Error("Expected error for empty base_url")
+	}
+	if err.Error() != "base_url not configured" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+func TestDiscoverModelsUnsupportedType(t *testing.T) {
+	_, err := DiscoverModels("test", "http://example.com", "sk-test", "anthropic")
+	if err == nil {
+		t.Error("Expected error for unsupported provider type")
+	}
+}
+
 type mockProvider struct{}
 
 func (m *mockProvider) ChatCompletion(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {

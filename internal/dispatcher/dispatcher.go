@@ -94,6 +94,13 @@ func (d *Dispatcher) SetDebugConfigGetter(getter func() config.DebugConfig) {
 	}
 }
 
+// SetModelMetaProvider sets the model metadata provider for adaptive token limits.
+func (d *Dispatcher) SetModelMetaProvider(m agents.ModelMetaProvider) {
+	if d.executor != nil {
+		d.executor.SetModelMetaProvider(m)
+	}
+}
+
 func resolveDefaultLoop(agentsCfg *config.AgentsConfig) config.AgentLoopConfig {
 	if agentsCfg == nil {
 		return config.DefaultAgentLoopConfig()

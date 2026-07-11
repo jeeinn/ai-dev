@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Store is the interface for system_config CRUD (avoids circular dependency with store package).
@@ -19,10 +20,29 @@ type Store interface {
 
 // ConfigManager manages configuration with DB overrides on top of file config.
 type ConfigManager struct {
-	mu     sync.RWMutex
-	base   *Config // file-based config (immutable baseline)
-	active *Config // merged config (base + DB overrides)
-	store  Store   // DB store for persistence
+	mu         sync.RWMutex
+	base       *Config // file-based config (immutable baseline)
+	active     *Config // merged config (base + DB overrides)
+	store      Store   // DB store for persistence
+	modelCache map[string]modelCacheEntry
+}
+
+type modelCacheEntry struct {
+	models    []ModelDefinition
+	source    string // api | builtin | custom
+	expiresAt time.Time
+}
+
+// ModelDiscoveryFunc is a function that can discover models for a provider.
+// Returns model IDs and an error.
+type ModelDiscoveryFunc func(providerName string, baseURL, apiKey string, providerType string) ([]string, error)
+
+var modelDiscoveryFn ModelDiscoveryFunc
+
+// SetModelDiscoveryFunc registers a function for dynamic model discovery.
+// This is called at startup to avoid circular imports.
+func SetModelDiscoveryFunc(fn ModelDiscoveryFunc) {
+	modelDiscoveryFn = fn
 }
 
 // NewConfigManager creates a ConfigManager from a file-loaded config.
@@ -177,6 +197,11 @@ func (m *ConfigManager) Update(key, value string) error {
 	}
 	m.mu.Unlock()
 
+	// Invalidate model cache when providers change
+	if key == "llm.providers" {
+		m.InvalidateAllModelCache()
+	}
+
 	log.Printf("[INFO] Config updated: %s = %s", key, value)
 	return nil
 }
@@ -197,6 +222,11 @@ func (m *ConfigManager) Delete(key string) error {
 		return fmt.Errorf("revert config: %w", err)
 	}
 	m.mu.Unlock()
+
+	// Invalidate model cache when providers change
+	if key == "llm.providers" {
+		m.InvalidateAllModelCache()
+	}
 
 	log.Printf("[INFO] Config reverted to default: %s", key)
 	return nil
@@ -276,8 +306,15 @@ func (m *ConfigManager) resolveProviderModels(name string, pc ProviderConfig) ([
 	return nil, ""
 }
 
+// modelDiscoveryCacheTTL is the cache duration for dynamically discovered models.
+const modelDiscoveryCacheTTL = 1 * time.Hour
+
 // GetProviderModels returns the effective model list for a provider.
 // This is used by the Web UI for model selection dropdowns.
+// Behavior depends on ProviderConfig.Models:
+//   - nil / unset: returns BuiltinModelCatalog, source="builtin"
+//   - empty slice []: attempts dynamic discovery via /models API; on failure falls back to builtin
+//   - non-empty: returns user-defined models, source="custom"
 func (m *ConfigManager) GetProviderModels(providerName string) ([]ModelDefinition, string, error) {
 	m.mu.RLock()
 	base := m.base
@@ -288,11 +325,134 @@ func (m *ConfigManager) GetProviderModels(providerName string) ([]ModelDefinitio
 		return nil, "", fmt.Errorf("provider not found: %s", providerName)
 	}
 
-	models, source := m.resolveProviderModels(providerName, pc)
-	if models == nil {
-		return []ModelDefinition{}, source, nil
+	// Check in-memory cache
+	m.mu.RLock()
+	if cache, ok := m.modelCache[providerName]; ok && time.Now().Before(cache.expiresAt) {
+		m.mu.RUnlock()
+		return cache.models, cache.source, nil
 	}
+	m.mu.RUnlock()
+
+	var models []ModelDefinition
+	var source string
+	var err error
+
+	switch {
+	case pc.Models == nil:
+		// Unset → builtin
+		models, source = m.resolveProviderModels(providerName, pc)
+
+	case len(pc.Models) == 0:
+		// Empty → dynamic discovery
+		models, source, err = m.discoverModels(providerName, pc)
+		if err != nil {
+			// Fall back to builtin on error, but return error info
+			models, source = m.resolveProviderModels(providerName, pc)
+			if models == nil {
+				models = []ModelDefinition{}
+			}
+			// Cache short-lived fallback result
+			m.cacheModels(providerName, models, source, 5*time.Minute)
+			return models, source, fmt.Errorf("dynamic discovery failed, using fallback: %w", err)
+		}
+
+	default:
+		// Non-empty → custom
+		models, source = m.resolveProviderModels(providerName, pc)
+	}
+
+	if models == nil {
+		models = []ModelDefinition{}
+	}
+
+	m.cacheModels(providerName, models, source, modelDiscoveryCacheTTL)
 	return models, source, nil
+}
+
+// cacheModels stores the model list in the in-memory cache.
+func (m *ConfigManager) cacheModels(providerName string, models []ModelDefinition, source string, ttl time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.modelCache == nil {
+		m.modelCache = make(map[string]modelCacheEntry)
+	}
+	m.modelCache[providerName] = modelCacheEntry{
+		models:    models,
+		source:    source,
+		expiresAt: time.Now().Add(ttl),
+	}
+}
+
+// InvalidateModelCache clears the cached model list for a provider.
+func (m *ConfigManager) InvalidateModelCache(providerName string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.modelCache, providerName)
+}
+
+// InvalidateAllModelCache clears all cached model lists.
+func (m *ConfigManager) InvalidateAllModelCache() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.modelCache = nil
+}
+
+// GetModelMeta returns the metadata for a specific model in a provider.
+// Returns nil if the model is not found.
+func (m *ConfigManager) GetModelMeta(providerName, modelID string) *ModelDefinition {
+	models, _, err := m.GetProviderModels(providerName)
+	if err != nil {
+		return nil
+	}
+	for i := range models {
+		if models[i].ID == modelID {
+			return &models[i]
+		}
+	}
+	return nil
+}
+
+// discoverModels attempts to fetch the model list from the provider's API.
+// Uses the injected ModelDiscoveryFunc (if set) to avoid circular imports.
+func (m *ConfigManager) discoverModels(providerName string, pc ProviderConfig) ([]ModelDefinition, string, error) {
+	if modelDiscoveryFn == nil {
+		// No discovery function configured → fall back to builtin
+		builtin, source := m.resolveProviderModels(providerName, pc)
+		if builtin == nil {
+			builtin = []ModelDefinition{}
+		}
+		return builtin, source, nil
+	}
+
+	providerType := pc.Type
+	if providerType == "" {
+		providerType = "openai_compatible"
+	}
+
+	ids, err := modelDiscoveryFn(providerName, pc.BaseURL, pc.APIKey, providerType)
+	if err != nil {
+		return nil, "", fmt.Errorf("list models: %w", err)
+	}
+
+	// Merge with builtin catalog to enrich metadata
+	builtin := BuiltinModelCatalog[providerName]
+	builtinMap := make(map[string]ModelDefinition, len(builtin))
+	for _, bm := range builtin {
+		builtinMap[bm.ID] = bm
+	}
+
+	result := make([]ModelDefinition, 0, len(ids))
+	for _, id := range ids {
+		if bm, ok := builtinMap[id]; ok {
+			result = append(result, bm)
+		} else {
+			result = append(result, ModelDefinition{
+				ID:   id,
+				Name: id,
+			})
+		}
+	}
+	return result, "api", nil
 }
 
 func (m *ConfigManager) getActiveMap() map[string]interface{} {
@@ -604,7 +764,7 @@ func copyConfig(src *Config) *Config {
 	if src.LLM.Providers != nil {
 		dst.LLM.Providers = make(map[string]ProviderConfig, len(src.LLM.Providers))
 		for k, v := range src.LLM.Providers {
-			dst.LLM.Providers[k] = v
+			dst.LLM.Providers[k] = deepCopyProviderConfig(v)
 		}
 	}
 	if src.Agents.Templates != nil {
@@ -614,6 +774,15 @@ func copyConfig(src *Config) *Config {
 		}
 	}
 	return &dst
+}
+
+func deepCopyProviderConfig(src ProviderConfig) ProviderConfig {
+	dst := src
+	if len(src.Models) > 0 {
+		dst.Models = make([]ModelDefinition, len(src.Models))
+		copy(dst.Models, src.Models)
+	}
+	return dst
 }
 
 func parseBoolValue(value string) (bool, error) {

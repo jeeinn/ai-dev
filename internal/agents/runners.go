@@ -43,6 +43,11 @@ type GiteaClientFactory interface {
 	GetAdminGiteaClient() *gitea.Client
 }
 
+// ModelMetaProvider can return model metadata for a given provider+model.
+type ModelMetaProvider interface {
+	GetModelMeta(provider, model string) *config.ModelDefinition
+}
+
 // RunnerFactory creates runners based on task type.
 type RunnerFactory struct {
 	llmRegistry      *llm.Registry
@@ -55,6 +60,7 @@ type RunnerFactory struct {
 	defaultTimeout   string
 	defaultLoop      config.AgentLoopConfig
 	getDebugConfig   func() config.DebugConfig
+	modelMeta        ModelMetaProvider
 }
 
 // NewRunnerFactory creates a new RunnerFactory from agent defaults and loop config.
@@ -92,28 +98,69 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 	}
 }
 
-func (f *RunnerFactory) resolveMaxOutputTokens(agentMax int) int {
-	if agentMax > 0 {
-		return agentMax
-	}
-	return f.defaultMaxOutput
+// SetModelMetaProvider sets the model metadata provider for adaptive token limits.
+func (f *RunnerFactory) SetModelMetaProvider(m ModelMetaProvider) {
+	f.modelMeta = m
 }
 
-func (f *RunnerFactory) resolveMaxInputTokens(agentMax int) int {
+func (f *RunnerFactory) resolveMaxOutputTokens(agentMax int, provider, model string) int {
+	base := f.defaultMaxOutput
 	if agentMax > 0 {
-		return agentMax
+		base = agentMax
 	}
-	return f.defaultMaxInput
+	// Clamp to model's max_output if known
+	if f.modelMeta != nil {
+		if meta := f.modelMeta.GetModelMeta(provider, model); meta != nil && meta.MaxOutput > 0 {
+			if base == 0 || base > meta.MaxOutput {
+				return meta.MaxOutput
+			}
+		}
+	}
+	if base <= 0 {
+		return fallbackMaxOutput
+	}
+	return base
+}
+
+func (f *RunnerFactory) resolveMaxInputTokens(agentMax int, provider, model string) int {
+	base := f.defaultMaxInput
+	if agentMax > 0 {
+		base = agentMax
+	}
+	// Use 90% of model context window as upper limit (reserve 10% for output)
+	if f.modelMeta != nil {
+		if meta := f.modelMeta.GetModelMeta(provider, model); meta != nil && meta.ContextWindow > 0 {
+			modelLimit := int(float64(meta.ContextWindow) * 0.9)
+			if base == 0 || base > modelLimit {
+				return modelLimit
+			}
+		}
+	}
+	if base <= 0 {
+		return fallbackMaxInput
+	}
+	return base
 }
 
 // resolveTemperature returns agent.Temperature if explicitly set (> 0), otherwise the factory default.
 // Note: Temperature=0 (deterministic output) is a valid value but rarely used in practice.
 // Agents with Temperature=0 will fall back to default — set it via Agent edit if needed.
-func (f *RunnerFactory) resolveTemperature(agentTemp float64) float64 {
+func (f *RunnerFactory) resolveTemperature(agentTemp float64, provider, model string) float64 {
+	base := f.defaultTemp
 	if agentTemp > 0 {
-		return agentTemp
+		base = agentTemp
 	}
-	return f.defaultTemp
+	if f.modelMeta != nil {
+		if meta := f.modelMeta.GetModelMeta(provider, model); meta != nil {
+			if p := meta.DefaultParams.Temperature; p != nil && *p > 0 && agentTemp <= 0 {
+				return *p
+			}
+		}
+	}
+	if base <= 0 {
+		return fallbackTemp
+	}
+	return base
 }
 
 func (f *RunnerFactory) resolveTimeout(agentTimeout string) string {
@@ -170,7 +217,7 @@ func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.
 		{Role: "user", Content: task.Context},
 	}
 
-	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens))
+	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model))
 	if err != nil {
 		return nil, fmt.Errorf("truncate messages: %w", err)
 	}
@@ -179,8 +226,8 @@ func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.
 	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
 		Model:       agent.Model,
 		Messages:    messages,
-		MaxTokens:   r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens),
-		Temperature: r.factory.resolveTemperature(agent.Temperature),
+		MaxTokens:   r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model),
+		Temperature: r.factory.resolveTemperature(agent.Temperature, agent.Provider, agent.Model),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM call: %w", err)
@@ -267,7 +314,7 @@ func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 		{Role: "user", Content: sb.String()},
 	}
 
-	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens))
+	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model))
 	if err != nil {
 		return nil, fmt.Errorf("truncate messages: %w", err)
 	}
@@ -276,8 +323,8 @@ func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
 		Model:       agent.Model,
 		Messages:    messages,
-		MaxTokens:   r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens),
-		Temperature: r.factory.resolveTemperature(agent.Temperature),
+		MaxTokens:   r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model),
+		Temperature: r.factory.resolveTemperature(agent.Temperature, agent.Provider, agent.Model),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM call: %w", err)
@@ -346,7 +393,7 @@ func (r *InteractionRunner) Run(ctx context.Context, task *store.Task, agent *st
 		{Role: "user", Content: sb.String()},
 	}
 
-	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens))
+	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model))
 	if err != nil {
 		return nil, fmt.Errorf("truncate messages: %w", err)
 	}
@@ -355,8 +402,8 @@ func (r *InteractionRunner) Run(ctx context.Context, task *store.Task, agent *st
 	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
 		Model:       agent.Model,
 		Messages:    messages,
-		MaxTokens:   r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens),
-		Temperature: r.factory.resolveTemperature(agent.Temperature),
+		MaxTokens:   r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model),
+		Temperature: r.factory.resolveTemperature(agent.Temperature, agent.Provider, agent.Model),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM call: %w", err)
@@ -523,7 +570,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		return nil, fmt.Errorf("get provider: %w", err)
 	}
 
-	maxInput := factory.resolveMaxInputTokens(agentCfg.MaxInputTokens)
+	maxInput := factory.resolveMaxInputTokens(agentCfg.MaxInputTokens, agentCfg.Provider, agentCfg.Model)
 
 	// Load code context
 	codeCtx, err := agentpkg.LoadCodeContext(sb, maxInput)
@@ -551,7 +598,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	toolRegistry := agentpkg.DefaultTools(sb)
 
 	// Create agent loop with config priority: Agent.LoopConfig > system agents.loop defaults
-	maxOutput := factory.resolveMaxOutputTokens(agentCfg.MaxOutputTokens)
+	maxOutput := factory.resolveMaxOutputTokens(agentCfg.MaxOutputTokens, agentCfg.Provider, agentCfg.Model)
 	mergedLoop := MergeLoopConfig(agentCfg.LoopConfig, factory.defaultLoop)
 
 	loop := agentpkg.NewAgentLoopWithConfig(
@@ -560,7 +607,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		agentCfg.Model,
 		maxOutput,
 		maxInput,
-		factory.resolveTemperature(agentCfg.Temperature),
+		factory.resolveTemperature(agentCfg.Temperature, agentCfg.Provider, agentCfg.Model),
 		mergedLoop,
 	)
 
@@ -601,7 +648,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		Git:          git,
 		Provider:     provider,
 		Model:        agentCfg.Model,
-		Temperature:  factory.resolveTemperature(agentCfg.Temperature),
+		Temperature:  factory.resolveTemperature(agentCfg.Temperature, agentCfg.Provider, agentCfg.Model),
 		TaskSubType:  taskSubType,
 		Task:         task,
 		AgentSummary: result,

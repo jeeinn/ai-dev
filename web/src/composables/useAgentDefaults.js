@@ -17,7 +17,10 @@ export function normalizeProviders(raw) {
     if (!cfg || typeof cfg !== 'object') continue
     out[name] = {
       base_url: cfg.base_url || cfg.BaseURL || '',
-      api_key: cfg.api_key || cfg.APIKey || ''
+      api_key: cfg.api_key || cfg.APIKey || '',
+      type: cfg.type || cfg.Type || 'openai_compatible',
+      models: cfg.models || cfg.Models || undefined,
+      default_params: cfg.default_params || cfg.DefaultParams || undefined
     }
   }
   return out

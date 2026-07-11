@@ -104,11 +104,12 @@
               :loading="modelLoading"
             >
               <template #header>
-                <div v-if="modelSource === 'builtin'" class="model-source-hint">
-                  <el-tag size="small" type="info">内置目录</el-tag>
-                </div>
-                <div v-if="modelSource === 'custom'" class="model-source-hint">
-                  <el-tag size="small" type="success">自定义</el-tag>
+                <div class="model-source-hint">
+                  <el-tag v-if="modelSource === 'api'" size="small" type="primary">API 发现</el-tag>
+                  <el-tag v-else-if="modelSource === 'builtin'" size="small" type="info">内置目录</el-tag>
+                  <el-tag v-else-if="modelSource === 'custom'" size="small" type="success">自定义</el-tag>
+                  <el-tag v-else size="small" type="warning">未配置</el-tag>
+                  <span v-if="modelError" class="model-error" :title="modelError">获取失败</span>
                 </div>
               </template>
               <el-option
@@ -124,6 +125,13 @@
                   <el-tag v-if="m.context_window" size="small" type="info" class="model-tag">{{ formatContextWindow(m.context_window) }}</el-tag>
                 </span>
               </el-option>
+              <template #empty>
+                <div class="model-empty">
+                  <p v-if="modelLoading">加载中...</p>
+                  <p v-else-if="modelError">{{ modelError }}</p>
+                  <p v-else>暂无可用模型，可直接输入模型 ID</p>
+                </div>
+              </template>
             </el-select>
           </el-col>
         </el-form-item>
@@ -238,6 +246,7 @@ const form = ref(createEmptyAgentForm())
 const currentModels = ref([])
 const modelLoading = ref(false)
 const modelSource = ref('')
+const modelError = ref('')
 const modelCatalog = ref({})
 
 const selectedModelMeta = computed(() => {
@@ -266,8 +275,10 @@ const loadModelsForProvider = async (providerName) => {
   if (!providerName) {
     currentModels.value = []
     modelSource.value = ''
+    modelError.value = ''
     return
   }
+  modelError.value = ''
   // Check catalog first
   if (modelCatalog.value[providerName]) {
     currentModels.value = modelCatalog.value[providerName]
@@ -281,13 +292,17 @@ const loadModelsForProvider = async (providerName) => {
     if (data?.models) {
       currentModels.value = data.models
       modelSource.value = data.source || 'builtin'
+      if (!data.success && data.error) {
+        modelError.value = data.error
+      }
     } else {
       currentModels.value = []
       modelSource.value = ''
     }
-  } catch {
+  } catch (err) {
     currentModels.value = []
     modelSource.value = ''
+    modelError.value = err.response?.data?.error || err.message || '加载失败'
   } finally {
     modelLoading.value = false
   }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/llm"
 )
 
@@ -49,13 +50,36 @@ func totalMessageTokens(messages []llm.Message) int {
 // TruncateMessages trims messages (and accounts for tools) to fit maxInputTokens.
 // Trim order: oldest tool results / middle assistant+tool pairs first; then truncate
 // last user content; system last. If tools+system alone exceed budget, returns error.
-func TruncateMessages(messages []llm.Message, tools []llm.Tool, maxInputTokens int) ([]llm.Message, error) {
+// If modelMeta is provided and the model does not support tools, tool_calls and
+// tool messages are stripped from the output, and tools budget is zeroed.
+func TruncateMessages(messages []llm.Message, tools []llm.Tool, maxInputTokens int, modelMeta *config.ModelDefinition) ([]llm.Message, error) {
 	if maxInputTokens <= 0 {
 		return messages, nil
 	}
 
 	out := make([]llm.Message, len(messages))
 	copy(out, messages)
+
+	supportsTools := true
+	if modelMeta != nil {
+		supportsTools = modelMeta.SupportsTools
+	}
+
+	// If model does not support tools, strip all tool-related content
+	if !supportsTools {
+		tools = nil
+		stripped := make([]llm.Message, 0, len(out))
+		for _, m := range out {
+			if m.Role == "tool" {
+				continue
+			}
+			if len(m.ToolCalls) > 0 {
+				m.ToolCalls = nil
+			}
+			stripped = append(stripped, m)
+		}
+		out = stripped
+	}
 
 	toolBudget := toolsTokens(tools)
 	if toolBudget >= maxInputTokens {

@@ -19,6 +19,7 @@ type AgentLoop struct {
 	provider          llm.Provider
 	registry          *ToolRegistry
 	model             string
+	modelMeta         *config.ModelDefinition
 	maxTokens         int // output tokens per completion
 	maxInputTokens    int // input budget for messages+tools
 	temperature       float64
@@ -74,6 +75,11 @@ func (a *AgentLoop) SetMaxIterations(n int) {
 	a.maxIterations = n
 }
 
+// SetModelMeta sets the model metadata for tool support awareness.
+func (a *AgentLoop) SetModelMeta(meta *config.ModelDefinition) {
+	a.modelMeta = meta
+}
+
 // SetConversationRecorder enables per-iteration conversation persistence for a task.
 func (a *AgentLoop) SetConversationRecorder(recorder ConversationRecorder, taskID int64) {
 	a.recorder = recorder
@@ -103,7 +109,7 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 
 		logging.Debugf("Agent loop iteration %d/%d", i+1, a.maxIterations)
 
-		trimmed, err := TruncateMessages(messages, tools, a.maxInputTokens)
+		trimmed, err := TruncateMessages(messages, tools, a.maxInputTokens, a.modelMeta)
 		if err != nil {
 			return "", fmt.Errorf("truncate messages: %w", err)
 		}

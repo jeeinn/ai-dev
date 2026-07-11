@@ -163,6 +163,13 @@ func (f *RunnerFactory) resolveTemperature(agentTemp float64, provider, model st
 	return base
 }
 
+func (f *RunnerFactory) getModelMeta(provider, model string) *config.ModelDefinition {
+	if f.modelMeta == nil {
+		return nil
+	}
+	return f.modelMeta.GetModelMeta(provider, model)
+}
+
 func (f *RunnerFactory) resolveTimeout(agentTimeout string) string {
 	if agentTimeout != "" {
 		return agentTimeout
@@ -217,7 +224,7 @@ func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.
 		{Role: "user", Content: task.Context},
 	}
 
-	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model))
+	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model), r.factory.getModelMeta(agent.Provider, agent.Model))
 	if err != nil {
 		return nil, fmt.Errorf("truncate messages: %w", err)
 	}
@@ -314,7 +321,7 @@ func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 		{Role: "user", Content: sb.String()},
 	}
 
-	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model))
+	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model), r.factory.getModelMeta(agent.Provider, agent.Model))
 	if err != nil {
 		return nil, fmt.Errorf("truncate messages: %w", err)
 	}
@@ -393,7 +400,7 @@ func (r *InteractionRunner) Run(ctx context.Context, task *store.Task, agent *st
 		{Role: "user", Content: sb.String()},
 	}
 
-	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model))
+	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model), r.factory.getModelMeta(agent.Provider, agent.Model))
 	if err != nil {
 		return nil, fmt.Errorf("truncate messages: %w", err)
 	}
@@ -610,6 +617,8 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		factory.resolveTemperature(agentCfg.Temperature, agentCfg.Provider, agentCfg.Model),
 		mergedLoop,
 	)
+
+	loop.SetModelMeta(factory.getModelMeta(agentCfg.Provider, agentCfg.Model))
 
 	if factory.getDebugConfig != nil {
 		debugCfg := factory.getDebugConfig()

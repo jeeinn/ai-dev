@@ -175,6 +175,12 @@ func (f *RunnerFactory) recordTaskUsage(taskID int64, provider, model string, us
 		return
 	}
 	go func() {
+		cost := 0.0
+		if f.modelMeta != nil {
+			if meta := f.modelMeta.GetModelMeta(provider, model); meta != nil {
+				cost = float64(usage.PromptTokens)*meta.InputPrice + float64(usage.CompletionTokens)*meta.OutputPrice
+			}
+		}
 		if err := f.db.CreateTaskUsage(&store.TaskUsage{
 			TaskID:           taskID,
 			Provider:         provider,
@@ -182,6 +188,7 @@ func (f *RunnerFactory) recordTaskUsage(taskID int64, provider, model string, us
 			PromptTokens:     usage.PromptTokens,
 			CompletionTokens: usage.CompletionTokens,
 			TotalTokens:      usage.TotalTokens,
+			Cost:             cost,
 		}); err != nil {
 			log.Printf("[WARN] Failed to record task usage: %v", err)
 		}

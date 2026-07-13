@@ -101,6 +101,27 @@
         <h4>错误信息</h4>
         <el-alert :title="selectedTask.error" type="error" :closable="false" />
       </div>
+
+      <div v-if="taskUsage" class="task-usage">
+        <h4>Token 使用统计</h4>
+        <el-descriptions :column="3" border>
+          <el-descriptions-item label="Provider" :span="3">{{ taskUsage.provider }}</el-descriptions-item>
+          <el-descriptions-item label="模型">{{ taskUsage.model }}</el-descriptions-item>
+          <el-descriptions-item label="调用次数">{{ taskUsage.call_count }}</el-descriptions-item>
+          <el-descriptions-item label="成本">
+            <span class="cost-value">{{ formatCost(taskUsage.total_cost) }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="输入 Tokens">
+            <span class="token-value">{{ taskUsage.total_prompt_tokens.toLocaleString() }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="输出 Tokens">
+            <span class="token-value">{{ taskUsage.total_completion_tokens.toLocaleString() }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="总计 Tokens">
+            <span class="token-value">{{ taskUsage.total_tokens.toLocaleString() }}</span>
+          </el-descriptions-item>
+        </el-descriptions>
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -115,6 +136,7 @@ const tasks = ref([])
 const agents = ref([])
 const showDetail = ref(false)
 const selectedTask = ref(null)
+const taskUsage = ref(null)
 const loading = ref(false)
 const resettingId = ref(null)
 const total = ref(0)
@@ -178,9 +200,26 @@ const loadAgents = async () => {
   agents.value = await api.get('/agents') || []
 }
 
-const viewTask = (task) => {
-  selectedTask.value = task
+const viewTask = async (task) => {
   showDetail.value = true
+  selectedTask.value = task
+  taskUsage.value = null
+  try {
+    const res = await api.get(`/tasks/${task.id}`)
+    if (res?.task) {
+      selectedTask.value = res.task
+      taskUsage.value = res.usage || null
+    }
+  } catch {
+    // 忽略错误，使用列表中的数据
+  }
+}
+
+const formatCost = (cost) => {
+  if (!cost || cost <= 0) return '-'
+  if (cost < 0.01) return cost.toFixed(6) + ' USD'
+  if (cost < 1) return cost.toFixed(4) + ' USD'
+  return cost.toFixed(2) + ' USD'
 }
 
 const resetTask = async (task) => {
@@ -243,7 +282,22 @@ onMounted(() => {
 }
 
 .task-result h4,
-.task-error h4 {
+.task-error h4,
+.task-usage h4 {
   margin-bottom: 10px;
+}
+
+.task-usage {
+  margin-top: 20px;
+}
+
+.token-value {
+  color: #409eff;
+  font-weight: 600;
+}
+
+.cost-value {
+  color: #f56c6c;
+  font-weight: 600;
 }
 </style>

@@ -38,24 +38,26 @@ type TaskUsage struct {
 	PromptTokens      int       `json:"prompt_tokens"`
 	CompletionTokens  int       `json:"completion_tokens"`
 	TotalTokens       int       `json:"total_tokens"`
+	Cost              float64   `json:"cost"`
 	CreatedAt         time.Time `json:"created_at"`
 }
 
 // TaskUsageSummary represents aggregated usage for a task.
 type TaskUsageSummary struct {
-	Provider         string `json:"provider"`
-	Model            string `json:"model"`
-	TotalPromptTokens      int `json:"total_prompt_tokens"`
-	TotalCompletionTokens  int `json:"total_completion_tokens"`
-	TotalTokens            int `json:"total_tokens"`
-	CallCount              int `json:"call_count"`
+	Provider              string  `json:"provider"`
+	Model                 string  `json:"model"`
+	TotalPromptTokens     int     `json:"total_prompt_tokens"`
+	TotalCompletionTokens int     `json:"total_completion_tokens"`
+	TotalTokens           int     `json:"total_tokens"`
+	CallCount             int     `json:"call_count"`
+	TotalCost             float64 `json:"total_cost"`
 }
 
 // CreateTaskUsage records token usage for a task.
 func (db *DB) CreateTaskUsage(u *TaskUsage) error {
-	_, err := db.Exec(`INSERT INTO task_usage (task_id, provider, model, prompt_tokens, completion_tokens, total_tokens)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		u.TaskID, u.Provider, u.Model, u.PromptTokens, u.CompletionTokens, u.TotalTokens)
+	_, err := db.Exec(`INSERT INTO task_usage (task_id, provider, model, prompt_tokens, completion_tokens, total_tokens, cost)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		u.TaskID, u.Provider, u.Model, u.PromptTokens, u.CompletionTokens, u.TotalTokens, u.Cost)
 	if err != nil {
 		return fmt.Errorf("insert task usage: %w", err)
 	}
@@ -64,7 +66,7 @@ func (db *DB) CreateTaskUsage(u *TaskUsage) error {
 
 // GetTaskUsage returns all usage records for a task.
 func (db *DB) GetTaskUsage(taskID int64) ([]TaskUsage, error) {
-	rows, err := db.Query(`SELECT id, task_id, provider, model, prompt_tokens, completion_tokens, total_tokens, created_at
+	rows, err := db.Query(`SELECT id, task_id, provider, model, prompt_tokens, completion_tokens, total_tokens, cost, created_at
 		FROM task_usage WHERE task_id = ? ORDER BY created_at`, taskID)
 	if err != nil {
 		return nil, fmt.Errorf("query task usage: %w", err)
@@ -74,7 +76,7 @@ func (db *DB) GetTaskUsage(taskID int64) ([]TaskUsage, error) {
 	var usages []TaskUsage
 	for rows.Next() {
 		var u TaskUsage
-		if err := rows.Scan(&u.ID, &u.TaskID, &u.Provider, &u.Model, &u.PromptTokens, &u.CompletionTokens, &u.TotalTokens, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.TaskID, &u.Provider, &u.Model, &u.PromptTokens, &u.CompletionTokens, &u.TotalTokens, &u.Cost, &u.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan task usage: %w", err)
 		}
 		usages = append(usages, u)
@@ -85,9 +87,9 @@ func (db *DB) GetTaskUsage(taskID int64) ([]TaskUsage, error) {
 // GetTaskUsageSummary returns aggregated usage for a task.
 func (db *DB) GetTaskUsageSummary(taskID int64) (*TaskUsageSummary, error) {
 	var summary TaskUsageSummary
-	err := db.QueryRow(`SELECT provider, model, SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens), COUNT(*)
+	err := db.QueryRow(`SELECT provider, model, SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens), COUNT(*), SUM(cost)
 		FROM task_usage WHERE task_id = ? GROUP BY provider, model`, taskID).Scan(
-		&summary.Provider, &summary.Model, &summary.TotalPromptTokens, &summary.TotalCompletionTokens, &summary.TotalTokens, &summary.CallCount)
+		&summary.Provider, &summary.Model, &summary.TotalPromptTokens, &summary.TotalCompletionTokens, &summary.TotalTokens, &summary.CallCount, &summary.TotalCost)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

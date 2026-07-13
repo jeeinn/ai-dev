@@ -147,9 +147,11 @@ func (db *DB) migrate() error {
 			prompt_tokens     INTEGER DEFAULT 0,
 			completion_tokens INTEGER DEFAULT 0,
 			total_tokens      INTEGER DEFAULT 0,
+			cost              REAL DEFAULT 0.0,
 			created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
 		)`,
+		`ALTER TABLE task_usage ADD COLUMN IF NOT EXISTS cost REAL DEFAULT 0.0`,
 		`CREATE INDEX IF NOT EXISTS idx_task_usage_task_id ON task_usage(task_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
 		`CREATE TABLE IF NOT EXISTS system_config (

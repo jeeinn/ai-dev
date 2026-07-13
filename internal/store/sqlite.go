@@ -139,7 +139,18 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_agent_id ON tasks(agent_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_delivery_id ON tasks(delivery_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_operation_logs_agent_id ON operation_logs(agent_id)`,
+		`CREATE TABLE IF NOT EXISTS task_usage (
+			id                INTEGER PRIMARY KEY AUTOINCREMENT,
+			task_id           INTEGER NOT NULL,
+			provider          TEXT NOT NULL,
+			model             TEXT NOT NULL,
+			prompt_tokens     INTEGER DEFAULT 0,
+			completion_tokens INTEGER DEFAULT 0,
+			total_tokens      INTEGER DEFAULT 0,
+			created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_task_usage_task_id ON task_usage(task_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
 		`CREATE TABLE IF NOT EXISTS system_config (
 			key         TEXT PRIMARY KEY,

@@ -170,6 +170,24 @@ func (f *RunnerFactory) getModelMeta(provider, model string) *config.ModelDefini
 	return f.modelMeta.GetModelMeta(provider, model)
 }
 
+func (f *RunnerFactory) recordTaskUsage(taskID int64, provider, model string, usage llm.Usage) {
+	if f.db == nil {
+		return
+	}
+	go func() {
+		if err := f.db.CreateTaskUsage(&store.TaskUsage{
+			TaskID:           taskID,
+			Provider:         provider,
+			Model:            model,
+			PromptTokens:     usage.PromptTokens,
+			CompletionTokens: usage.CompletionTokens,
+			TotalTokens:      usage.TotalTokens,
+		}); err != nil {
+			log.Printf("[WARN] Failed to record task usage: %v", err)
+		}
+	}()
+}
+
 func (f *RunnerFactory) resolveTimeout(agentTimeout string) string {
 	if agentTimeout != "" {
 		return agentTimeout
@@ -241,6 +259,7 @@ func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.
 	}
 
 	log.Printf("[INFO] Task %d LLM response: %d tokens used", task.ID, resp.Usage.TotalTokens)
+	r.factory.recordTaskUsage(task.ID, agent.Provider, agent.Model, resp.Usage)
 
 	return &Result{
 		Content: resp.Content,

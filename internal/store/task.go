@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"fmt"
 	"time"
 )
@@ -26,6 +27,74 @@ type Task struct {
 	FinishedAt *time.Time `json:"finished_at"`
 	Result     string     `json:"result"`
 	Error      string     `json:"error"`
+}
+
+// TaskUsage represents token usage for a task.
+type TaskUsage struct {
+	ID                int64     `json:"id"`
+	TaskID            int64     `json:"task_id"`
+	Provider          string    `json:"provider"`
+	Model             string    `json:"model"`
+	PromptTokens      int       `json:"prompt_tokens"`
+	CompletionTokens  int       `json:"completion_tokens"`
+	TotalTokens       int       `json:"total_tokens"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+// TaskUsageSummary represents aggregated usage for a task.
+type TaskUsageSummary struct {
+	Provider         string `json:"provider"`
+	Model            string `json:"model"`
+	TotalPromptTokens      int `json:"total_prompt_tokens"`
+	TotalCompletionTokens  int `json:"total_completion_tokens"`
+	TotalTokens            int `json:"total_tokens"`
+	CallCount              int `json:"call_count"`
+}
+
+// CreateTaskUsage records token usage for a task.
+func (db *DB) CreateTaskUsage(u *TaskUsage) error {
+	_, err := db.Exec(`INSERT INTO task_usage (task_id, provider, model, prompt_tokens, completion_tokens, total_tokens)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		u.TaskID, u.Provider, u.Model, u.PromptTokens, u.CompletionTokens, u.TotalTokens)
+	if err != nil {
+		return fmt.Errorf("insert task usage: %w", err)
+	}
+	return nil
+}
+
+// GetTaskUsage returns all usage records for a task.
+func (db *DB) GetTaskUsage(taskID int64) ([]TaskUsage, error) {
+	rows, err := db.Query(`SELECT id, task_id, provider, model, prompt_tokens, completion_tokens, total_tokens, created_at
+		FROM task_usage WHERE task_id = ? ORDER BY created_at`, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("query task usage: %w", err)
+	}
+	defer rows.Close()
+
+	var usages []TaskUsage
+	for rows.Next() {
+		var u TaskUsage
+		if err := rows.Scan(&u.ID, &u.TaskID, &u.Provider, &u.Model, &u.PromptTokens, &u.CompletionTokens, &u.TotalTokens, &u.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan task usage: %w", err)
+		}
+		usages = append(usages, u)
+	}
+	return usages, nil
+}
+
+// GetTaskUsageSummary returns aggregated usage for a task.
+func (db *DB) GetTaskUsageSummary(taskID int64) (*TaskUsageSummary, error) {
+	var summary TaskUsageSummary
+	err := db.QueryRow(`SELECT provider, model, SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens), COUNT(*)
+		FROM task_usage WHERE task_id = ? GROUP BY provider, model`, taskID).Scan(
+		&summary.Provider, &summary.Model, &summary.TotalPromptTokens, &summary.TotalCompletionTokens, &summary.TotalTokens, &summary.CallCount)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("query task usage summary: %w", err)
+	}
+	return &summary, nil
 }
 
 // CreateTask inserts a new task.

@@ -311,16 +311,20 @@ const modelDiscoveryCacheTTL = 1 * time.Hour
 
 // GetProviderModels returns the effective model list for a provider.
 // This is used by the Web UI for model selection dropdowns.
+// getProviderConfig returns the ProviderConfig from the active (merged) config.
+func (m *ConfigManager) getProviderConfig(providerName string) (ProviderConfig, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	pc, ok := m.active.LLM.Providers[providerName]
+	return pc, ok
+}
+
 // Behavior depends on ProviderConfig.Models:
 //   - nil / unset: returns BuiltinModelCatalog, source="builtin"
 //   - empty slice []: attempts dynamic discovery via /models API; on failure falls back to builtin
 //   - non-empty: returns user-defined models, source="custom"
 func (m *ConfigManager) GetProviderModels(providerName string) ([]ModelDefinition, string, error) {
-	m.mu.RLock()
-	base := m.base
-	m.mu.RUnlock()
-
-	pc, ok := base.LLM.Providers[providerName]
+	pc, ok := m.getProviderConfig(providerName)
 	if !ok {
 		return nil, "", fmt.Errorf("provider not found: %s", providerName)
 	}

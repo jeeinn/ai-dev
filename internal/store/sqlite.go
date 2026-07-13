@@ -151,7 +151,6 @@ func (db *DB) migrate() error {
 			created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
 		)`,
-		`ALTER TABLE task_usage ADD COLUMN IF NOT EXISTS cost REAL DEFAULT 0.0`,
 		`CREATE INDEX IF NOT EXISTS idx_task_usage_task_id ON task_usage(task_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
 		`CREATE TABLE IF NOT EXISTS system_config (
@@ -228,6 +227,7 @@ func (db *DB) migrate() error {
 		`ALTER TABLE agents ADD COLUMN max_output_tokens INTEGER DEFAULT 2048`,
 		`ALTER TABLE agents ADD COLUMN max_input_tokens INTEGER DEFAULT 65536`,
 		`ALTER TABLE agents ADD COLUMN timeout TEXT DEFAULT '5m'`,
+		`ALTER TABLE task_usage ADD COLUMN cost REAL DEFAULT 0.0`,
 		`DROP TABLE IF EXISTS routes`, // v2: routes table removed (Assign model replaces Label trigger)
 	}
 

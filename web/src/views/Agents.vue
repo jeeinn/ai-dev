@@ -94,45 +94,56 @@
           </el-col>
           <el-col :span="2" style="text-align: center; line-height: 32px">:</el-col>
           <el-col :span="11">
-            <el-select
-              v-model="form.model"
-              placeholder="选择模型"
-              style="width: 100%"
-              filterable
-              allow-create
-              default-first-option
-              :loading="modelLoading"
-            >
-              <template #header>
-                <div class="model-source-hint">
-                  <el-tag v-if="modelSource === 'api'" size="small" type="primary">API 发现</el-tag>
-                  <el-tag v-else-if="modelSource === 'builtin'" size="small" type="info">内置目录</el-tag>
-                  <el-tag v-else-if="modelSource === 'custom'" size="small" type="success">自定义</el-tag>
-                  <el-tag v-else size="small" type="warning">未配置</el-tag>
-                  <span v-if="modelError" class="model-error" :title="modelError">获取失败</span>
-                </div>
-              </template>
-              <el-option
-                v-for="m in currentModels"
-                :key="m.id"
-                :label="m.name || m.id"
-                :value="m.id"
+            <div class="model-select-wrapper">
+              <el-select
+                v-model="form.model"
+                placeholder="选择模型"
+                style="width: 100%"
+                filterable
+                allow-create
+                default-first-option
+                :loading="modelLoading"
               >
-                <span>{{ m.name || m.id }}</span>
-                <span class="model-tags">
-                  <el-tag v-if="m.is_reasoning" size="small" type="warning" class="model-tag">推理</el-tag>
-                  <el-tag v-if="m.supports_tools" size="small" type="success" class="model-tag">工具</el-tag>
-                  <el-tag v-if="m.context_window" size="small" type="info" class="model-tag">{{ formatContextWindow(m.context_window) }}</el-tag>
-                </span>
-              </el-option>
-              <template #empty>
-                <div class="model-empty">
-                  <p v-if="modelLoading">加载中...</p>
-                  <p v-else-if="modelError">{{ modelError }}</p>
-                  <p v-else>暂无可用模型，可直接输入模型 ID</p>
-                </div>
-              </template>
-            </el-select>
+                <template #header>
+                  <div class="model-source-hint">
+                    <el-tag v-if="modelSource === 'api'" size="small" type="primary">API 发现</el-tag>
+                    <el-tag v-else-if="modelSource === 'builtin'" size="small" type="info">内置目录</el-tag>
+                    <el-tag v-else-if="modelSource === 'custom'" size="small" type="success">自定义</el-tag>
+                    <el-tag v-else size="small" type="warning">未配置</el-tag>
+                    <span v-if="modelError" class="model-error" :title="modelError">获取失败</span>
+                  </div>
+                </template>
+                <el-option
+                  v-for="m in currentModels"
+                  :key="m.id"
+                  :label="m.name || m.id"
+                  :value="m.id"
+                >
+                  <span>{{ m.name || m.id }}</span>
+                  <span class="model-tags">
+                    <el-tag v-if="m.is_reasoning" size="small" type="warning" class="model-tag">推理</el-tag>
+                    <el-tag v-if="m.supports_tools" size="small" type="success" class="model-tag">工具</el-tag>
+                    <el-tag v-if="m.context_window" size="small" type="info" class="model-tag">{{ formatContextWindow(m.context_window) }}</el-tag>
+                  </span>
+                </el-option>
+                <template #empty>
+                  <div class="model-empty">
+                    <p v-if="modelLoading">加载中...</p>
+                    <p v-else-if="modelError">{{ modelError }}</p>
+                    <p v-else>暂无可用模型，可直接输入模型 ID</p>
+                  </div>
+                </template>
+              </el-select>
+              <el-button
+                :loading="modelLoading"
+                :disabled="!form.provider"
+                size="small"
+                @click="refreshModels"
+                style="margin-left: 8px"
+              >
+                <el-icon><Refresh /></el-icon>
+              </el-button>
+            </div>
           </el-col>
         </el-form-item>
 
@@ -155,19 +166,23 @@
                 <el-option label="禁用" value="inactive" />
               </el-select>
             </el-form-item>
-            <el-divider content-position="left">LLM Token</el-divider>
-            <el-form-item label="最大输出 Tokens（每次调用）">
-              <el-input-number v-model="form.max_output_tokens" :min="256" :max="128000" :step="512" />
+            <el-divider content-position="left">LLM Token（可选覆盖）</el-divider>
+            <el-alert type="info" :closable="false" style="margin-bottom: 16px">
+              <template #title>留空则自动使用模型的上下文窗口（输入 90%、输出上限）</template>
+            </el-alert>
+            <el-form-item label="最大输出 Tokens">
+              <el-input-number v-model="form.max_output_tokens" :min="0" :max="128000" :step="512" placeholder="留空使用模型默认" />
               <div v-if="selectedModelMeta?.max_output" class="form-tip">
-                模型上限 {{ formatContextWindow(selectedModelMeta.max_output) }}
+                模型上限 {{ formatContextWindow(selectedModelMeta.max_output) }}，当前设为 0 表示使用模型默认
               </div>
+              <div v-else class="form-tip">设为 0 表示使用系统默认 2048</div>
             </el-form-item>
             <el-form-item label="最大输入 Tokens">
-              <el-input-number v-model="form.max_input_tokens" :min="1024" :max="200000" :step="1024" />
+              <el-input-number v-model="form.max_input_tokens" :min="0" :max="200000" :step="1024" placeholder="留空使用模型默认" />
               <div v-if="selectedModelMeta?.context_window" class="form-tip">
-                模型上下文 {{ formatContextWindow(selectedModelMeta.context_window) }}；建议不超过 {{ Math.floor(selectedModelMeta.context_window * 0.9).toLocaleString() }}
+                模型上下文 {{ formatContextWindow(selectedModelMeta.context_window) }}；设为 0 则自动使用 {{ Math.floor(selectedModelMeta.context_window * 0.9).toLocaleString() }} (90%)
               </div>
-              <div v-else class="form-tip">含 tools；估算为字符数/4</div>
+              <div v-else class="form-tip">设为 0 则使用系统默认 65536</div>
             </el-form-item>
             <el-form-item label="Temperature">
               <el-slider v-model="form.temperature" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
@@ -212,7 +227,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TemplateHelp from '../components/TemplateHelp.vue'
 import { useAgentDefaults } from '../composables/useAgentDefaults'
@@ -311,6 +326,30 @@ const loadModelsForProvider = async (providerName) => {
 const onProviderChange = (providerName) => {
   form.value.model = ''
   loadModelsForProvider(providerName)
+}
+
+const refreshModels = async () => {
+  if (!form.value.provider) return
+  modelError.value = ''
+  modelLoading.value = true
+  try {
+    const data = await api.get(`/config/providers/${form.value.provider}/models`)
+    if (data?.models) {
+      currentModels.value = data.models
+      modelSource.value = data.source || 'builtin'
+      if (!data.success && data.error) {
+        modelError.value = data.error
+        ElMessage.warning(`获取模型列表失败：${data.error}`)
+      } else {
+        ElMessage.success(`已获取 ${data.models.length} 个模型`)
+      }
+    }
+  } catch (err) {
+    modelError.value = err.response?.data?.error || err.message || '加载失败'
+    ElMessage.error(modelError.value)
+  } finally {
+    modelLoading.value = false
+  }
 }
 
 const loadAgents = async () => {
@@ -448,6 +487,11 @@ onMounted(() => {
 .model-source-hint {
   padding: 4px 12px;
   border-bottom: 1px solid #e4e7ed;
+}
+
+.model-select-wrapper {
+  display: flex;
+  align-items: center;
 }
 
 .model-tags {

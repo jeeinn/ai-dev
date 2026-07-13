@@ -561,7 +561,18 @@ func (h *Handler) getTask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "task not found")
 		return
 	}
-	writeJSON(w, 200, task)
+
+	// Get usage summary
+	usageSummary, _ := h.db.GetTaskUsageSummary(id)
+
+	resp := map[string]interface{}{
+		"task": task,
+	}
+	if usageSummary != nil {
+		resp["usage"] = usageSummary
+	}
+
+	writeJSON(w, 200, resp)
 }
 
 func (h *Handler) resetTask(w http.ResponseWriter, r *http.Request) {

@@ -357,6 +357,7 @@ func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 	}
 
 	log.Printf("[INFO] Task %d LLM response: %d tokens used", task.ID, resp.Usage.TotalTokens)
+	r.factory.recordTaskUsage(task.ID, agent.Provider, agent.Model, resp.Usage)
 
 	return &Result{
 		Content: resp.Content,
@@ -436,6 +437,7 @@ func (r *InteractionRunner) Run(ctx context.Context, task *store.Task, agent *st
 	}
 
 	log.Printf("[INFO] Task %d LLM response: %d tokens used", task.ID, resp.Usage.TotalTokens)
+	r.factory.recordTaskUsage(task.ID, agent.Provider, agent.Model, resp.Usage)
 
 	return &Result{
 		Content: resp.Content,
@@ -638,6 +640,10 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	)
 
 	loop.SetModelMeta(factory.getModelMeta(agentCfg.Provider, agentCfg.Model))
+	loop.SetProviderName(agentCfg.Provider)
+	loop.SetUsageRecorder(func(p, m string, usage llm.Usage) {
+		factory.recordTaskUsage(task.ID, p, m, usage)
+	})
 
 	if factory.getDebugConfig != nil {
 		debugCfg := factory.getDebugConfig()

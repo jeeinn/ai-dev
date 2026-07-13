@@ -20,12 +20,14 @@ type AgentLoop struct {
 	registry          *ToolRegistry
 	model             string
 	modelMeta         *config.ModelDefinition
+	providerName      string
 	maxTokens         int // output tokens per completion
 	maxInputTokens    int // input budget for messages+tools
 	temperature       float64
 	maxIterations     int
 	iterationInterval time.Duration
 	recorder          ConversationRecorder
+	usageRecorder     func(provider, model string, usage llm.Usage)
 	taskID            int64
 }
 
@@ -80,6 +82,16 @@ func (a *AgentLoop) SetModelMeta(meta *config.ModelDefinition) {
 	a.modelMeta = meta
 }
 
+// SetUsageRecorder sets the usage recorder callback.
+func (a *AgentLoop) SetUsageRecorder(recorder func(provider, model string, usage llm.Usage)) {
+	a.usageRecorder = recorder
+}
+
+// SetProviderName sets the provider name for usage recording.
+func (a *AgentLoop) SetProviderName(name string) {
+	a.providerName = name
+}
+
 // SetConversationRecorder enables per-iteration conversation persistence for a task.
 func (a *AgentLoop) SetConversationRecorder(recorder ConversationRecorder, taskID int64) {
 	a.recorder = recorder
@@ -126,6 +138,11 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 		})
 		if err != nil {
 			return "", fmt.Errorf("LLM call: %w", err)
+		}
+
+		// Record usage if recorder is set
+		if a.usageRecorder != nil {
+			a.usageRecorder(a.providerName, a.model, resp.Usage)
 		}
 
 		logging.Debugf("LLM response: content_len=%d, tool_calls=%d, finish=%s",

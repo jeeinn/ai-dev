@@ -25,8 +25,8 @@
 
 ### 1. 写回可靠性
 
-- [ ] Executor：Gitea 评论/写回失败时任务不得标为纯粹 `success`（失败或「部分完成」+ 可读错误）
-- [ ] 关键失败可观测（日志 + task.error / 评论）
+- [x] Executor：Gitea 评论/写回失败时任务不得标为纯粹 `success`（失败或「部分完成」+ 可读错误）
+- [x] 关键失败可观测（日志 + task.error / 评论）
 
 ### 2. 写路径抽取（OpenCode 与 Analyze 共用前置）
 

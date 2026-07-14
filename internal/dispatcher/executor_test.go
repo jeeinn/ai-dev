@@ -2,12 +2,30 @@ package dispatcher
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"gitea-agent-gateway/internal/config"
+	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/store"
 )
+
+// fakeGiteaFactory points all clients (agent + admin) at a configurable
+// httptest.Server so tests can drive IssueComment success/failure.
+type fakeGiteaFactory struct {
+	serverURL string
+}
+
+func (f *fakeGiteaFactory) GetGiteaClient(token string) *gitea.Client {
+	return gitea.NewClient(f.serverURL, token)
+}
+
+func (f *fakeGiteaFactory) GetAdminGiteaClient() *gitea.Client {
+	return gitea.NewClient(f.serverURL, "admin-token")
+}
 
 func TestWritebackTargetID(t *testing.T) {
 	t.Run("review_pr uses PRID when issue missing", func(t *testing.T) {
@@ -93,5 +111,163 @@ func TestHandleTaskPanicMarksTaskFailed(t *testing.T) {
 	}
 	if failedTask == nil || failedTask.ID != task.ID {
 		t.Fatal("onFailed callback not invoked")
+	}
+}
+
+// newWritebackExecutor builds an Executor wired with a fake Gitea factory
+// pointing at the given httptest server. Callbacks record invocations via
+// atomic counters so the test can assert which path fired.
+func newWritebackExecutor(t *testing.T, serverURL string) (*Executor, *store.Task, *int32, *int32) {
+	t.Helper()
+	db, cleanup := setupTestDB(t)
+	t.Cleanup(cleanup)
+
+	agent := createTestAgent(t, db)
+	task := &store.Task{
+		AgentID:  agent.ID,
+		TaskType: "analyze_issue",
+		Status:   "running",
+		Repo:     "owner/repo",
+		IssueID:  1,
+		Result:   "mock LLM result body",
+	}
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	var completeCalls, failedCalls int32
+	e := NewExecutor(1, 0, nil, db, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig())
+	e.SetGiteaClientFactory(&fakeGiteaFactory{serverURL: serverURL}, func() config.DebugConfig { return config.DebugConfig{} })
+	e.SetOnComplete(func(*store.Task) { atomic.AddInt32(&completeCalls, 1) })
+	e.SetOnFailed(func(*store.Task) { atomic.AddInt32(&failedCalls, 1) })
+	return e, task, &completeCalls, &failedCalls
+}
+
+func TestFinalizeTaskResultWritebackFailureMarksPartial(t *testing.T) {
+	// Gitea returns 500 for every comment POST — both agent-token writeback
+	// and admin-token partial-failure notice will fail.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "gitea unavailable", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	e, task, completeCalls, failedCalls := newWritebackExecutor(t, server.URL)
+
+	e.finalizeTaskResult(task, nil)
+
+	if task.Status != store.StatusPartial {
+		t.Fatalf("status=%q, want partial", task.Status)
+	}
+	if !strings.Contains(task.Error, "writeback failed") {
+		t.Fatalf("task.Error=%q, want 'writeback failed' substring", task.Error)
+	}
+	if task.Result == "" {
+		t.Fatal("task.Result should be preserved on partial for human inspection")
+	}
+	if atomic.LoadInt32(completeCalls) != 0 {
+		t.Fatal("onComplete must NOT fire on partial (workflow must not advance)")
+	}
+	if atomic.LoadInt32(failedCalls) != 1 {
+		t.Fatal("onFailed must fire on partial so lock is released / workflow rolls back")
+	}
+
+	// Verify DB persisted partial + result + error.
+	got, err := e.db.GetTask(task.ID)
+	if err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	if got.Status != store.StatusPartial {
+		t.Fatalf("db status=%q, want partial", got.Status)
+	}
+	if got.Result != task.Result {
+		t.Fatalf("db result=%q, want %q", got.Result, task.Result)
+	}
+	if !strings.Contains(got.Error, "writeback failed") {
+		t.Fatalf("db error=%q, want 'writeback failed' substring", got.Error)
+	}
+}
+
+func TestFinalizeTaskResultWritebackSuccessMarksSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"id":"1"}`))
+	}))
+	defer server.Close()
+
+	e, task, completeCalls, failedCalls := newWritebackExecutor(t, server.URL)
+
+	e.finalizeTaskResult(task, nil)
+
+	if task.Status != store.StatusSuccess {
+		t.Fatalf("status=%q, want success", task.Status)
+	}
+	if task.Error != "" {
+		t.Fatalf("task.Error=%q, want empty", task.Error)
+	}
+	if atomic.LoadInt32(completeCalls) != 1 {
+		t.Fatal("onComplete must fire on success")
+	}
+	if atomic.LoadInt32(failedCalls) != 0 {
+		t.Fatal("onFailed must NOT fire on success")
+	}
+
+	got, err := e.db.GetTask(task.ID)
+	if err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	if got.Status != store.StatusSuccess {
+		t.Fatalf("db status=%q, want success", got.Status)
+	}
+}
+
+func TestFinalizeTaskResultRunnerFailureMarksFailed(t *testing.T) {
+	// Server returns success — writeback would succeed, but runErr is non-nil
+	// so the failure path must take precedence (no writeback attempted).
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"id":"1"}`))
+	}))
+	defer server.Close()
+
+	e, task, completeCalls, failedCalls := newWritebackExecutor(t, server.URL)
+
+	runErr := errors.New("runner execution: LLM call: API error 500")
+	e.finalizeTaskResult(task, runErr)
+
+	if task.Status != store.StatusFailed {
+		t.Fatalf("status=%q, want failed", task.Status)
+	}
+	if !strings.Contains(task.Error, "LLM call") {
+		t.Fatalf("task.Error=%q, want runner error", task.Error)
+	}
+	if atomic.LoadInt32(completeCalls) != 0 {
+		t.Fatal("onComplete must NOT fire on runner failure")
+	}
+	if atomic.LoadInt32(failedCalls) != 1 {
+		t.Fatal("onFailed must fire on runner failure")
+	}
+}
+
+func TestFormatPartialFailureComment(t *testing.T) {
+	task := &store.Task{
+		ID:       77,
+		AgentID:  4,
+		TaskType: "solve_issue",
+	}
+	wbErr := errors.New("post comment: API error 401: token expired")
+
+	body := formatPartialFailureComment(task, wbErr)
+
+	if !strings.Contains(body, "任务已执行但写回失败") {
+		t.Fatalf("missing partial-failure title: %s", body)
+	}
+	if !strings.Contains(body, "token expired") {
+		t.Fatalf("missing writeback error detail: %s", body)
+	}
+	if !strings.Contains(body, "Task ID: 77") {
+		t.Fatalf("missing task metadata: %s", body)
+	}
+	if !strings.Contains(body, "Type: solve_issue") {
+		t.Fatalf("missing task type: %s", body)
 	}
 }

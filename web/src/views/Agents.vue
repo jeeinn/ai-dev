@@ -116,15 +116,17 @@
                 <el-option
                   v-for="m in currentModels"
                   :key="m.id"
-                  :label="m.name || m.id"
+                  :label="m.id"
                   :value="m.id"
                 >
-                  <span>{{ m.name || m.id }}</span>
-                  <span class="model-tags">
-                    <el-tag v-if="m.is_reasoning" size="small" type="warning" class="model-tag">推理</el-tag>
-                    <el-tag v-if="m.supports_tools" size="small" type="success" class="model-tag">工具</el-tag>
-                    <el-tag v-if="m.context_window" size="small" type="info" class="model-tag">{{ formatContextWindow(m.context_window) }}</el-tag>
-                  </span>
+                  <div class="model-option">
+                    <span class="model-option-id">{{ m.id }}</span>
+                    <span class="model-tags">
+                      <el-tag v-if="m.is_reasoning" size="small" type="warning" class="model-tag">推理</el-tag>
+                      <el-tag v-if="m.supports_tools" size="small" type="success" class="model-tag">工具</el-tag>
+                      <el-tag v-if="m.context_window" size="small" type="info" class="model-tag">{{ formatContextWindow(m.context_window) }}</el-tag>
+                    </span>
+                  </div>
                 </el-option>
                 <template #empty>
                   <div class="model-empty">
@@ -168,21 +170,33 @@
             </el-form-item>
             <el-divider content-position="left">LLM Token（可选覆盖）</el-divider>
             <el-alert type="info" :closable="false" style="margin-bottom: 16px">
-              <template #title>留空则自动使用模型的上下文窗口（输入 90%、输出上限）</template>
+              <template #title>
+                设为 0 表示不覆盖：按所选模型自动适配（输入≈上下文 90%，输出=模型上限）。
+                无模型元数据时回退系统默认（输入 {{ systemDefaultInput }} / 输出 {{ systemDefaultOutput }}）。
+                字段为整数，无法真·留空，0 即「自动」。
+              </template>
             </el-alert>
             <el-form-item label="最大输出 Tokens">
-              <el-input-number v-model="form.max_output_tokens" :min="0" :max="128000" :step="512" placeholder="留空使用模型默认" />
-              <div v-if="selectedModelMeta?.max_output" class="form-tip">
-                模型上限 {{ formatContextWindow(selectedModelMeta.max_output) }}，当前设为 0 表示使用模型默认
+              <el-input-number v-model="form.max_output_tokens" :min="0" :max="128000" :step="512" />
+              <div class="form-tip">
+                <template v-if="selectedModelMeta?.max_output">
+                  当前为 0 → 使用模型上限 {{ formatContextWindow(selectedModelMeta.max_output) }}；填正数则覆盖（不超过该上限）
+                </template>
+                <template v-else>
+                  当前为 0 → 无模型元数据时使用系统默认 {{ systemDefaultOutput }}
+                </template>
               </div>
-              <div v-else class="form-tip">设为 0 表示使用系统默认 2048</div>
             </el-form-item>
             <el-form-item label="最大输入 Tokens">
-              <el-input-number v-model="form.max_input_tokens" :min="0" :max="200000" :step="1024" placeholder="留空使用模型默认" />
-              <div v-if="selectedModelMeta?.context_window" class="form-tip">
-                模型上下文 {{ formatContextWindow(selectedModelMeta.context_window) }}；设为 0 则自动使用 {{ Math.floor(selectedModelMeta.context_window * 0.9).toLocaleString() }} (90%)
+              <el-input-number v-model="form.max_input_tokens" :min="0" :max="2000000" :step="1024" />
+              <div class="form-tip">
+                <template v-if="selectedModelMeta?.context_window">
+                  当前为 0 → 自动使用 {{ Math.floor(selectedModelMeta.context_window * 0.9).toLocaleString() }}（模型上下文 {{ formatContextWindow(selectedModelMeta.context_window) }} 的 90%）
+                </template>
+                <template v-else>
+                  当前为 0 → 无模型元数据时使用系统默认 {{ systemDefaultInput }}
+                </template>
               </div>
-              <div v-else class="form-tip">设为 0 则使用系统默认 65536</div>
             </el-form-item>
             <el-form-item label="Temperature">
               <el-slider v-model="form.temperature" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
@@ -230,7 +244,7 @@ import api from '../api'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TemplateHelp from '../components/TemplateHelp.vue'
-import { useAgentDefaults } from '../composables/useAgentDefaults'
+import { useAgentDefaults, DEFAULT_AGENT_MAX_OUTPUT_TOKENS, DEFAULT_AGENT_MAX_INPUT_TOKENS } from '../composables/useAgentDefaults'
 
 const router = useRouter()
 const {
@@ -240,6 +254,9 @@ const {
   loopDefaults,
   defaultLoopConfig
 } = useAgentDefaults()
+
+const systemDefaultOutput = DEFAULT_AGENT_MAX_OUTPUT_TOKENS
+const systemDefaultInput = DEFAULT_AGENT_MAX_INPUT_TOKENS
 const agents = ref([])
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -264,9 +281,33 @@ const modelSource = ref('')
 const modelError = ref('')
 const modelCatalog = ref({})
 
+/** Normalize API/catalog model objects to always expose official id. */
+const normalizeModels = (list) => {
+  if (!Array.isArray(list)) return []
+  return list
+    .map((m) => {
+      if (!m || typeof m !== 'object') return null
+      const id = String(m.id || m.ID || m.Id || '').trim()
+      if (!id) return null
+      return {
+        ...m,
+        id,
+        name: m.name || m.Name || id,
+        context_window: m.context_window || m.ContextWindow || 0,
+        max_output: m.max_output || m.MaxOutput || 0,
+        supports_tools: !!(m.supports_tools ?? m.SupportsTools),
+        is_reasoning: !!(m.is_reasoning ?? m.IsReasoning),
+        default_params: m.default_params || m.DefaultParams || undefined
+      }
+    })
+    .filter(Boolean)
+}
+
 const selectedModelMeta = computed(() => {
   if (!form.value.model || !form.value.provider) return null
-  const models = modelCatalog.value[form.value.provider] || currentModels.value
+  const models = currentModels.value.length
+    ? currentModels.value
+    : normalizeModels(modelCatalog.value[form.value.provider] || [])
   return models.find(m => m.id === form.value.model) || null
 })
 
@@ -279,7 +320,11 @@ const loadModelCatalog = async () => {
   try {
     const data = await api.get('/config')
     if (data?._meta?.models) {
-      modelCatalog.value = data._meta.models
+      const catalog = {}
+      for (const [provider, list] of Object.entries(data._meta.models)) {
+        catalog[provider] = normalizeModels(list)
+      }
+      modelCatalog.value = catalog
     }
   } catch {
     modelCatalog.value = {}
@@ -294,29 +339,29 @@ const loadModelsForProvider = async (providerName) => {
     return
   }
   modelError.value = ''
-  // Check catalog first
-  if (modelCatalog.value[providerName]) {
-    currentModels.value = modelCatalog.value[providerName]
+  // Optimistic UI from catalog while API resolves (supports models:[] discovery)
+  if (modelCatalog.value[providerName]?.length) {
+    currentModels.value = normalizeModels(modelCatalog.value[providerName])
     modelSource.value = 'builtin'
-    return
   }
-  // Try API
   modelLoading.value = true
   try {
     const data = await api.get(`/config/providers/${providerName}/models`)
     if (data?.models) {
-      currentModels.value = data.models
+      currentModels.value = normalizeModels(data.models)
       modelSource.value = data.source || 'builtin'
       if (!data.success && data.error) {
         modelError.value = data.error
       }
-    } else {
+    } else if (!currentModels.value.length) {
       currentModels.value = []
       modelSource.value = ''
     }
   } catch (err) {
-    currentModels.value = []
-    modelSource.value = ''
+    if (!currentModels.value.length) {
+      currentModels.value = []
+      modelSource.value = ''
+    }
     modelError.value = err.response?.data?.error || err.message || '加载失败'
   } finally {
     modelLoading.value = false
@@ -335,7 +380,7 @@ const refreshModels = async () => {
   try {
     const data = await api.get(`/config/providers/${form.value.provider}/models`)
     if (data?.models) {
-      currentModels.value = data.models
+      currentModels.value = normalizeModels(data.models)
       modelSource.value = data.source || 'builtin'
       if (!data.success && data.error) {
         modelError.value = data.error
@@ -494,12 +539,25 @@ onMounted(() => {
   align-items: center;
 }
 
+.model-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.model-option-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
 .model-tags {
-  float: right;
-  margin-left: 8px;
+  margin-left: auto;
+  display: inline-flex;
+  gap: 4px;
 }
 
 .model-tag {
-  margin-left: 4px;
+  margin-left: 0;
 }
 </style>

@@ -138,7 +138,7 @@
               </div>
             </el-form-item>
             <el-form-item label="默认模型">
-              <el-input v-model="form['llm.defaults.model']" placeholder="deepseek-chat" />
+              <el-input v-model="form['llm.defaults.model']" placeholder="deepseek-v4-flash" />
               <div class="form-tip">
                 <el-tag v-if="sourceTag('llm.defaults.model')" size="small" :type="sourceTag('llm.defaults.model') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
                   {{ sourceTag('llm.defaults.model') }}
@@ -185,17 +185,17 @@
               </el-select>
             </el-form-item>
             <el-form-item label="默认模型">
-              <el-input v-model="form['agents.defaults.model']" placeholder="deepseek-chat" />
+              <el-input v-model="form['agents.defaults.model']" placeholder="deepseek-v4-flash" />
             </el-form-item>
 
             <el-divider content-position="left">LLM Token</el-divider>
             <el-form-item label="最大输出 Tokens">
               <el-input-number v-model.number="form['agents.defaults.max_output_tokens']" :min="256" :max="128000" :step="512" />
-              <div class="form-tip">每次调用的最大输出 Tokens（单次任务与 Loop 每轮共用）</div>
+              <div class="form-tip">无模型元数据时的系统兜底（当前默认 8192）；Agent 设为 0 且有模型元数据时优先用模型上限</div>
             </el-form-item>
             <el-form-item label="最大输入 Tokens">
-              <el-input-number v-model.number="form['agents.defaults.max_input_tokens']" :min="1024" :max="200000" :step="1024" />
-              <div class="form-tip">每次请求送入模型的输入上限（含 tools）；估算为字符数/4，仅供管控</div>
+              <el-input-number v-model.number="form['agents.defaults.max_input_tokens']" :min="1024" :max="2000000" :step="1024" />
+              <div class="form-tip">无模型元数据时的系统兜底（当前默认 115200 ≈ 128K×90%）；有模型元数据时 Agent=0 走模型上下文 90%</div>
             </el-form-item>
             <el-form-item label="Temperature">
               <el-slider v-model.number="form['agents.defaults.temperature']" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
@@ -412,7 +412,7 @@
     >
       <el-form :model="modelForm" label-width="120px">
         <el-form-item label="模型 ID" required>
-          <el-input v-model="modelForm.id" placeholder="如 deepseek-v4" />
+          <el-input v-model="modelForm.id" placeholder="如 deepseek-v4-flash" />
         </el-form-item>
         <el-form-item label="显示名称">
           <el-input v-model="modelForm.name" placeholder="如 DeepSeek V4" />

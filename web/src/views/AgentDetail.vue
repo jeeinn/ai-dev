@@ -45,21 +45,61 @@
             <el-divider content-position="left">LLM 配置</el-divider>
             <el-form-item label="Provider">
               <el-col :span="11">
-                <el-select v-model="form.provider" placeholder="选择 Provider" style="width: 100%">
+                <el-select
+                  v-model="form.provider"
+                  placeholder="选择 Provider"
+                  style="width: 100%"
+                  @change="onProviderChange"
+                >
                   <el-option v-for="name in effectiveProviderNames(form.provider)" :key="name" :label="name" :value="name" />
                 </el-select>
               </el-col>
               <el-col :span="2" style="text-align: center; line-height: 32px">:</el-col>
               <el-col :span="11">
-                <el-input v-model="form.model" placeholder="模型名称" />
+                <div class="model-select-wrapper">
+                  <el-select
+                    v-model="form.model"
+                    placeholder="选择模型 ID"
+                    style="width: 100%"
+                    filterable
+                    allow-create
+                    default-first-option
+                    :loading="modelLoading"
+                  >
+                    <template #header>
+                      <div class="model-source-hint">
+                        <el-tag v-if="modelSource === 'api'" size="small" type="primary">API 发现</el-tag>
+                        <el-tag v-else-if="modelSource === 'builtin'" size="small" type="info">内置目录</el-tag>
+                        <el-tag v-else-if="modelSource === 'custom'" size="small" type="success">自定义</el-tag>
+                        <el-tag v-else size="small" type="warning">未配置</el-tag>
+                      </div>
+                    </template>
+                    <el-option
+                      v-for="m in currentModels"
+                      :key="m.id"
+                      :label="m.id"
+                      :value="m.id"
+                    >
+                      <div class="model-option">
+                        <span class="model-option-id">{{ m.id }}</span>
+                        <span class="model-tags">
+                          <el-tag v-if="m.is_reasoning" size="small" type="warning" class="model-tag">推理</el-tag>
+                          <el-tag v-if="m.supports_tools" size="small" type="success" class="model-tag">工具</el-tag>
+                          <el-tag v-if="m.context_window" size="small" type="info" class="model-tag">{{ formatContextWindow(m.context_window) }}</el-tag>
+                        </span>
+                      </div>
+                    </el-option>
+                  </el-select>
+                </div>
               </el-col>
             </el-form-item>
             <el-form-item label="最大输出 Tokens（每次调用）">
-              <el-input-number v-model="form.max_output_tokens" :min="256" :max="128000" :step="512" />
+              <el-input-number v-model="form.max_output_tokens" :min="0" :max="128000" :step="512" />
+              <div class="form-tip">设为 0：按模型上限自动适配；无元数据时回退系统默认 8192</div>
             </el-form-item>
             <el-form-item label="最大输入 Tokens">
-              <el-input-number v-model="form.max_input_tokens" :min="1024" :max="200000" :step="1024" />
-              <div class="form-tip">含 tools；估算为字符数/4</div>
+              <el-input-number v-model="form.max_input_tokens" :min="0" :max="2000000" :step="1024" />
+              <div class="form-tip">设为 0：按模型上下文 90% 自动适配；无元数据时回退系统默认 115200</div>
             </el-form-item>
             <el-form-item label="Temperature">
               <el-slider v-model="form.temperature" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
@@ -195,6 +235,57 @@ const defaultForm = createEmptyAgentForm()
 
 const form = ref({ ...defaultForm, loop_config: { ...defaultLoopConfig } })
 
+const currentModels = ref([])
+const modelLoading = ref(false)
+const modelSource = ref('')
+
+const normalizeModels = (list) => {
+  if (!Array.isArray(list)) return []
+  return list
+    .map((m) => {
+      if (!m || typeof m !== 'object') return null
+      const id = String(m.id || m.ID || m.Id || '').trim()
+      if (!id) return null
+      return {
+        ...m,
+        id,
+        context_window: m.context_window || m.ContextWindow || 0,
+        supports_tools: !!(m.supports_tools ?? m.SupportsTools),
+        is_reasoning: !!(m.is_reasoning ?? m.IsReasoning)
+      }
+    })
+    .filter(Boolean)
+}
+
+const formatContextWindow = (n) => {
+  if (n >= 1000) return (n / 1000).toFixed(0) + 'K'
+  return n.toString()
+}
+
+const loadModelsForProvider = async (providerName) => {
+  if (!providerName) {
+    currentModels.value = []
+    modelSource.value = ''
+    return
+  }
+  modelLoading.value = true
+  try {
+    const data = await api.get(`/config/providers/${providerName}/models`)
+    currentModels.value = normalizeModels(data?.models)
+    modelSource.value = data?.source || ''
+  } catch {
+    currentModels.value = []
+    modelSource.value = ''
+  } finally {
+    modelLoading.value = false
+  }
+}
+
+const onProviderChange = (providerName) => {
+  form.value.model = ''
+  loadModelsForProvider(providerName)
+}
+
 const loadRepos = async () => {
   try {
     repoList.value = await api.get('/repos') || []
@@ -277,6 +368,7 @@ watch(activeTab, (tab) => {
 onMounted(async () => {
   await loadAgentConfig()
   await loadAgent()
+  await loadModelsForProvider(form.value.provider)
   loadRepos()
 })
 </script>
@@ -308,5 +400,37 @@ onMounted(async () => {
 .text-muted {
   font-size: 12px;
   color: #c0c4cc;
+}
+
+.model-select-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.model-source-hint {
+  padding: 4px 12px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.model-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.model-option-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.model-tags {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.model-tag {
+  margin-left: 0;
 }
 </style>

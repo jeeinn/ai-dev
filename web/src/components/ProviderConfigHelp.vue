@@ -55,7 +55,7 @@ const exampleJson = `{
 }`
 
 const providerTips = [
-  { name: 'deepseek', base_url: 'https://api.deepseek.com/v1', note: 'OpenAI 兼容，模型如 deepseek-chat' },
+  { name: 'deepseek', base_url: 'https://api.deepseek.com/v1', note: 'OpenAI 兼容，模型如 deepseek-v4-flash' },
   { name: 'openai', base_url: 'https://api.openai.com/v1', note: '官方 OpenAI API' },
   { name: 'claude', base_url: '（可留空）', note: 'Anthropic，仅需 api_key' },
   { name: 'ollama', base_url: 'http://localhost:11434/v1', note: '本地模型，api_key 填 ollama' },

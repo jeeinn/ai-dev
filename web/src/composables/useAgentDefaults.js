@@ -1,8 +1,8 @@
 import { ref, computed } from 'vue'
 import api from '../api'
 
-export const DEFAULT_AGENT_MAX_OUTPUT_TOKENS = 2048
-export const DEFAULT_AGENT_MAX_INPUT_TOKENS = 65536
+export const DEFAULT_AGENT_MAX_OUTPUT_TOKENS = 8192
+export const DEFAULT_AGENT_MAX_INPUT_TOKENS = 115200 // 128K * 0.9
 export const DEFAULT_AGENT_TIMEOUT = '5m'
 
 export const DEFAULT_LOOP_CONFIG = {
@@ -52,7 +52,7 @@ export function useAgentDefaults() {
   const providers = ref({})
   const agentDefaults = ref({
     provider: 'deepseek',
-    model: 'deepseek-chat',
+    model: 'deepseek-v4-flash',
     max_output_tokens: DEFAULT_AGENT_MAX_OUTPUT_TOKENS,
     max_input_tokens: DEFAULT_AGENT_MAX_INPUT_TOKENS,
     temperature: 0.3,
@@ -70,7 +70,7 @@ export function useAgentDefaults() {
 
       agentDefaults.value = {
         provider: resolveDefaultProvider(data, keys),
-        model: (data['agents.defaults.model'] || data['llm.defaults.model'] || 'deepseek-chat').trim(),
+        model: (data['agents.defaults.model'] || data['llm.defaults.model'] || 'deepseek-v4-flash').trim(),
         max_output_tokens: Number(data['agents.defaults.max_output_tokens']) || DEFAULT_AGENT_MAX_OUTPUT_TOKENS,
         max_input_tokens: Number(data['agents.defaults.max_input_tokens']) || DEFAULT_AGENT_MAX_INPUT_TOKENS,
         temperature: data['agents.defaults.temperature'] !== undefined
@@ -99,8 +99,9 @@ export function useAgentDefaults() {
     role: 'analyze',
     provider: agentDefaults.value.provider,
     model: agentDefaults.value.model,
-    max_output_tokens: agentDefaults.value.max_output_tokens,
-    max_input_tokens: agentDefaults.value.max_input_tokens,
+    // 0 = optional override off → resolve from model meta at runtime
+    max_output_tokens: 0,
+    max_input_tokens: 0,
     temperature: agentDefaults.value.temperature,
     timeout: agentDefaults.value.timeout,
     system_prompt: '',

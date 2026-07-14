@@ -120,8 +120,8 @@ api:
 
 agents:
   defaults:
-    max_output_tokens: 2048
-    max_input_tokens: 65536
+    max_output_tokens: 8192
+    max_input_tokens: 115200
     temperature: 0.3
     timeout: "5m"             # 单次任务超时
   loop:

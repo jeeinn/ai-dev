@@ -155,8 +155,8 @@ go build -o gateway .
 ```yaml
 agents:
   defaults:
-    max_output_tokens: 2048   # 每次调用输出上限（单次 + Loop 每轮共用）
-    max_input_tokens: 65536   # 每次请求输入上限（含 tools；估算为字符数/4）
+    max_output_tokens: 8192   # 每次调用输出上限（单次 + Loop 每轮共用；无模型元数据时兜底）
+    max_input_tokens: 115200  # 输入上限兜底（≈128K×90%；有模型元数据且 Agent=0 时走模型）
     temperature: 0.3
     timeout: "5m"             # 单次任务总超时（analyze/review/reply）
   loop:

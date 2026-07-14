@@ -1,8 +1,9 @@
 # LLM Provider 模型选择与 Token 配置扩展方案
 
 > 日期：2026-07-10
-> 状态：待实施
-> 版本：v1.0
+> 状态：已实施（Phase 1/2 核心完成；Phase 3 部分完成，见文末进度）
+> 版本：v1.1
+> 更新：2026-07-14 查漏补缺修复
 
 ---
 
@@ -689,7 +690,7 @@ GET /api/config/providers/:name/models
 |------|----------|------|
 | `ProviderConfig` 新增字段 | 所有新增字段均为可选（零值可用） | 旧配置正常工作 |
 | `models` 未设置 | 使用内置目录作为 fallback | 用户无需手动配置 |
-| `max_input/output_tokens` | 保留原有默认值（65536/2048） | 未配置时使用默认 |
+| `max_input/output_tokens` | 保留兜底默认值（115200/8192，≈128K×90% / 主流输出） | Agent=0 优先模型元数据 |
 | 数据库 schema | 无需变更 | Provider 配置存 JSON，字段扩展不影响 |
 | Agent 页面模型输入 | 下拉选择 + 手动输入兼容 | 支持自由输入模型 ID |
 
@@ -724,3 +725,40 @@ GET /api/config/providers/:name/models
 3. **Token 自适应**：根据模型元数据自动调整输入/输出 token 上限
 4. **估算精度提升**：中英文区分估算，后续可升级精确 tokenizer
 5. **平滑演进**：分三阶段实施，第一阶段即可获得核心价值，不影响现有功能
+
+---
+
+## 十三、实施进度（2026-07-14）
+
+### DeepSeek 官方模型说明
+
+据 [DeepSeek API Docs](https://api-docs.deepseek.com/)（2026-04-24 起）：
+
+| 模型 ID | 状态 | 说明 |
+|---------|------|------|
+| `deepseek-v4-pro` | 当前 | 旗舰 |
+| `deepseek-v4-flash` | 当前（默认） | 高性价比 |
+| `deepseek-chat` | 遗留别名 | 指向 v4-flash 非思考模式；**2026-07-24 停用** |
+| `deepseek-reasoner` | 遗留别名 | 指向 v4-flash 思考模式；**2026-07-24 停用** |
+
+默认模型已从 `deepseek-chat` 切换为 `deepseek-v4-flash`；内置目录仍保留遗留别名以便过渡期元数据解析。
+
+### 完成度
+
+| 阶段 | 状态 | 备注 |
+|------|------|------|
+| Phase 1 | ✅ 完成 | 目录、下拉、CJK 估算、API、单测 |
+| Phase 2 | ✅ 核心完成 | 动态发现、自适应 token、工具感知截断+请求层、可视化编辑 |
+| Phase 3.1–3.3 | ✅ 完成 | usage 记录、成本（$/1K）、任务页展示 |
+| Phase 3.4–3.6 | ❌ 未做 | tiktoken / 语义摘要 / 成本预算（可选） |
+
+### 2026-07-14 查漏补缺
+
+- `resolveMaxInput/OutputTokens`：agent=0 → 模型元数据 → agents.defaults
+- `GetModelMeta`：发现失败时仍使用 fallback 列表查元数据
+- `AgentLoop`：`SupportsTools=false` 时不向 API 发送 Tools
+- Agents 页始终调用发现 API（去掉 catalog 短路）
+- `GetDisplayMap._meta.models` 基于 active providers
+- 成本公式按 $/1K tokens 除以 1000
+- 内置目录对齐官方 ID；`config.example.yaml` 补充 type/models 示例
+- 系统硬编码兜底由 2048/65536 调整为 **8192 / 115200**（对齐主流 ~128K 上下文模型）

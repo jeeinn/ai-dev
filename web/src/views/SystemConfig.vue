@@ -407,7 +407,7 @@
     <el-dialog
       v-model="modelDialogVisible"
       :title="editingModelIndex >= 0 ? '编辑模型' : '新增模型'"
-      width="520px"
+      width="560px"
       :close-on-click-modal="false"
     >
       <el-form :model="modelForm" label-width="120px">
@@ -434,6 +434,41 @@
         <el-form-item label="模型描述">
           <el-input v-model="modelForm.description" type="textarea" :rows="2" placeholder="可选" />
         </el-form-item>
+
+        <el-divider content-position="left">价格配置（$/1K tokens）</el-divider>
+        <el-form-item label="输入价格">
+          <el-input-number v-model.number="modelForm.input_price" :min="0" :max="1" :step="0.0001" :precision="4" style="width: 100%" />
+          <div class="form-tip">输入 tokens 的价格（$/1K），0 表示未设置</div>
+        </el-form-item>
+        <el-form-item label="输出价格">
+          <el-input-number v-model.number="modelForm.output_price" :min="0" :max="1" :step="0.0001" :precision="4" style="width: 100%" />
+          <div class="form-tip">输出 tokens 的价格（$/1K），0 表示未设置</div>
+        </el-form-item>
+
+        <el-collapse v-model="modelAdvancedOpen" class="model-advanced">
+          <el-collapse-item title="模型级默认参数" name="default_params">
+            <el-form-item label="Temperature">
+              <el-slider v-model.number="modelForm.default_params.temperature" :min="0" :max="2" :step="0.1" show-input style="width: 100%" />
+              <div class="form-tip">控制随机性，0=确定性，2=最大随机性</div>
+            </el-form-item>
+            <el-form-item label="Top P">
+              <el-slider v-model.number="modelForm.default_params.top_p" :min="0" :max="1" :step="0.05" show-input style="width: 100%" />
+              <div class="form-tip">核采样，与 temperature 二选一，建议不要同时调整</div>
+            </el-form-item>
+            <el-form-item label="最大输出 Tokens">
+              <el-input-number v-model.number="modelForm.default_params.max_output_tokens" :min="0" :max="128000" :step="256" style="width: 100%" />
+              <div class="form-tip">覆盖 Provider 级默认值，0 表示不覆盖</div>
+            </el-form-item>
+            <el-form-item label="频率惩罚">
+              <el-slider v-model.number="modelForm.default_params.frequency_penalty" :min="-2" :max="2" :step="0.1" show-input style="width: 100%" />
+              <div class="form-tip">降低重复词汇的概率</div>
+            </el-form-item>
+            <el-form-item label="存在惩罚">
+              <el-slider v-model.number="modelForm.default_params.presence_penalty" :min="-2" :max="2" :step="0.1" show-input style="width: 100%" />
+              <div class="form-tip">增加未出现词汇的概率</div>
+            </el-form-item>
+          </el-collapse-item>
+        </el-collapse>
       </el-form>
       <template #footer>
         <el-button @click="modelDialogVisible = false">取消</el-button>
@@ -488,6 +523,7 @@ const providerForm = ref({
 // 模型编辑弹窗状态
 const modelDialogVisible = ref(false)
 const editingModelIndex = ref(-1)
+const modelAdvancedOpen = ref([])
 const modelForm = ref({
   id: '',
   name: '',
@@ -495,7 +531,16 @@ const modelForm = ref({
   max_output: 0,
   supports_tools: false,
   is_reasoning: false,
-  description: ''
+  description: '',
+  input_price: 0,
+  output_price: 0,
+  default_params: {
+    temperature: null,
+    top_p: null,
+    max_output_tokens: null,
+    frequency_penalty: null,
+    presence_penalty: null
+  }
 })
 
 const providerList = computed(() => {
@@ -559,7 +604,10 @@ const openProviderDialog = (row = null, index = -1) => {
           max_output: m.max_output || 0,
           supports_tools: !!m.supports_tools,
           is_reasoning: !!m.is_reasoning,
-          description: m.description || ''
+          description: m.description || '',
+          input_price: m.input_price || 0,
+          output_price: m.output_price || 0,
+          default_params: m.default_params || {}
         }))
       } else if (cfg.models && Array.isArray(cfg.models) && cfg.models.length === 0) {
         providerForm.value.model_discovery = 'auto'
@@ -643,7 +691,16 @@ const openModelDialog = (row = null, index = -1) => {
       max_output: row.max_output || 0,
       supports_tools: !!row.supports_tools,
       is_reasoning: !!row.is_reasoning,
-      description: row.description || ''
+      description: row.description || '',
+      input_price: row.input_price || 0,
+      output_price: row.output_price || 0,
+      default_params: {
+        temperature: row.default_params?.temperature ?? null,
+        top_p: row.default_params?.top_p ?? null,
+        max_output_tokens: row.default_params?.max_output_tokens ?? null,
+        frequency_penalty: row.default_params?.frequency_penalty ?? null,
+        presence_penalty: row.default_params?.presence_penalty ?? null
+      }
     }
   } else {
     modelForm.value = {
@@ -653,9 +710,19 @@ const openModelDialog = (row = null, index = -1) => {
       max_output: 0,
       supports_tools: false,
       is_reasoning: false,
-      description: ''
+      description: '',
+      input_price: 0,
+      output_price: 0,
+      default_params: {
+        temperature: null,
+        top_p: null,
+        max_output_tokens: null,
+        frequency_penalty: null,
+        presence_penalty: null
+      }
     }
   }
+  modelAdvancedOpen.value = []
   modelDialogVisible.value = true
 }
 
@@ -680,7 +747,22 @@ const saveModel = () => {
     max_output: modelForm.value.max_output || 0,
     supports_tools: !!modelForm.value.supports_tools,
     is_reasoning: !!modelForm.value.is_reasoning,
-    description: modelForm.value.description.trim()
+    description: modelForm.value.description.trim(),
+    input_price: modelForm.value.input_price || 0,
+    output_price: modelForm.value.output_price || 0
+  }
+
+  // 仅当有非空默认参数时才添加
+  const dp = modelForm.value.default_params
+  const hasDefaultParams = dp.temperature !== null || dp.top_p !== null || 
+    dp.max_output_tokens !== null || dp.frequency_penalty !== null || dp.presence_penalty !== null
+  if (hasDefaultParams) {
+    modelData.default_params = {}
+    if (dp.temperature !== null) modelData.default_params.temperature = dp.temperature
+    if (dp.top_p !== null) modelData.default_params.top_p = dp.top_p
+    if (dp.max_output_tokens !== null) modelData.default_params.max_output_tokens = dp.max_output_tokens
+    if (dp.frequency_penalty !== null) modelData.default_params.frequency_penalty = dp.frequency_penalty
+    if (dp.presence_penalty !== null) modelData.default_params.presence_penalty = dp.presence_penalty
   }
 
   if (editingModelIndex.value >= 0) {

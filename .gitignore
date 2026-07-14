@@ -7,6 +7,7 @@ config.yaml
 .codegraph/
 .claude/
 .workbuddy/
+.idea/
 
 # Database and runtime data
 data/

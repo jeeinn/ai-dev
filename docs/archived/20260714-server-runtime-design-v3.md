@@ -3,7 +3,8 @@
 > 状态：设计草案 v3  
 > 目标：在 v2 长期运行时愿景之上，明确 **编排层 vs 运行时** 边界，并以 **ExternalCLIRunner 最小改动** 优先接入 OpenCode（其次 Claude Code）。  
 > 部署目标：Linux / Windows（Host 模式）。定位：个人/小团队自用，最终开源。  
-> 前身：[server-runtime-design-v2.md](./server-runtime-design-v2.md)（v2）
+> 前身：[20260714-server-runtime-design-v2.md](./20260714-server-runtime-design-v2.md)（v2，已归档）  
+> 状态：已归档；现行决策见 [server-runtime-design-v4.md](./server-runtime-design-v4.md)。
 
 ---
 
@@ -536,7 +537,7 @@ Phase 4   ExecutionBackend 包裹 Host/Docker；StartAgent/PollAgent 统一
 
 ## 7. 长期 Runtime 组件（继承 v2，摘要）
 
-以下与 v2 一致，细节见 [server-runtime-design-v2.md](./server-runtime-design-v2.md)：
+以下与 v2 一致，细节见 [20260714-server-runtime-design-v2.md](./20260714-server-runtime-design-v2.md)：
 
 | 组件 | 接口 | v3 备注 |
 |------|------|---------|
@@ -616,7 +617,7 @@ agents:
 
 ## 11. 相关文档
 
-- [server-runtime-design-v2.md](./server-runtime-design-v2.md) — 长期 Runtime 完整设计
+- [20260714-server-runtime-design-v2.md](./20260714-server-runtime-design-v2.md) — 长期 Runtime 完整设计
 - [todo-20260710-opencode-integration.md](./todo-20260710-opencode-integration.md) — OpenCode 方案（v3 已吸收并细化）
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — 当前 Gateway 架构
 - [agent-development-decisions.md](./agent-development-decisions.md) — Host 模式决策

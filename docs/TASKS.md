@@ -40,7 +40,7 @@
 设计：[todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md) · [server-runtime-design-v4.md](server-runtime-design-v4.md)
 
 - [ ] A0 本机 `opencode serve` PoC + API 字段记录
-- [ ] A1 `agents.backends` + Agent `backend` / `backend_options` + migration
+- [x] A1 `agents.backends` + Agent `backend` / `backend_options` + migration
 - [ ] A3 `CodingBackend` + `OpenCodeHTTPBackend`；非写任务强制 `internal`
 - [ ] A3 health 失败 → 可读评论（默认不静默降级）
 - [ ] A4 mock 测试 + 运维说明（WebUI backend 可后置）

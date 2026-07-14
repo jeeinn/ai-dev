@@ -51,6 +51,8 @@ func (m *Manager) SetRegistry(registry *Registry) {
 		LoopConfig      *store.AgentLoopConfig `json:"loop_config,omitempty"`
 		Repos           []string               `json:"repos,omitempty"` // Repos to add as collaborator (e.g. ["owner/repo"])
 		Role            string                 `json:"role"`            // analyze | coder | review
+		Backend         string                 `json:"backend"`                    // coding backend; default "internal"
+		BackendOptions  map[string]any         `json:"backend_options,omitempty"`  // backend-specific options
 	}
 
 // ReloadGitea updates the Gitea client after config changes.
@@ -163,6 +165,8 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 			Repos:           req.Repos,
 			Role:            role,
 			Status:          "active",
+			Backend:         req.Backend,
+			BackendOptions:  req.BackendOptions,
 		}
 	if err := m.db.CreateAgent(agent); err != nil {
 		return nil, fmt.Errorf("store agent: %w", err)

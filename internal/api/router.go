@@ -326,6 +326,8 @@ type AgentDTO struct {
 	Repos           []string               `json:"repos,omitempty"`
 	Role            string                 `json:"role"`
 	Status          string                 `json:"status"`
+	Backend         string                 `json:"backend"`
+	BackendOptions  map[string]any         `json:"backend_options,omitempty"`
 }
 
 func toAgentDTO(a *store.Agent) AgentDTO {
@@ -346,6 +348,8 @@ func toAgentDTO(a *store.Agent) AgentDTO {
 		LoopConfig:      a.LoopConfig,
 		Role:            a.Role,
 		Status:          a.Status,
+		Backend:         a.Backend,
+		BackendOptions:  a.BackendOptions,
 	}
 }
 
@@ -447,6 +451,13 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.LoopConfig != nil {
 		agent.LoopConfig = req.LoopConfig
+	}
+	if req.Backend != "" {
+		agent.Backend = req.Backend
+	}
+	// backend_options: replace if provided in request (nil → keep existing)
+	if req.BackendOptions != nil {
+		agent.BackendOptions = req.BackendOptions
 	}
 	agent.ID = id
 	if err := h.manager.UpdateAgent(agent); err != nil {

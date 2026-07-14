@@ -106,6 +106,27 @@ agents:
     total_timeout: "30m"    # 仅多轮任务（solve/fix_bug）总超时
     iteration_interval: 3
 
+  # 编码后端配置（OpenCode Path A）
+  # 默认 internal（内置 AgentLoop）；非写任务（analyze/review/reply）始终 internal
+  # opencode-local 为可选 sidecar，需本机启动 opencode serve
+  backends:
+    default: internal
+    backends:
+      internal:
+        type: builtin
+      # opencode-local:
+      #   type: opencode_http
+      #   base_url: "http://127.0.0.1:4096"
+      #   auth:
+      #     username: opencode
+      #     password: "${OPENCODE_SERVER_PASSWORD}"
+      #   timeout: "45m"
+      #   workspace_mode: gateway_path   # 第一期唯一合法值
+      #   health_check:
+      #     path: /global/health
+      #     interval: 30s
+      #   allow_fallback_internal: false  # false=sidecar 不可用时显式失败
+
   templates:
     analyze:
       name: "需求分析 Agent"

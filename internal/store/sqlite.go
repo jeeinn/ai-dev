@@ -67,6 +67,8 @@ func (db *DB) migrate() error {
 			system_prompt      TEXT NOT NULL DEFAULT '',
 			user_template      TEXT NOT NULL DEFAULT '',
 			status             TEXT DEFAULT 'active',
+			backend            TEXT DEFAULT 'internal',
+			backend_options    TEXT DEFAULT '{}',
 			created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -228,6 +230,8 @@ func (db *DB) migrate() error {
 		`ALTER TABLE agents ADD COLUMN max_input_tokens INTEGER DEFAULT 65536`,
 		`ALTER TABLE agents ADD COLUMN timeout TEXT DEFAULT '5m'`,
 		`ALTER TABLE task_usage ADD COLUMN cost REAL DEFAULT 0.0`,
+		`ALTER TABLE agents ADD COLUMN backend TEXT DEFAULT 'internal'`,       // OpenCode Path A
+		`ALTER TABLE agents ADD COLUMN backend_options TEXT DEFAULT '{}'`,     // OpenCode Path A
 		`DROP TABLE IF EXISTS routes`, // v2: routes table removed (Assign model replaces Label trigger)
 	}
 

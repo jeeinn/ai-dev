@@ -38,7 +38,7 @@ func NewAgentLoop(provider llm.Provider, registry *ToolRegistry, model string, m
 		registry:       registry,
 		model:          model,
 		maxTokens:      maxTokens,
-		maxInputTokens: 65536,
+		maxInputTokens: config.DefaultMaxInputTokens,
 		temperature:    temperature,
 		maxIterations:  20,
 	}
@@ -52,7 +52,7 @@ func NewAgentLoopWithConfig(provider llm.Provider, registry *ToolRegistry, model
 		maxIter = 20
 	}
 	if maxInputTokens <= 0 {
-		maxInputTokens = 65536
+		maxInputTokens = config.DefaultMaxInputTokens
 	}
 
 	iterationInterval := time.Duration(0)
@@ -102,6 +102,9 @@ func (a *AgentLoop) SetConversationRecorder(recorder ConversationRecorder, taskI
 // Returns the final assistant message content.
 func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, error) {
 	tools := a.registry.ToLLMTools()
+	if a.modelMeta != nil && !a.modelMeta.SupportsTools {
+		tools = nil
+	}
 
 	for i := 0; i < a.maxIterations; i++ {
 		if err := ctx.Err(); err != nil {

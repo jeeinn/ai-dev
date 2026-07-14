@@ -279,9 +279,12 @@ func (m *ConfigManager) GetDisplayMap() (map[string]interface{}, error) {
 		sources[key] = "file"
 	}
 
-	// Build models metadata from file config providers
+	// Build models metadata from active (merged) providers so DB overlays are visible.
 	modelsMeta := make(map[string][]ModelDefinition)
-	for name, pc := range base.LLM.Providers {
+	m.mu.RLock()
+	activeProviders := m.active.LLM.Providers
+	m.mu.RUnlock()
+	for name, pc := range activeProviders {
 		models, _ := m.resolveProviderModels(name, pc)
 		modelsMeta[name] = models
 	}
@@ -403,11 +406,10 @@ func (m *ConfigManager) InvalidateAllModelCache() {
 
 // GetModelMeta returns the metadata for a specific model in a provider.
 // Returns nil if the model is not found.
+// Discovery errors are ignored here: GetProviderModels already returns fallback
+// models (builtin/custom) alongside the error, and callers still need metadata.
 func (m *ConfigManager) GetModelMeta(providerName, modelID string) *ModelDefinition {
-	models, _, err := m.GetProviderModels(providerName)
-	if err != nil {
-		return nil
-	}
+	models, _, _ := m.GetProviderModels(providerName)
 	for i := range models {
 		if models[i].ID == modelID {
 			return &models[i]

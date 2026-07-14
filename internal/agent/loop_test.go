@@ -138,3 +138,64 @@ func TestAgentLoopPersistsIterations(t *testing.T) {
 		t.Fatalf("expected final iteration to include assistant response")
 	}
 }
+
+// toolsCaptureProvider records whether Tools were sent in ChatRequest.
+type toolsCaptureProvider struct {
+	sawTools bool
+	called   bool
+}
+
+func (p *toolsCaptureProvider) ChatCompletion(ctx context.Context, req *llm.ChatRequest) (*llm.ChatResponse, error) {
+	p.called = true
+	p.sawTools = len(req.Tools) > 0
+	return &llm.ChatResponse{Content: "ok", FinishReason: "stop"}, nil
+}
+
+func TestAgentLoopOmitsToolsWhenModelDoesNotSupport(t *testing.T) {
+	provider := &toolsCaptureProvider{}
+	registry := NewToolRegistry()
+	registry.Register(&ToolDef{
+		Name:        "noop",
+		Description: "noop",
+		Parameters:  llm.Parameters{Type: "object", Properties: map[string]llm.Property{}},
+		Fn:          func(map[string]interface{}) (string, error) { return "ok", nil },
+	})
+	loop := NewAgentLoopWithConfig(provider, registry, "reasoner", 1024, 8192, 0.3, config.AgentLoopConfig{
+		MaxIterations: 1,
+	})
+	loop.SetModelMeta(&config.ModelDefinition{SupportsTools: false})
+
+	_, err := loop.Run(context.Background(), []llm.Message{{Role: "user", Content: "go"}})
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+	if !provider.called {
+		t.Fatal("expected provider to be called")
+	}
+	if provider.sawTools {
+		t.Fatal("expected Tools to be omitted when SupportsTools=false")
+	}
+}
+
+func TestAgentLoopSendsToolsWhenModelSupports(t *testing.T) {
+	provider := &toolsCaptureProvider{}
+	registry := NewToolRegistry()
+	registry.Register(&ToolDef{
+		Name:        "noop",
+		Description: "noop",
+		Parameters:  llm.Parameters{Type: "object", Properties: map[string]llm.Property{}},
+		Fn:          func(map[string]interface{}) (string, error) { return "ok", nil },
+	})
+	loop := NewAgentLoopWithConfig(provider, registry, "flash", 1024, 8192, 0.3, config.AgentLoopConfig{
+		MaxIterations: 1,
+	})
+	loop.SetModelMeta(&config.ModelDefinition{SupportsTools: true})
+
+	_, err := loop.Run(context.Background(), []llm.Message{{Role: "user", Content: "go"}})
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+	if !provider.sawTools {
+		t.Fatal("expected Tools to be sent when SupportsTools=true")
+	}
+}

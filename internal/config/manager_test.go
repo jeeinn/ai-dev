@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -291,15 +292,15 @@ func TestGetProviderModelsReturnsBuiltinCatalog(t *testing.T) {
 	// Verify known model exists
 	found := false
 	for _, mm := range models {
-		if mm.ID == "deepseek-v4" {
+		if mm.ID == "deepseek-v4-flash" {
 			found = true
-			assert.Equal(t, "DeepSeek V4", mm.Name)
-			assert.Equal(t, 128000, mm.ContextWindow)
+			assert.Equal(t, "DeepSeek V4 Flash", mm.Name)
+			assert.Equal(t, 1000000, mm.ContextWindow)
 			assert.True(t, mm.SupportsTools)
 			assert.False(t, mm.IsReasoning)
 		}
 	}
-	assert.True(t, found, "deepseek-v4 should be in builtin catalog")
+	assert.True(t, found, "deepseek-v4-flash should be in builtin catalog")
 }
 
 func TestGetProviderModelsReturnsCustomModels(t *testing.T) {
@@ -541,6 +542,32 @@ func TestUpdateProvidersInvalidatesCache(t *testing.T) {
 	assert.False(t, ok, "cache should be invalidated after llm.providers update")
 }
 
+func TestGetModelMetaUsesFallbackWhenDiscoveryFails(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"deepseek": {
+					BaseURL: "https://api.deepseek.com/v1",
+					APIKey:  "sk-test",
+					Models:  []ModelDefinition{}, // empty → discovery
+				},
+			},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+
+	prev := modelDiscoveryFn
+	SetModelDiscoveryFunc(func(name, baseURL, apiKey, providerType string) ([]string, error) {
+		return nil, fmt.Errorf("connection refused")
+	})
+	t.Cleanup(func() { SetModelDiscoveryFunc(prev) })
+
+	// Discovery fails but GetModelMeta should still resolve from builtin fallback
+	meta := m.GetModelMeta("deepseek", "deepseek-v4-flash")
+	require.NotNil(t, meta)
+	assert.Equal(t, 1000000, meta.ContextWindow)
+}
+
 func TestGetModelMeta(t *testing.T) {
 	fileCfg := &Config{
 		LLM: LLMConfig{
@@ -552,17 +579,22 @@ func TestGetModelMeta(t *testing.T) {
 	m := NewConfigManager(fileCfg)
 
 	// Known model
-	meta := m.GetModelMeta("deepseek", "deepseek-v4")
+	meta := m.GetModelMeta("deepseek", "deepseek-v4-flash")
 	require.NotNil(t, meta)
-	assert.Equal(t, "DeepSeek V4", meta.Name)
-	assert.Equal(t, 128000, meta.ContextWindow)
+	assert.Equal(t, "DeepSeek V4 Flash", meta.Name)
+	assert.Equal(t, 1000000, meta.ContextWindow)
+
+	// Legacy alias still resolvable
+	meta = m.GetModelMeta("deepseek", "deepseek-chat")
+	require.NotNil(t, meta)
+	assert.True(t, meta.SupportsTools)
 
 	// Unknown model
 	meta = m.GetModelMeta("deepseek", "nonexistent-model")
 	assert.Nil(t, meta)
 
 	// Unknown provider
-	meta = m.GetModelMeta("unknown", "deepseek-v4")
+	meta = m.GetModelMeta("unknown", "deepseek-v4-flash")
 	assert.Nil(t, meta)
 }
 

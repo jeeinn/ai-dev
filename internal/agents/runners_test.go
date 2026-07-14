@@ -194,3 +194,49 @@ func TestFinalizeWriteTaskPRCommentsWhenOpenPRExists(t *testing.T) {
 	assert.Equal(t, 3, result.PRID)
 	assert.Contains(t, result.Content, "Updated PR branch")
 }
+
+// stubModelMeta implements ModelMetaProvider for resolveMax* tests.
+type stubModelMeta struct {
+	defs map[string]*config.ModelDefinition
+}
+
+func (s *stubModelMeta) GetModelMeta(provider, model string) *config.ModelDefinition {
+	return s.defs[provider+"/"+model]
+}
+
+func TestResolveMaxTokensUsesModelWhenAgentZero(t *testing.T) {
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil)
+	factory.SetModelMetaProvider(&stubModelMeta{
+		defs: map[string]*config.ModelDefinition{
+			"deepseek/deepseek-v4-flash": {
+				ID:            "deepseek-v4-flash",
+				ContextWindow: 1000000,
+				MaxOutput:     32768,
+			},
+		},
+	})
+
+	// agentMax == 0 → model metadata
+	assert.Equal(t, 900000, factory.resolveMaxInputTokens(0, "deepseek", "deepseek-v4-flash"))
+	assert.Equal(t, 32768, factory.resolveMaxOutputTokens(0, "deepseek", "deepseek-v4-flash"))
+
+	// agentMax explicit, within limit
+	assert.Equal(t, 8192, factory.resolveMaxInputTokens(8192, "deepseek", "deepseek-v4-flash"))
+	assert.Equal(t, 1024, factory.resolveMaxOutputTokens(1024, "deepseek", "deepseek-v4-flash"))
+
+	// agentMax exceeds model limit → clamped
+	assert.Equal(t, 900000, factory.resolveMaxInputTokens(2000000, "deepseek", "deepseek-v4-flash"))
+	assert.Equal(t, 32768, factory.resolveMaxOutputTokens(99999, "deepseek", "deepseek-v4-flash"))
+
+	// unknown model + agentMax 0 → agents.defaults
+	assert.Equal(t, factory.defaultMaxInput, factory.resolveMaxInputTokens(0, "deepseek", "unknown"))
+	assert.Equal(t, factory.defaultMaxOutput, factory.resolveMaxOutputTokens(0, "deepseek", "unknown"))
+}
+
+func TestRecordTaskUsageCostPerThousandTokens(t *testing.T) {
+	// Verify cost formula: price is $/1K tokens
+	meta := &config.ModelDefinition{InputPrice: 1.0, OutputPrice: 2.0}
+	prompt, completion := 1000, 500
+	cost := (float64(prompt)*meta.InputPrice + float64(completion)*meta.OutputPrice) / 1000.0
+	assert.InDelta(t, 2.0, cost, 0.0001) // 1000*1/1000 + 500*2/1000 = 1 + 1 = 2
+}

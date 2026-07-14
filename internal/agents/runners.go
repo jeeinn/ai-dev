@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	fallbackMaxOutput = 2048
-	fallbackMaxInput  = 65536
+	fallbackMaxOutput = config.DefaultMaxOutputTokens
+	fallbackMaxInput  = config.DefaultMaxInputTokens
 	fallbackTemp      = 0.3
 	fallbackTimeout   = "5m"
 )
@@ -103,43 +103,57 @@ func (f *RunnerFactory) SetModelMetaProvider(m ModelMetaProvider) {
 	f.modelMeta = m
 }
 
+// resolveMaxOutputTokens priority: Agent explicit > model max_output > agents.defaults > fallback.
+// agentMax == 0 means "use model default" (not agents.defaults).
 func (f *RunnerFactory) resolveMaxOutputTokens(agentMax int, provider, model string) int {
-	base := f.defaultMaxOutput
-	if agentMax > 0 {
-		base = agentMax
-	}
-	// Clamp to model's max_output if known
+	var meta *config.ModelDefinition
 	if f.modelMeta != nil {
-		if meta := f.modelMeta.GetModelMeta(provider, model); meta != nil && meta.MaxOutput > 0 {
-			if base == 0 || base > meta.MaxOutput {
-				return meta.MaxOutput
-			}
+		meta = f.modelMeta.GetModelMeta(provider, model)
+	}
+
+	if agentMax > 0 {
+		if meta != nil && meta.MaxOutput > 0 && agentMax > meta.MaxOutput {
+			return meta.MaxOutput
 		}
+		return agentMax
 	}
-	if base <= 0 {
-		return fallbackMaxOutput
+
+	if meta != nil && meta.MaxOutput > 0 {
+		return meta.MaxOutput
 	}
-	return base
+	if f.defaultMaxOutput > 0 {
+		return f.defaultMaxOutput
+	}
+	return fallbackMaxOutput
 }
 
+// resolveMaxInputTokens priority: Agent explicit > model context_window*90% > agents.defaults > fallback.
+// agentMax == 0 means "use model default" (not agents.defaults).
 func (f *RunnerFactory) resolveMaxInputTokens(agentMax int, provider, model string) int {
-	base := f.defaultMaxInput
-	if agentMax > 0 {
-		base = agentMax
-	}
-	// Use 90% of model context window as upper limit (reserve 10% for output)
+	var meta *config.ModelDefinition
 	if f.modelMeta != nil {
-		if meta := f.modelMeta.GetModelMeta(provider, model); meta != nil && meta.ContextWindow > 0 {
-			modelLimit := int(float64(meta.ContextWindow) * 0.9)
-			if base == 0 || base > modelLimit {
-				return modelLimit
-			}
+		meta = f.modelMeta.GetModelMeta(provider, model)
+	}
+
+	modelLimit := 0
+	if meta != nil && meta.ContextWindow > 0 {
+		modelLimit = int(float64(meta.ContextWindow) * 0.9)
+	}
+
+	if agentMax > 0 {
+		if modelLimit > 0 && agentMax > modelLimit {
+			return modelLimit
 		}
+		return agentMax
 	}
-	if base <= 0 {
-		return fallbackMaxInput
+
+	if modelLimit > 0 {
+		return modelLimit
 	}
-	return base
+	if f.defaultMaxInput > 0 {
+		return f.defaultMaxInput
+	}
+	return fallbackMaxInput
 }
 
 // resolveTemperature returns agent.Temperature if explicitly set (> 0), otherwise the factory default.
@@ -178,7 +192,8 @@ func (f *RunnerFactory) recordTaskUsage(taskID int64, provider, model string, us
 		cost := 0.0
 		if f.modelMeta != nil {
 			if meta := f.modelMeta.GetModelMeta(provider, model); meta != nil {
-				cost = float64(usage.PromptTokens)*meta.InputPrice + float64(usage.CompletionTokens)*meta.OutputPrice
+				// InputPrice/OutputPrice are $/1K tokens
+				cost = (float64(usage.PromptTokens)*meta.InputPrice + float64(usage.CompletionTokens)*meta.OutputPrice) / 1000.0
 			}
 		}
 		if err := f.db.CreateTaskUsage(&store.TaskUsage{

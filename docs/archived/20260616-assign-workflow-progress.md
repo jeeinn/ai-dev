@@ -1,7 +1,7 @@
 # Assign 工作流 v2 — 完成总览
 
-> 设计依据：[trigger-rules-and-workflow-improvement.md](./trigger-rules-and-workflow-improvement.md)  
-> 任务清单：[TASKS.md](./TASKS.md)（待办）· 归档：[20260616-TASKS.md](./20260616-TASKS.md)
+> 设计依据：[20260615-trigger-rules-and-workflow-improvement.md](./20260615-trigger-rules-and-workflow-improvement.md)  
+> 任务清单：[TASKS.md](../TASKS.md)（待办）· 归档：[20260616-TASKS.md](./20260616-TASKS.md)
 
 **状态**：✅ **v2 全部完成**（2026-06-16）  
 **验收清单**：**11/11** 通过

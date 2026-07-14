@@ -4,7 +4,7 @@
 > 目标：在 v2 长期运行时愿景之上，明确 **编排层 vs 运行时** 边界，并以 **ExternalCLIRunner 最小改动** 优先接入 OpenCode（其次 Claude Code）。  
 > 部署目标：Linux / Windows（Host 模式）。定位：个人/小团队自用，最终开源。  
 > 前身：[20260714-server-runtime-design-v2.md](./20260714-server-runtime-design-v2.md)（v2，已归档）  
-> 状态：已归档；现行决策见 [server-runtime-design-v4.md](./server-runtime-design-v4.md)。
+> 状态：已归档；现行决策见 [server-runtime-design-v4.md](../server-runtime-design-v4.md)。
 
 ---
 
@@ -25,7 +25,7 @@
 
 v2 正确识别了长期方向：可复现环境、并发调度、项目记忆、可插拔 Agent。但对照当前代码（v2 Assign 模型已落地），存在三个落地 gap：
 
-1. **编排已有、运行时未抽象**：`workflow.SessionService`、`runWriteTask`、Gitea 回写已成熟；若按 v2 Phase 1 先做 worktree + HostProvider，会延迟 **OpenCode 接入**（已在 [todo-20260710-opencode-integration.md](./todo-20260710-opencode-integration.md) 标为高优先级）。
+1. **编排已有、运行时未抽象**：`workflow.SessionService`、`runWriteTask`、Gitea 回写已成熟；若按 v2 Phase 1 先做 worktree + HostProvider，会延迟 **OpenCode 接入**（已在 [20260710-opencode-integration.md](./20260710-opencode-integration.md) 标为高优先级；现行清单见 [../todo-20260714-opencode-path-a.md](../todo-20260714-opencode-path-a.md)）。
 2. **Session Continue 是产品核心**：PR 上 @mention 改代码依赖 Session 级固定 workspace；worktree 是并发优化，不能替换 Session 语义。
 3. **Agent 仍是进程内 Loop**：`agent.AgentLoop` 阻塞执行，无法 spawn `opencode` / `claude` CLI。
 
@@ -618,9 +618,9 @@ agents:
 ## 11. 相关文档
 
 - [20260714-server-runtime-design-v2.md](./20260714-server-runtime-design-v2.md) — 长期 Runtime 完整设计
-- [todo-20260710-opencode-integration.md](./todo-20260710-opencode-integration.md) — OpenCode 方案（v3 已吸收并细化）
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — 当前 Gateway 架构
-- [agent-development-decisions.md](./agent-development-decisions.md) — Host 模式决策
+- [20260710-opencode-integration.md](./20260710-opencode-integration.md) — OpenCode 早期方案（已归档；现行见 [../todo-20260714-opencode-path-a.md](../todo-20260714-opencode-path-a.md)）
+- [ARCHITECTURE.md](../ARCHITECTURE.md) — 当前 Gateway 架构
+- [20260601-agent-development-decisions.md](./20260601-agent-development-decisions.md) — Host 模式决策
 
 ---
 

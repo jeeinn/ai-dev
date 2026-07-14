@@ -98,7 +98,7 @@ go build -o gateway .
 2. Assign `coder-agent` → 等待 PR 创建  
 3. 在 PR 上 Request `review-agent` → 等待审查评论  
 
-详细联调清单见 [docs/v2-gitea-integration-checklist.md](docs/v2-gitea-integration-checklist.md)。
+详细联调清单见 [docs/archived/20260709-v2-gitea-integration-checklist.md](docs/archived/20260709-v2-gitea-integration-checklist.md)。
 
 ---
 
@@ -246,17 +246,18 @@ go vet ./...
 **续作**：在 Issue/PR 评论中 **@Agent用户名**；`/dev`、`/reply`、`/force` 控制行为。  
 **重置**：评论 `/gateway reset` 或 `POST /api/sessions/reset?repo=&issue=`。
 
-> v2 已弃用 `ai:analyze` / `ai:solve` 等 Label 触发及 routes 配置。迁移见 [设计文档 §11.2](docs/trigger-rules-and-workflow-improvement.md#112-从-label-触发迁移到-assign)。
+> v2 已弃用 `ai:analyze` / `ai:solve` 等 Label 触发及 routes 配置。迁移见 [设计文档 §11.2](docs/archived/20260615-trigger-rules-and-workflow-improvement.md#112-从-label-触发迁移到-assign)。
 
 ## 文档
 
-- [Agent 开发决策](docs/agent-development-decisions.md)
+- [技术架构](docs/ARCHITECTURE.md)
 - [任务清单](docs/TASKS.md)
-- [Assign 工作流 v2 设计](docs/trigger-rules-and-workflow-improvement.md)
-- [v2 完成总览](docs/assign-workflow-progress.md)
-- [Web UI 设计](docs/web-ui-design.md)
 - [部署指南](docs/DEPLOYMENT.md)
+- [服务器运行时设计 v4](docs/server-runtime-design-v4.md)
+- [平台策略：Gitea 优先（已归档）](docs/archived/20260714-coding-gateway-multi-vcs.md)
+- [Assign 工作流 v2 设计（已归档）](docs/archived/20260615-trigger-rules-and-workflow-improvement.md)
 - [测试指南](scripts/TESTING.md)
+- 更多历史文档见 [docs/archived/](docs/archived/)
 
 ## License
 

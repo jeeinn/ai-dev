@@ -1,7 +1,7 @@
 # 触发规则与工作流改进方案
 
 > 本文档整理自触发规则评估、实际研发场景讨论及与 ai-git-bot / wshm 等项目的对比，作为后续实现的参考。
-> 相关文档：[gitea-ai-agent-design.md](./gitea-ai-agent-design.md)、[ARCHITECTURE.md](./ARCHITECTURE.md)
+> 相关文档：[20260531-gitea-ai-agent-design.md](./20260531-gitea-ai-agent-design.md)、[ARCHITECTURE.md](../ARCHITECTURE.md)
 
 ## 一、背景与目标
 
@@ -635,7 +635,7 @@ v2 以 **Event Resolver + Agent Registry（role）** 完全替代基于 `routes`
 ### 11.4 文档与 CHANGELOG
 
 - CHANGELOG v2 明确 **Breaking**：移除 Label 触发与 routes API
-- [gitea-ai-agent-design.md](./gitea-ai-agent-design.md) 标注 Label 规范段落 superseded by 本文档
+- [20260531-gitea-ai-agent-design.md](./20260531-gitea-ai-agent-design.md) 标注 Label 规范段落 superseded by 本文档
 
 ---
 
@@ -653,7 +653,7 @@ v2 以 **Event Resolver + Agent Registry（role）** 完全替代基于 `routes`
 
 ## 十三、实现路线图
 
-> **状态**：Phase 16–19 已全部交付（2026-06-16）。详见 [assign-workflow-progress.md](./assign-workflow-progress.md)。
+> **状态**：Phase 16–19 已全部交付（2026-06-16）。详见 [20260616-assign-workflow-progress.md](./20260616-assign-workflow-progress.md)。
 
 ### P0 — 状态机与 Assign 主路径 ✅
 
@@ -700,9 +700,9 @@ v2 以 **Event Resolver + Agent Registry（role）** 完全替代基于 `routes`
 
 | 文档 | 关系 |
 |------|------|
-| [gitea-ai-agent-design.md](./gitea-ai-agent-design.md) | v3 Label 规范 **已 superseded**；v2 仅 Assign + 业务 Label |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | 需补充 Event Resolver；**删除** Router/Label 触发描述 |
-| [web-ui-design.md](./web-ui-design.md) | 删除触发规则页；Agent role + 工作流策略 + 状态面板 |
+| [20260531-gitea-ai-agent-design.md](./20260531-gitea-ai-agent-design.md) | v3 Label 规范 **已 superseded**；v2 仅 Assign + 业务 Label |
+| [ARCHITECTURE.md](../ARCHITECTURE.md) | 需补充 Event Resolver；**删除** Router/Label 触发描述 |
+| [20260603-web-ui-design.md](./20260603-web-ui-design.md) | 删除触发规则页；Agent role + 工作流策略 + 状态面板 |
 
 ---
 

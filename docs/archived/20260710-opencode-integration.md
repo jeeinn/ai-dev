@@ -1,9 +1,9 @@
-# TODO: OpenCode 后端接入方案
+# TODO: OpenCode 后端接入方案（早期稿）
 
-> 状态：规划中
-> 创建日期：2026-07-10
-> 优先级：高
-> 目标版本：v0.5
+> 状态：**已归档** — 方案已被 [server-runtime-design-v4](../server-runtime-design-v4.md) 取代（HTTP/`opencode serve` 优先，非 CLI 主路径）  
+> 未完成实施清单见 [`../todo-20260714-opencode-path-a.md`](../todo-20260714-opencode-path-a.md)  
+> 创建日期：2026-07-10  
+> 归档日期：2026-07-14
 
 ---
 

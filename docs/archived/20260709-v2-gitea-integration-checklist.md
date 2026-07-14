@@ -2,7 +2,7 @@
 
 > **分支**：`feature/assign-workflow-v2`  
 > **适用提交**：`9030a90`（P0）→ `71ec850`（P1-2）  
-> **设计依据**：[trigger-rules-and-workflow-improvement.md](./trigger-rules-and-workflow-improvement.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)
+> **设计依据**：[20260615-trigger-rules-and-workflow-improvement.md](./20260615-trigger-rules-and-workflow-improvement.md) · [ARCHITECTURE.md](../ARCHITECTURE.md)
 
 本文档用于在**真实 Gitea 实例**上验证 v2 Assign 工作流。集成测试（15 项 workflow + policy/resolver 单测）已通过；本清单覆盖自动化测试无法替代的人工观测项。
 

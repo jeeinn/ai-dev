@@ -1,7 +1,24 @@
 # 任务执行文档
 
-> 当前待办：**Phase 14 沙箱增强** + 下方可选项。  
-> v2 Assign 工作流（Phase 16–19）已于 2026-06-16 完成，见 [20260616-TASKS.md](20260616-TASKS.md)。
+> 当前待办：**Phase 14 沙箱增强** + 下方可选项 + OpenCode / LLM 扩展方案。  
+> v2 Assign 工作流（Phase 16–19）已于 2026-06-16 完成，见 [archived/20260616-TASKS.md](archived/20260616-TASKS.md)。  
+> 平台策略（Gitea 优先）：见 [archived/20260714-coding-gateway-multi-vcs.md](archived/20260714-coding-gateway-multi-vcs.md)。
+
+---
+
+## 当前文档（docs 根目录）
+
+| 文档 | 说明 |
+|------|------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 现行技术架构 |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | 部署与运维 |
+| [server-runtime-design-v4.md](server-runtime-design-v4.md) | 服务器端 Agent 运行时（现行） |
+| [sandbox-roadmap.md](sandbox-roadmap.md) | Phase 14 沙箱增强（进行中） |
+| [llm-prompt-design.md](llm-prompt-design.md) | Prompt 设计 |
+| [todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md) | OpenCode Path A（未完成） |
+| [todo-20260714-LLMProvider-可选增强.md](todo-20260714-LLMProvider-可选增强.md) | LLM 剩余可选增强（P2） |
+
+历史设计、已完成阶段任务与决策归档见 [`archived/`](archived/)。
 
 ---
 
@@ -9,14 +26,15 @@
 
 | 阶段 | 内容 | 归档 |
 |------|------|------|
-| Phase 1–13 | 项目骨架 → 集成收尾 | [20260604-TASKS.md](20260604-TASKS.md) |
+| Phase 1–13 | 项目骨架 → 集成收尾 | [archived/20260604-TASKS.md](archived/20260604-TASKS.md) |
 | Phase 14.5 | Agent 迭代控制配置化 | [sandbox-roadmap.md](sandbox-roadmap.md) |
-| Phase 15 | Web UI 优化 | [20260605-TASKS.md](20260605-TASKS.md) |
-| Phase 16–19 | Assign 工作流 v2 | [20260616-TASKS.md](20260616-TASKS.md) |
+| Phase 15 | Web UI 优化 | [archived/20260605-TASKS.md](archived/20260605-TASKS.md) |
+| Phase 16–19 | Assign 工作流 v2 | [archived/20260616-TASKS.md](archived/20260616-TASKS.md) |
+| 平台策略 | Gitea 优先（多平台不做） | [archived/20260714-coding-gateway-multi-vcs.md](archived/20260714-coding-gateway-multi-vcs.md) |
 
-参考：[assign-workflow-progress.md](assign-workflow-progress.md) · [trigger-rules-and-workflow-improvement.md](trigger-rules-and-workflow-improvement.md) · [ARCHITECTURE.md](ARCHITECTURE.md)
+参考：[archived/20260616-assign-workflow-progress.md](archived/20260616-assign-workflow-progress.md) · [archived/20260615-trigger-rules-and-workflow-improvement.md](archived/20260615-trigger-rules-and-workflow-improvement.md) · [ARCHITECTURE.md](ARCHITECTURE.md)
 
-端到端测试报告：[20260605-e2e-test-report.md](20260605-e2e-test-report.md)（v2 主路径见 `tests/integration/workflow_test.go` 13 项）
+端到端测试报告：[archived/20260605-e2e-test-report.md](archived/20260605-e2e-test-report.md)（v2 主路径见 `tests/integration/workflow_test.go`）
 
 ---
 
@@ -30,6 +48,11 @@
 - [ ] 14.2 更丰富的上下文工具
 - [ ] 14.3 配置化的超时和限制
 - [ ] 14.4 安全增强
+
+### 运行时 / 模型（规划中）
+
+- [ ] OpenCode Path A — [todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md) · [server-runtime-design-v4.md](server-runtime-design-v4.md)
+- [ ] LLM Provider 可选增强（tiktoken / 摘要 / 成本预算）— [todo-20260714-LLMProvider-可选增强.md](todo-20260714-LLMProvider-可选增强.md)（主方案已归档）
 
 ---
 
@@ -46,8 +69,8 @@
 
 ### 工作流 / 多仓库
 
-- [ ] **WorkflowPolicy 按 repo DB 覆盖** — 同一 Gateway 多仓库时，各 repo 独立 L2 门禁（全局 preset + per-repo 覆盖）；见设计文档 §5.7.2
-- [ ] 阶段切换时 Gitea unassign 上一 Agent（设计 §5.6 / 原 18.5，已跳过）
+- [ ] **WorkflowPolicy 按 repo DB 覆盖** — 同一 Gateway 多仓库时，各 repo 独立 L2 门禁（全局 preset + per-repo 覆盖）
+- [ ] 阶段切换时 Gitea unassign 上一 Agent
 - [ ] 组织级 Webhook 注册指引补充（DEPLOYMENT 扩展）
 
 ### 运维 / 文档

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
 
 	agentpkg "gitea-agent-gateway/internal/agent"
@@ -502,118 +500,25 @@ func (r *BugfixRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 }
 
 // runWriteTask is the shared implementation for write-type runners.
+//
+// Structure (extracted in P0.2):
+//   prepareWriteWorkspace → coding phase (AgentLoop) → finalizeWriteChanges
 func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	factory *RunnerFactory, taskSubType string) (*Result, error) {
 
-	// Parse repo owner/name
-	parts := strings.SplitN(task.Repo, "/", 2)
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid repo format: %s", task.Repo)
-	}
-	owner, repo := parts[0], parts[1]
-
-	// Get Gitea client
-	client := factory.giteaFactory.GetGiteaClient(agentCfg.GiteaToken)
-
-	// Get repo info for clone URL
-	repoInfo, err := client.GetRepo(owner, repo)
+	// Phase 1: prepare workspace (sandbox / clone / branch)
+	wwc, err := prepareWriteWorkspace(ctx, task, agentCfg, factory, taskSubType)
 	if err != nil {
-		return nil, fmt.Errorf("get repo info: %w", err)
+		return nil, err
 	}
-	cloneURL, err := gitea.AuthenticatedCloneURL(repoInfo.CloneURL, agentCfg.GiteaUsername, agentCfg.GiteaToken)
-	if err != nil {
-		return nil, fmt.Errorf("authenticated clone url: %w", err)
-	}
-	redactedCloneURL := gitea.RedactCloneURL(cloneURL)
-
-	// Determine workspace strategy: session-level or task-level
-	var sb *sandbox.Sandbox
-	useSessionWorkspace := false
-	var sessionBranch string
-
-	if task.SessionID != "" && factory.db != nil {
-		// Look up session for workspace reuse
-		if session, err := factory.db.GetSession(task.SessionID); err == nil && session.WorkspacePath != "" {
-			useSessionWorkspace = true
-			sessionBranch = session.Branch
-			sb = sandbox.NewWithPath(factory.sandboxCfg, task.ID, session.WorkspacePath)
-			log.Printf("[INFO] Using session workspace: %s", session.WorkspacePath)
-		}
-	}
-
-	if sb == nil {
-		sb = sandbox.New(factory.sandboxCfg, task.ID)
-	}
-
-	if err := sb.Setup(); err != nil {
-		return nil, fmt.Errorf("setup sandbox: %w", err)
-	}
-
 	// Only cleanup for non-session workspaces (session workspaces persist)
-	if !useSessionWorkspace {
-		defer sb.Cleanup()
+	if !wwc.UseSession {
+		defer wwc.Sandbox.Cleanup()
 	}
 
-	// Create audit logger
-	audit := sandbox.NewAuditLogger(factory.db, task.ID, agentCfg.ID)
+	sb := wwc.Sandbox
 
-	// Clone or fetch repository
-	git := sandbox.NewGit(sb)
-
-	if useSessionWorkspace && sb.WorkDir != "" {
-		// Check if the session workspace already has a git repo
-		gitDir := filepath.Join(sb.WorkDir, ".git")
-		if _, statErr := os.Stat(gitDir); statErr == nil {
-			log.Printf("[INFO] Session workspace has existing repo, syncing")
-			if err := syncSessionWorkspace(sb, git, audit, task, sessionBranch); err != nil {
-				return nil, err
-			}
-		} else {
-			// New session workspace — clone
-			cloneResult := git.Clone(cloneURL)
-			audit.LogCommand("git", []string{"clone", redactedCloneURL}, cloneResult)
-			if cloneResult.Error != nil {
-				errMsg := cloneResult.Stderr
-				if errMsg == "" {
-					errMsg = cloneResult.Error.Error()
-				}
-				return nil, fmt.Errorf("clone repo: %s", errMsg)
-			}
-		}
-	} else {
-		// Standard task-level clone
-		cloneResult := git.Clone(cloneURL)
-		audit.LogCommand("git", []string{"clone", redactedCloneURL}, cloneResult)
-		if cloneResult.Error != nil {
-			errMsg := cloneResult.Stderr
-			if errMsg == "" {
-				errMsg = cloneResult.Error.Error()
-			}
-			return nil, fmt.Errorf("clone repo: %s", errMsg)
-		}
-	}
-
-	branchName, isExistingBranch := resolveBranchPlan(task, sessionBranch, taskSubType, git)
-
-	if isExistingBranch {
-		if err := prepareExistingBranch(sb, git, audit, branchName); err != nil {
-			return nil, err
-		}
-		log.Printf("[INFO] Checked out existing branch: %s", branchName)
-	} else {
-		// Create new branch
-		branchResult := git.CreateBranch(branchName)
-		audit.LogCommand("git", []string{"checkout", "-b", branchName}, branchResult)
-		if branchResult.Error != nil {
-			errMsg := branchResult.Stderr
-			if errMsg == "" {
-				errMsg = branchResult.Error.Error()
-			}
-			return nil, fmt.Errorf("create branch: %s", errMsg)
-		}
-		saveSessionBranch(factory, task, branchName)
-	}
-
+	// Phase 2: coding (AgentLoop with internal backend)
 	// Get LLM provider
 	provider, err := factory.llmRegistry.Get(agentCfg.Provider)
 	if err != nil {
@@ -690,50 +595,8 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 
 	log.Printf("[INFO] Task %d agent loop completed", task.ID)
 
-	// Check if there are changes to commit
-	if !git.HasChanges() {
-		return &Result{
-			Content: result,
-			Action:  "comment",
-		}, nil
-	}
-
-	// Stage and commit
-	git.Add()
-	commitMsg := GenerateCommitMessage(ctx, CommitMessageInput{
-		Git:          git,
-		Provider:     provider,
-		Model:        agentCfg.Model,
-		Temperature:  factory.resolveTemperature(agentCfg.Temperature, agentCfg.Provider, agentCfg.Model),
-		TaskSubType:  taskSubType,
-		Task:         task,
-		AgentSummary: result,
-	})
-	log.Printf("[INFO] Task %d commit message: %s", task.ID, commitMsg)
-	commitResult := git.Commit(commitMsg)
-	audit.LogCommand("git", []string{"commit"}, commitResult)
-	if commitResult.Error != nil {
-		return nil, fmt.Errorf("commit: %w", commitResult.Error)
-	}
-
-	// Push to remote
-	pushResult := git.Push("origin", branchName)
-	audit.LogCommand("git", []string{"push", "origin", branchName}, pushResult)
-	if pushResult.Error != nil {
-		errMsg := pushResult.Stderr
-		if errMsg == "" {
-			errMsg = pushResult.Error.Error()
-		}
-		return nil, fmt.Errorf("push: %s", errMsg)
-	}
-
-	// Update session branch after successful push
-	if useSessionWorkspace {
-		saveSessionBranch(factory, task, branchName)
-	}
-
-	adminClient := factory.giteaFactory.GetAdminGiteaClient()
-	return finalizeWriteTaskPR(adminClient, owner, repo, branchName, repoInfo.DefaultBranch, task, taskSubType, result)
+	// Phase 3: finalize (commit / push / PR)
+	return finalizeWriteChanges(ctx, wwc, task, agentCfg, factory, provider, taskSubType, result)
 }
 
 // finalizeWriteTaskPR comments on an existing open PR or creates one if the branch has no open PR yet.

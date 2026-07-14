@@ -32,8 +32,8 @@
 
 设计：[server-runtime-design-v4.md](server-runtime-design-v4.md) §4.5 / A2
 
-- [ ] `prepareWriteWorkspace` / `finalizeWriteChanges`（**零行为变更**，独立可合并）
-- [ ] 预留只读 `prepareAnalyzeWorkspace`（浅 clone、不建分支）形状，避免两套 clone
+- [x] `prepareWriteWorkspace` / `finalizeWriteChanges`（**零行为变更**，独立可合并）
+- [x] 预留只读 `prepareAnalyzeWorkspace`（浅 clone、不建分支）形状，避免两套 clone
 
 ### 3. OpenCode Path A
 

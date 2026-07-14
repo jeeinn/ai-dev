@@ -59,9 +59,9 @@ func (db *DB) migrate() error {
 			gitea_token        TEXT NOT NULL,
 			avatar_url         TEXT DEFAULT '',
 			provider           TEXT NOT NULL DEFAULT 'deepseek',
-			model              TEXT NOT NULL DEFAULT 'deepseek-chat',
-			max_output_tokens  INTEGER DEFAULT 2048,
-			max_input_tokens   INTEGER DEFAULT 65536,
+			model              TEXT NOT NULL DEFAULT 'deepseek-v4-flash',
+			max_output_tokens  INTEGER DEFAULT 8192,
+			max_input_tokens   INTEGER DEFAULT 115200,
 			temperature        REAL DEFAULT 0.3,
 			timeout            TEXT DEFAULT '5m',
 			system_prompt      TEXT NOT NULL DEFAULT '',
@@ -306,11 +306,11 @@ func (db *DB) migrateAgentTokenBudget() error {
 			out = loopCfg.MaxTokens
 		}
 		if out <= 0 {
-			out = 2048
+			out = 8192
 		}
 		in := r.in
 		if in <= 0 {
-			in = 65536
+			in = 115200
 		}
 		timeout := r.timeout
 		if timeout == "" {

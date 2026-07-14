@@ -202,13 +202,21 @@ func DefaultAgentLoopConfig() AgentLoopConfig {
 	}
 }
 
+// Mainstream fallback token budgets when model metadata is unavailable.
+// Aligned with typical 128K-context models (GPT-4o / Claude / many OpenAI-compatible APIs).
+const (
+	DefaultMaxOutputTokens = 8192
+	DefaultMaxInputTokens  = 115200 // 128000 * 0.9
+)
+
 // DefaultAgentDefaults returns default agent budget/timeout settings.
+// When model metadata is available, Agent max_*=0 resolves to that model instead.
 func DefaultAgentDefaults() AgentDefaultsConfig {
 	return AgentDefaultsConfig{
 		Provider:        "deepseek",
-		Model:           "deepseek-chat",
-		MaxOutputTokens: 2048,
-		MaxInputTokens:  65536,
+		Model:           "deepseek-v4-flash",
+		MaxOutputTokens: DefaultMaxOutputTokens,
+		MaxInputTokens:  DefaultMaxInputTokens,
 		Temperature:     0.3,
 		Timeout:         "5m",
 	}

@@ -217,16 +217,20 @@ func intPtr(i int) *int {
 
 // BuiltinModelCatalog is the built-in model metadata for common providers.
 // Users can override or extend via ProviderConfig.Models.
+// Official DeepSeek API model IDs (api-docs.deepseek.com, as of 2026-04-24):
+//   deepseek-v4-pro, deepseek-v4-flash
+// Legacy aliases deepseek-chat / deepseek-reasoner route to v4-flash and
+// are deprecated on 2026-07-24 UTC.
 var BuiltinModelCatalog = map[string][]ModelDefinition{
 	"deepseek": {
 		{
-			ID:            "deepseek-v4",
-			Name:          "DeepSeek V4",
+			ID:            "deepseek-v4-pro",
+			Name:          "DeepSeek V4 Pro",
 			ContextWindow: 1000000,
 			MaxOutput:     32768,
 			SupportsTools: true,
 			IsReasoning:   false,
-			Description:   "DeepSeek V4 旗舰模型，综合能力强，百万上下文",
+			Description:   "DeepSeek V4 Pro 旗舰模型，综合能力强，百万上下文",
 			InputPrice:    0.015,
 			OutputPrice:   0.025,
 		},
@@ -237,32 +241,34 @@ var BuiltinModelCatalog = map[string][]ModelDefinition{
 			MaxOutput:     32768,
 			SupportsTools: true,
 			IsReasoning:   false,
-			Description:   "DeepSeek V4 快速版本，性价比高，百万上下文",
+			Description:   "DeepSeek V4 Flash 快速版本，性价比高，百万上下文",
 			InputPrice:    0.008,
 			OutputPrice:   0.012,
 			DefaultParams: ModelParams{Temperature: floatPtr(0.5)},
 		},
 		{
-			ID:            "deepseek-v4-lite",
-			Name:          "DeepSeek V4 Lite",
-			ContextWindow: 512000,
-			MaxOutput:     16384,
+			// Legacy alias → deepseek-v4-flash (non-thinking); retired 2026-07-24
+			ID:            "deepseek-chat",
+			Name:          "DeepSeek Chat (legacy)",
+			ContextWindow: 1000000,
+			MaxOutput:     32768,
 			SupportsTools: true,
 			IsReasoning:   false,
-			Description:   "DeepSeek V4 轻量版，极致性价比",
-			InputPrice:    0.003,
-			OutputPrice:   0.006,
+			Description:   "兼容别名，指向 deepseek-v4-flash 非思考模式；2026-07-24 起停用",
+			InputPrice:    0.008,
+			OutputPrice:   0.012,
 		},
 		{
+			// Legacy alias → deepseek-v4-flash (thinking); retired 2026-07-24
 			ID:            "deepseek-reasoner",
-			Name:          "DeepSeek Reasoner",
-			ContextWindow: 128000,
-			MaxOutput:     8192,
+			Name:          "DeepSeek Reasoner (legacy)",
+			ContextWindow: 1000000,
+			MaxOutput:     32768,
 			SupportsTools: false,
 			IsReasoning:   true,
-			Description:   "推理专用模型，支持思维链输出",
-			InputPrice:    0.02,
-			OutputPrice:   0.03,
+			Description:   "兼容别名，指向 deepseek-v4-flash 思考模式；2026-07-24 起停用",
+			InputPrice:    0.008,
+			OutputPrice:   0.012,
 		},
 	},
 	"openai": {

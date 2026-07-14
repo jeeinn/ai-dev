@@ -201,7 +201,7 @@ func (h *Handler) testLLMConfig(w http.ResponseWriter, r *http.Request) {
 	model := strings.TrimSpace(firstNonEmpty(
 		asString(payload["llm.defaults.model"]),
 		h.stringConfigValue("llm.defaults.model"),
-		"deepseek-chat",
+		"deepseek-v4-flash",
 	))
 
 		maxTokens := 8

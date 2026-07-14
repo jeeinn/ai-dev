@@ -46,27 +46,35 @@ logging:
 llm:
   providers:
     # DeepSeek（推荐，性价比高）
+    # models 未设置 → 使用内置模型目录
     deepseek:
       base_url: "https://api.deepseek.com/v1"
       api_key: "${DEEPSEEK_API_KEY}"
+      type: "openai_compatible"
+      default_params:
+        temperature: 0.7
 
-    # OpenAI
+    # OpenAI — models: [] → 启用动态发现（调用 /models API）
     # openai:
     #   base_url: "https://api.openai.com/v1"
     #   api_key: "${OPENAI_API_KEY}"
+    #   type: "openai_compatible"
+    #   models: []
 
-    # Claude（Anthropic）
+    # Claude（Anthropic）— 无公开 /models，始终使用内置目录
     # claude:
     #   api_key: "${ANTHROPIC_API_KEY}"
+    #   type: "anthropic"
 
-    # 本地 Ollama
+    # 本地 Ollama — models: [] → 调用 /api/tags 动态发现
     # ollama:
     #   base_url: "http://localhost:11434/v1"
     #   api_key: "ollama"
+    #   models: []
 
   defaults:
     provider: "deepseek"
-    model: "deepseek-chat"
+    model: "deepseek-v4-flash"
 
   # 单次 ChatCompletion 遇 HTTP 429 后的重试次数（需 rate_limit_backoff > 0）
   rate_limit_retries: 1
@@ -87,9 +95,9 @@ api:
 agents:
   defaults:
     provider: "deepseek"
-    model: "deepseek-chat"
-    max_output_tokens: 2048
-    max_input_tokens: 65536
+    model: "deepseek-v4-flash"
+    max_output_tokens: 8192
+    max_input_tokens: 115200  # ~128K 上下文的 90%，主流模型安全兜底
     temperature: 0.3
     timeout: "5m"           # 单次任务（analyze/review/reply）总超时
 

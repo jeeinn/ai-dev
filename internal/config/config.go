@@ -83,7 +83,7 @@ func applyDefaults(cfg *Config) {
 		cfg.LLM.Defaults.Provider = "deepseek"
 	}
 	if cfg.LLM.Defaults.Model == "" {
-		cfg.LLM.Defaults.Model = "deepseek-chat"
+		cfg.LLM.Defaults.Model = "deepseek-v4-flash"
 	}
 	defs := DefaultAgentDefaults()
 	if cfg.Agents.Defaults.Provider == "" {

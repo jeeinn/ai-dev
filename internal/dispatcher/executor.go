@@ -205,6 +205,7 @@ func (e *Executor) execute(task *store.Task) {
 //   - runErr != nil                       -> failed  (existing behavior)
 //   - runErr == nil, writeback succeeds   -> success (existing behavior)
 //   - runErr == nil, writeback fails      -> partial (NEW: previously silent success)
+//   - runErr == nil, writeback skipped    -> partial (NEW: e.g. no factory, empty result, no target)
 //
 // For partial, task.Result is still persisted so a human can inspect what the
 // runner produced; task.Error carries the writeback error; onFailed (not
@@ -334,19 +335,16 @@ func writebackTargetID(task *store.Task) (targetID int, ok bool) {
 // writeBackToGitea posts the LLM result as a comment on the Gitea issue/PR.
 func (e *Executor) writeBackToGitea(task *store.Task) error {
 	if e.giteaFactory == nil {
-		log.Printf("[DEBUG] No Gitea factory configured, skipping writeback for task %d", task.ID)
-		return nil
+		return fmt.Errorf("no Gitea factory configured, writeback skipped")
 	}
 
 	if task.Result == "" {
-		log.Printf("[DEBUG] No result to write back for task %d", task.ID)
-		return nil
+		return fmt.Errorf("no result to write back")
 	}
 
 	targetID, ok := writebackTargetID(task)
 	if !ok {
-		log.Printf("[DEBUG] No issue/PR target for task %d, skipping writeback", task.ID)
-		return nil
+		return fmt.Errorf("no issue/PR target for writeback")
 	}
 
 	agent, err := e.db.GetAgent(task.AgentID)

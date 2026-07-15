@@ -45,7 +45,7 @@
 - [x] A3 health：失败 → 任务 **failed**（可读错误评论）；默认不静默降级；可选 `allow_fallback_internal`
 - [x] A4 mock 测试
 - [x] A4 运维说明（ARCHITECTURE / DEPLOYMENT）
-- [ ] A4 WebUI backend 下拉（可后置）
+- [x] A4 WebUI backend 下拉（可后置）
 
 **约束**：默认 `internal`；Analyze / Review 永不走 OpenCode。
 **已知缺口**：Sandbox / Session `workspace` 双轨 base_dir 属 P1.6；A0 本机端到端 PoC 待人工验收。

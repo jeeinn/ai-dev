@@ -283,15 +283,33 @@ func (m *ConfigManager) GetDisplayMap() (map[string]interface{}, error) {
 	modelsMeta := make(map[string][]ModelDefinition)
 	m.mu.RLock()
 	activeProviders := m.active.LLM.Providers
+	activeBackends := m.active.Agents.Backends
 	m.mu.RUnlock()
 	for name, pc := range activeProviders {
 		models, _ := m.resolveProviderModels(name, pc)
 		modelsMeta[name] = models
 	}
 
+	backendsMeta := make([]map[string]interface{}, 0, len(activeBackends.Backends)+1)
+	backendsMeta = append(backendsMeta, map[string]interface{}{
+		"name": "internal",
+		"type": BackendTypeBuiltin,
+	})
+	for name, bc := range activeBackends.Backends {
+		if name == "internal" {
+			continue
+		}
+		backendsMeta = append(backendsMeta, map[string]interface{}{
+			"name": name,
+			"type": bc.Type,
+		})
+	}
+
 	result["_meta"] = map[string]interface{}{
-		"sources": sources,
-		"models":  modelsMeta,
+		"sources":  sources,
+		"models":   modelsMeta,
+		"backends": backendsMeta,
+		"backends_default": activeBackends.Default,
 	}
 	return result, nil
 }

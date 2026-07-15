@@ -50,6 +50,8 @@ function parseLoopDefaults(data) {
 
 export function useAgentDefaults() {
   const providers = ref({})
+  const backends = ref([])
+  const backendDefault = ref('internal')
   const agentDefaults = ref({
     provider: 'deepseek',
     model: 'deepseek-v4-flash',
@@ -79,8 +81,17 @@ export function useAgentDefaults() {
         timeout: (data['agents.defaults.timeout'] || DEFAULT_AGENT_TIMEOUT).trim()
       }
       loopDefaults.value = parseLoopDefaults(data)
+
+      if (data?._meta?.backends && Array.isArray(data._meta.backends)) {
+        backends.value = data._meta.backends
+      } else {
+        backends.value = [{ name: 'internal', type: 'builtin' }]
+      }
+      backendDefault.value = data?._meta?.backends_default || 'internal'
     } catch {
       providers.value = {}
+      backends.value = [{ name: 'internal', type: 'builtin' }]
+      backendDefault.value = 'internal'
     }
   }
 
@@ -99,6 +110,7 @@ export function useAgentDefaults() {
     role: 'analyze',
     provider: agentDefaults.value.provider,
     model: agentDefaults.value.model,
+    backend: backendDefault.value || 'internal',
     // 0 = optional override off → resolve from model meta at runtime
     max_output_tokens: 0,
     max_input_tokens: 0,
@@ -116,6 +128,8 @@ export function useAgentDefaults() {
   return {
     providers,
     providerNames,
+    backends,
+    backendDefault,
     agentDefaults,
     loopDefaults,
     loadAgentConfig,

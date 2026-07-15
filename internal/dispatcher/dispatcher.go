@@ -12,6 +12,7 @@ import (
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
 	"gitea-agent-gateway/internal/workflow"
@@ -46,6 +47,7 @@ func NewDispatcher(
 	dispatcherCfg *config.DispatcherConfig,
 	llmRegistry *llm.Registry,
 	agentsCfg *config.AgentsConfig,
+	sandboxCfg sandbox.SandboxConfig,
 ) *Dispatcher {
 	queue := NewTaskQueue(db, dispatcherCfg.QueueSize)
 	agentDefaults := config.DefaultAgentDefaults()
@@ -71,6 +73,7 @@ func NewDispatcher(
 		db,
 		agentDefaults,
 		resolveDefaultLoop(agentsCfg),
+		sandboxCfg,
 	)
 
 	d := &Dispatcher{

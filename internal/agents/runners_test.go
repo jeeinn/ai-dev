@@ -67,7 +67,7 @@ func (m *mockProviderWithToolCalls) ChatCompletion(ctx context.Context, req *llm
 }
 
 func TestRunnerFactoryGetRunner(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil, sandbox.DefaultConfig())
 
 	tests := []struct {
 		taskType string
@@ -95,7 +95,7 @@ func TestAnalyzeRunnerRun(t *testing.T) {
 	registry.Register("mock", &mockProvider{response: "Analysis result"})
 
 	factory := &mockGiteaFactory{}
-	runnerFactory := NewRunnerFactory(registry, factory, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
+	runnerFactory := NewRunnerFactory(registry, factory, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil, sandbox.DefaultConfig())
 	runner := NewAnalyzeRunner(runnerFactory)
 
 	task := &store.Task{
@@ -147,7 +147,7 @@ func TestSaveSessionBranch(t *testing.T) {
 	}
 	require.NoError(t, db.CreateSession(session))
 
-	factory := NewRunnerFactory(nil, nil, db, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
+	factory := NewRunnerFactory(nil, nil, db, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil, sandbox.DefaultConfig())
 	task := &store.Task{SessionID: session.ID}
 
 	saveSessionBranch(factory, task, "ai/dev/issue-2")
@@ -227,7 +227,7 @@ func (s *stubModelMeta) GetModelMeta(provider, model string) *config.ModelDefini
 }
 
 func TestResolveMaxTokensUsesModelWhenAgentZero(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil, sandbox.DefaultConfig())
 	factory.SetModelMetaProvider(&stubModelMeta{
 		defs: map[string]*config.ModelDefinition{
 			"deepseek/deepseek-v4-flash": {
@@ -326,7 +326,7 @@ func TestAnalyzeRunnerLoopPath(t *testing.T) {
 	registry := &llm.Registry{}
 	registry.Register("mock", provider)
 
-	factory := NewRunnerFactory(registry, giteaFactory, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
+	factory := NewRunnerFactory(registry, giteaFactory, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil, sandbox.DefaultConfig())
 	// Use ModeTemp to avoid workspace directory conflicts between tests
 	factory.sandboxCfg = sandbox.SandboxConfig{Mode: sandbox.ModeTemp, CommandTimeout: 30 * time.Second}
 	runner := NewAnalyzeRunner(factory)

@@ -21,6 +21,7 @@ import (
 	"gitea-agent-gateway/internal/dispatcher"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/logging"
+	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
 	"gitea-agent-gateway/internal/workflow"
@@ -106,8 +107,10 @@ func main() {
 	llmRegistry := llm.NewRegistry(&activeCfg.LLM)
 	llmRegistry.SetRateLimitBackoff(activeCfg.Dispatcher.RateLimitBackoff, activeCfg.LLM.RateLimitRetries)
 
+	sandboxCfg := parseSandboxConfig(&activeCfg.Sandbox)
+
 	// Initialize dispatcher (Router + TaskQueue + Executor)
-	d := dispatcher.NewDispatcher(db, &activeCfg.Gitea, &activeCfg.Dispatcher, llmRegistry, &activeCfg.Agents)
+	d := dispatcher.NewDispatcher(db, &activeCfg.Gitea, &activeCfg.Dispatcher, llmRegistry, &activeCfg.Agents, sandboxCfg)
 	d.SetDebugConfigGetter(func() config.DebugConfig {
 		return cfgManager.Get().Debug
 	})
@@ -247,4 +250,20 @@ func main() {
 	}
 
 	log.Println("[INFO] Server exited cleanly")
+}
+
+func parseSandboxConfig(cfg *config.SandboxConfig) sandbox.SandboxConfig {
+	cmdTimeout, _ := time.ParseDuration(cfg.CommandTimeout)
+	taskTimeout, _ := time.ParseDuration(cfg.TaskTimeout)
+	cleanupAfter, _ := time.ParseDuration(cfg.CleanupAfter)
+
+	return sandbox.SandboxConfig{
+		Mode:           sandbox.SandboxMode(cfg.Mode),
+		BaseDir:        cfg.BaseDir,
+		CommandTimeout: cmdTimeout,
+		TaskTimeout:    taskTimeout,
+		MaxOutput:      cfg.MaxOutput,
+		MaxFileSize:    cfg.MaxFileSize,
+		CleanupAfter:   cleanupAfter,
+	}
 }

@@ -55,7 +55,7 @@ func TestFinalizeWriteChangesNoChangesReturnsComment(t *testing.T) {
 	task := &store.Task{ID: 9001, Repo: "owner/repo"}
 	agent := &store.Agent{Provider: "mock", Model: "m"}
 
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil, sandbox.DefaultConfig())
 
 	result, err := finalizeWriteChanges(context.Background(), wwc, task, agent, factory, nil, "dev", "nothing changed")
 	require.NoError(t, err)

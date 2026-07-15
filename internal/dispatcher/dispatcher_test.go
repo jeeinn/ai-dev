@@ -12,6 +12,7 @@ import (
 	"gitea-agent-gateway/internal/agents"
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
 	"gitea-agent-gateway/internal/workflow"
@@ -108,7 +109,8 @@ func TestDispatcherHandleEvent(t *testing.T) {
 	llmRegistry.Register("mock", &mockLLMProvider{})
 
 	agentsCfg := &config.AgentsConfig{}
-	d := NewDispatcher(db, giteaCfg, dispatcherCfg, llmRegistry, agentsCfg)
+	sandboxCfg := sandbox.DefaultConfig()
+	d := NewDispatcher(db, giteaCfg, dispatcherCfg, llmRegistry, agentsCfg, sandboxCfg)
 
 	// Wire v2 components
 	registry := agents.NewRegistry()
@@ -181,7 +183,8 @@ func TestDispatcherDuplicateDelivery(t *testing.T) {
 			QueueSize:     10,
 		}
 
-	d := NewDispatcher(db, giteaCfg, dispatcherCfg, nil, nil)
+	sandboxCfg := sandbox.DefaultConfig()
+	d := NewDispatcher(db, giteaCfg, dispatcherCfg, nil, nil, sandboxCfg)
 
 	// Wire v2 components
 	registry := agents.NewRegistry()

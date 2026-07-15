@@ -14,6 +14,7 @@ type Config struct {
 	Agents     AgentsConfig     `yaml:"agents"`
 	Workflow   WorkflowConfig   `yaml:"workflow"`
 	Session    SessionConfig    `yaml:"session"`
+	Sandbox    SandboxConfig    `yaml:"sandbox"`
 	Debug      DebugConfig      `yaml:"debug"`
 }
 
@@ -177,6 +178,40 @@ type AgentsConfig struct {
 	Loop      AgentLoopConfig                `yaml:"loop"`
 	Backends  AgentBackendsConfig            `yaml:"backends"`
 	ToolPacks ToolPacksConfig                `yaml:"tool_packs"`
+}
+
+// SandboxMode defines the workspace directory mode.
+type SandboxMode string
+
+const (
+	// SandboxModeTemp uses os.MkdirTemp for automatic temporary directories.
+	SandboxModeTemp SandboxMode = "temp"
+	// SandboxModeFixed uses a fixed base directory with task subdirectories.
+	SandboxModeFixed SandboxMode = "fixed"
+)
+
+// SandboxConfig contains sandbox configuration for isolation and safety.
+type SandboxConfig struct {
+	Mode           SandboxMode `yaml:"mode"`             // "temp" | "fixed"
+	BaseDir        string      `yaml:"base_dir"`         // Fixed mode base directory
+	CommandTimeout string      `yaml:"command_timeout"`  // Single command timeout (duration string)
+	TaskTimeout    string      `yaml:"task_timeout"`     // Total task timeout (duration string)
+	MaxOutput      int         `yaml:"max_output"`       // Max output bytes per command
+	MaxFileSize    int         `yaml:"max_file_size"`    // Max file size for write operations
+	CleanupAfter   string      `yaml:"cleanup_after"`    // Failed task retention time (duration string)
+}
+
+// DefaultSandboxConfig returns default sandbox configuration.
+func DefaultSandboxConfig() SandboxConfig {
+	return SandboxConfig{
+		Mode:           SandboxModeFixed,
+		BaseDir:        "./workspace",
+		CommandTimeout: "5m",
+		TaskTimeout:    "30m",
+		MaxOutput:      1024 * 1024, // 1MB
+		MaxFileSize:    1024 * 1024, // 1MB
+		CleanupAfter:   "24h",
+	}
 }
 
 // ToolPacksConfig defines named tool packs that map pack IDs to ordered tool

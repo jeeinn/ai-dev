@@ -76,8 +76,8 @@
 
 详见 [sandbox-roadmap.md](sandbox-roadmap.md)；本清单只收核心：
 
-- [ ] `SandboxConfig` 接入 YAML（替换 runner 硬编码默认）
-- [ ] 路径穿越 / 输出与文件大小限制（安全底线）
+- [x] `SandboxConfig` 接入 YAML（替换 runner 硬编码默认）
+- [x] 路径穿越 / 输出与文件大小限制（安全底线）
 - [ ] （按需）`rg` 工具；temp 清理与 Session workspace 对齐后再上
 
 ### 7. 工作流可观测

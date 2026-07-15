@@ -67,7 +67,7 @@ type RunnerFactory struct {
 
 // NewRunnerFactory creates a new RunnerFactory from agent defaults and loop config.
 // The backends and toolPacks configs are optional — nil/empty falls back to defaults.
-func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig, toolPacks *config.ToolPacksConfig) *RunnerFactory {
+func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig, toolPacks *config.ToolPacksConfig, sandboxCfg sandbox.SandboxConfig) *RunnerFactory {
 	maxOut := defaults.MaxOutputTokens
 	if maxOut <= 0 {
 		maxOut = fallbackMaxOutput
@@ -91,7 +91,6 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 	beCfg := config.DefaultAgentBackends()
 	if backends != nil {
 		beCfg = *backends
-		// Ensure defaults are applied so "internal" always exists
 		config.ApplyBackendDefaults(&beCfg)
 	}
 
@@ -104,7 +103,7 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 	factory := &RunnerFactory{
 		llmRegistry:      llmRegistry,
 		giteaFactory:     giteaFactory,
-		sandboxCfg:       sandbox.DefaultConfig(),
+		sandboxCfg:       sandboxCfg,
 		db:               db,
 		defaultMaxOutput: maxOut,
 		defaultMaxInput:  maxIn,

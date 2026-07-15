@@ -213,3 +213,22 @@ agents:
 #   workspace_retention: "24h"    # archived 后延迟删盘
 #   pr_closed_retention: "168h"   # PR 未合并关闭后保留
 #   max_disk_per_repo: "5GB"      # 超限 LRU
+
+# ===== 沙箱配置 (P1.6) =====
+sandbox:
+  # 工作目录模式: "fixed" | "temp"
+  # fixed: 使用固定 base_dir + task_{id} 子目录
+  # temp: 使用临时目录 (os.MkdirTemp)，任务完成后自动清理
+  mode: "fixed"
+  # fixed 模式下的基础目录
+  base_dir: "./data/workspace"
+  # 单命令超时
+  command_timeout: "5m"
+  # 任务总超时
+  task_timeout: "30m"
+  # 命令输出最大字节数
+  max_output: 1048576
+  # 文件写入最大字节数
+  max_file_size: 1048576
+  # 失败任务保留时间（fixed 模式）
+  cleanup_after: "24h"

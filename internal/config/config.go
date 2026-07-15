@@ -126,6 +126,7 @@ func applyDefaults(cfg *Config) {
 	}
 	ApplyToolPackDefaults(&cfg.Agents.ToolPacks)
 	ApplyBackendDefaults(&cfg.Agents.Backends)
+	applySandboxDefaults(&cfg.Sandbox)
 }
 
 // DefaultToolPacks returns the built-in tool pack definitions.
@@ -178,5 +179,30 @@ func ApplyBackendDefaults(backends *AgentBackendsConfig) {
 		b := backends.Backends["internal"]
 		b.Type = BackendTypeBuiltin
 		backends.Backends["internal"] = b
+	}
+}
+
+func applySandboxDefaults(cfg *SandboxConfig) {
+	def := DefaultSandboxConfig()
+	if cfg.Mode == "" {
+		cfg.Mode = def.Mode
+	}
+	if cfg.BaseDir == "" {
+		cfg.BaseDir = def.BaseDir
+	}
+	if cfg.CommandTimeout == "" {
+		cfg.CommandTimeout = def.CommandTimeout
+	}
+	if cfg.TaskTimeout == "" {
+		cfg.TaskTimeout = def.TaskTimeout
+	}
+	if cfg.MaxOutput == 0 {
+		cfg.MaxOutput = def.MaxOutput
+	}
+	if cfg.MaxFileSize == 0 {
+		cfg.MaxFileSize = def.MaxFileSize
+	}
+	if cfg.CleanupAfter == "" {
+		cfg.CleanupAfter = def.CleanupAfter
 	}
 }

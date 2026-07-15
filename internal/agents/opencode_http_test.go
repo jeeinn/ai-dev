@@ -181,9 +181,13 @@ func TestOpenCodeHTTPHealthCheckContextTimeout(t *testing.T) {
 
 func TestOpenCodeHTTPCreateSession(t *testing.T) {
 	var receivedBody map[string]any
+	var receivedQuery string
+	var receivedDirHeader string
 	srv := newTestOpenCodeServer(t, map[string]http.HandlerFunc{
 		"/session": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, http.MethodPost, r.Method)
+			receivedQuery = r.URL.Query().Get("directory")
+			receivedDirHeader = r.Header.Get("X-Opencode-Directory")
 			json.NewDecoder(r.Body).Decode(&receivedBody)
 			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(map[string]any{"id": "sess-abc"})
@@ -198,6 +202,8 @@ func TestOpenCodeHTTPCreateSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "sess-abc", sessionID)
 	assert.Equal(t, "gateway-task-42", receivedBody["title"])
+	assert.Equal(t, "/tmp/test-repo", receivedQuery)
+	assert.Equal(t, "/tmp/test-repo", receivedDirHeader)
 }
 
 // --- sendMessage -----------------------------------------------------------
@@ -368,11 +374,8 @@ func TestResolveCodingBackendUsesDefault(t *testing.T) {
 	assert.Equal(t, "opencode-local", backend.Name())
 }
 
-// --- Health check → friendly comment (runWriteTask integration) -----------
+// --- Health check (runWriteTask: fail before prepare unless allow_fallback_internal) ---
 
-// We can't easily test runWriteTask end-to-end because it needs a real
-// sandbox + git clone, but we can verify the HealthCheckableBackend
-// plumbing by testing ResolveCodingBackend + health check directly.
 func TestOpenCodeBackendUnhealthyReturnsFriendlyError(t *testing.T) {
 	srv := newTestOpenCodeServer(t, map[string]http.HandlerFunc{
 		"/health": func(w http.ResponseWriter, r *http.Request) {
@@ -387,11 +390,22 @@ func TestOpenCodeBackendUnhealthyReturnsFriendlyError(t *testing.T) {
 	b, err := NewOpenCodeHTTPBackend("sick-backend", cfg)
 	require.NoError(t, err)
 
-	// Verify health check fails
 	hc, ok := interface{}(b).(HealthCheckableBackend)
 	require.True(t, ok)
 	err = hc.HealthCheck(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "503")
 	assert.Contains(t, err.Error(), "health check")
+	// Default: no silent fallback — Executor must mark failed, not success.
+	assert.False(t, allowsInternalFallback(b))
+}
+
+func TestAllowsInternalFallbackFlag(t *testing.T) {
+	b, err := NewOpenCodeHTTPBackend("opencode-local", config.BackendConfig{
+		Type:                  config.BackendTypeOpenCodeHTTP,
+		BaseURL:               "http://127.0.0.1:9",
+		AllowFallbackInternal: true,
+	})
+	require.NoError(t, err)
+	assert.True(t, allowsInternalFallback(b))
 }

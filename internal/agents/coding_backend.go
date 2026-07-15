@@ -33,9 +33,9 @@ type CodingBackend interface {
 }
 
 // HealthCheckableBackend is an optional interface for backends that support
-// an up-front health probe. When implemented, runWriteTask calls HealthCheck
-// before Run and converts failures into a user-friendly comment instead of
-// hard-failing the task.
+ // an up-front health probe. When implemented, runWriteTask calls HealthCheck
+ // BEFORE prepareWriteWorkspace. Failure returns an error (task → failed) unless
+ // allow_fallback_internal is set on the backend config.
 type HealthCheckableBackend interface {
 	HealthCheck(ctx context.Context) error
 }
@@ -217,4 +217,14 @@ func (f *RunnerFactory) ResolveCodingBackend(agent *store.Agent) (CodingBackend,
 	default:
 		return nil, fmt.Errorf("unsupported coding backend type %q for %q", cfg.Type, name)
 	}
+}
+
+// allowsInternalFallback reports whether a backend may silently switch to the
+// builtin InternalCodingBackend when its health check fails.
+// Only OpenCodeHTTPBackend currently exposes allow_fallback_internal.
+func allowsInternalFallback(backend CodingBackend) bool {
+	if b, ok := backend.(*OpenCodeHTTPBackend); ok {
+		return b.cfg.AllowFallbackInternal
+	}
+	return false
 }

@@ -678,3 +678,16 @@ web/src/                             # Vue 3 前端
 └── router/                           # 路由
     └── index.js
 ```
+
+## OpenCode CodingBackend（可选 Path A）
+
+写任务路径：`prepareWriteWorkspace → CodingBackend.Run → finalizeWriteChanges`。
+
+| Backend | 说明 |
+|---------|------|
+| `internal`（默认） | 内置 `AgentLoop` + 沙箱工具 |
+| `opencode_http` | 本机 `opencode serve` sidecar；Gateway 负责 clone/分支/PR |
+
+约束：Analyze / Review **永不**走 OpenCode。Health 探活在 prepare **之前**；失败默认任务 `failed`，仅当配置 `allow_fallback_internal: true` 才降级 internal。
+
+Session 工作目录通过 `?directory=` + `X-Opencode-Directory` 绑定到 Gateway workspace（[opencode-a0-notes.md](opencode-a0-notes.md)）。运维步骤见 [DEPLOYMENT.md](DEPLOYMENT.md#opencode-sidecar可选-path-a)。

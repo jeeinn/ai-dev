@@ -125,7 +125,7 @@ agents:
       #   health_check:
       #     path: /global/health
       #     interval: 30s
-      #   allow_fallback_internal: false  # false=sidecar 不可用时显式失败
+      #   allow_fallback_internal: false  # false=探活失败任务 failed；true=降级到 internal Loop
 
   templates:
     analyze:

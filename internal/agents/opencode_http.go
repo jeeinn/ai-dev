@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
 	"gitea-agent-gateway/internal/config"
@@ -150,10 +151,17 @@ type opencodeCreateSessionResponse struct {
 }
 
 // createSession calls POST /session and returns the new session id.
-// Currently we do not pass title/cwd at create time — the message endpoint
-// handles the working directory via the sidecar's own workspace binding.
+//
+// Working directory binding (OpenCode serve — see docs/opencode-a0-notes.md):
+// The server scopes project context via query `?directory=` and/or header
+// `X-Opencode-Directory`. Message-body `directory` alone is NOT sufficient on
+// current serve builds to pin the session workspace; we always send both query
+// and header when WorkDir is set.
 func (b *OpenCodeHTTPBackend) createSession(ctx context.Context, req CodingRequest) (string, error) {
 	url := b.cfg.BaseURL + "/session"
+	if req.WorkDir != "" {
+		url = url + "?directory=" + urlQueryEscape(req.WorkDir)
+	}
 
 	body := map[string]interface{}{
 		"title": fmt.Sprintf("gateway-task-%d", req.Task.ID),
@@ -162,6 +170,9 @@ func (b *OpenCodeHTTPBackend) createSession(ctx context.Context, req CodingReque
 	httpReq, err := b.newJSONRequest(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return "", err
+	}
+	if req.WorkDir != "" {
+		httpReq.Header.Set("X-Opencode-Directory", req.WorkDir)
 	}
 
 	var resp opencodeCreateSessionResponse
@@ -312,6 +323,10 @@ func joinParts(parts []string) string {
 		result += "\n\n" + p
 	}
 	return result
+}
+
+func urlQueryEscape(s string) string {
+	return url.QueryEscape(s)
 }
 
 // --- HTTP plumbing ---------------------------------------------------------

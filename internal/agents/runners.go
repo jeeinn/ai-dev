@@ -527,6 +527,34 @@ func (r *BugfixRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	factory *RunnerFactory, taskSubType string) (*Result, error) {
 
+	// Phase 0: resolve backend + optional health probe BEFORE preparing the
+	// workspace. Sidecar-down must not leave session clones / branches behind.
+	backend, err := factory.ResolveCodingBackend(agentCfg)
+	if err != nil {
+		return nil, fmt.Errorf("resolve coding backend: %w", err)
+	}
+	log.Printf("[INFO] Task %d using coding backend: %s", task.ID, backend.Name())
+
+	if hc, ok := backend.(HealthCheckableBackend); ok {
+		hcCtx, hcCancel := context.WithTimeout(ctx, 5*time.Second)
+		hcErr := hc.HealthCheck(hcCtx)
+		hcCancel()
+		if hcErr != nil {
+			if allowsInternalFallback(backend) {
+				log.Printf("[WARN] Task %d coding backend %s unhealthy (%v); allow_fallback_internal=true → switching to internal",
+					task.ID, backend.Name(), hcErr)
+				backend = factory.internalBackend
+			} else {
+				// Return error so Executor marks failed (not success) and posts
+				// a failure comment via writeFailureToGitea.
+				return nil, fmt.Errorf(
+					"coding backend %q is not reachable (health check failed): %w",
+					backend.Name(), hcErr,
+				)
+			}
+		}
+	}
+
 	// Phase 1: prepare workspace (sandbox / clone / branch)
 	wwc, err := prepareWriteWorkspace(ctx, task, agentCfg, factory, taskSubType)
 	if err != nil {
@@ -539,35 +567,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 
 	sb := wwc.Sandbox
 
-	// Phase 2: coding (resolve backend and run)
-	backend, err := factory.ResolveCodingBackend(agentCfg)
-	if err != nil {
-		return nil, fmt.Errorf("resolve coding backend: %w", err)
-	}
-	log.Printf("[INFO] Task %d using coding backend: %s", task.ID, backend.Name())
-
-	// Health check (optional). If the backend supports it and is unhealthy,
-	// return a user-friendly comment instead of failing the task. This gives
-	// operators a clear signal instead of a cryptic 500.
-	if hc, ok := backend.(HealthCheckableBackend); ok {
-		hcCtx, hcCancel := context.WithTimeout(ctx, 5*time.Second)
-		hcErr := hc.HealthCheck(hcCtx)
-		hcCancel()
-		if hcErr != nil {
-			log.Printf("[WARN] Task %d coding backend %s unhealthy: %v", task.ID, backend.Name(), hcErr)
-			return &Result{
-				Content: fmt.Sprintf(
-					"⚠️ Coding backend `%s` is not reachable. The coding agent cannot run right now.\n\n"+
-						"**Error:** %s\n\n"+
-						"Please check that the backend service is running and reachable at its configured endpoint.",
-					backend.Name(),
-					hcErr.Error(),
-				),
-				Action: "comment",
-			}, nil
-		}
-	}
-
+	// Phase 2: coding
 	// Build prompts (shared by all backends)
 	maxInput := factory.resolveMaxInputTokens(agentCfg.MaxInputTokens, agentCfg.Provider, agentCfg.Model)
 

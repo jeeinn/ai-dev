@@ -82,7 +82,11 @@ func NewDispatcher(
 	}
 
 	// Wire up Gitea client factory for result writeback
-	executor.SetGiteaClientFactory(d, nil)
+	var backends *config.AgentBackendsConfig
+	if agentsCfg != nil {
+		backends = &agentsCfg.Backends
+	}
+	executor.SetGiteaClientFactory(d, nil, backends)
 
 	return d
 }
@@ -90,7 +94,11 @@ func NewDispatcher(
 // SetDebugConfigGetter supplies live debug settings for conversation logging.
 func (d *Dispatcher) SetDebugConfigGetter(getter func() config.DebugConfig) {
 	if d.executor != nil && d.executor.giteaFactory != nil {
-		d.executor.SetGiteaClientFactory(d.executor.giteaFactory, getter)
+		var backends *config.AgentBackendsConfig
+		if d.agentsCfg != nil {
+			backends = &d.agentsCfg.Backends
+		}
+		d.executor.SetGiteaClientFactory(d.executor.giteaFactory, getter, backends)
 	}
 }
 

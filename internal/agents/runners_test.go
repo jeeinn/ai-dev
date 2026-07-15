@@ -45,7 +45,7 @@ func (m *mockGiteaFactory) GetAdminGiteaClient() *gitea.Client {
 }
 
 func TestRunnerFactoryGetRunner(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil)
 
 	tests := []struct {
 		taskType string
@@ -73,7 +73,7 @@ func TestAnalyzeRunnerRun(t *testing.T) {
 	registry.Register("mock", &mockProvider{response: "Analysis result"})
 
 	factory := &mockGiteaFactory{}
-	runnerFactory := NewRunnerFactory(registry, factory, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil)
+	runnerFactory := NewRunnerFactory(registry, factory, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil)
 	runner := NewAnalyzeRunner(runnerFactory)
 
 	task := &store.Task{
@@ -125,7 +125,7 @@ func TestSaveSessionBranch(t *testing.T) {
 	}
 	require.NoError(t, db.CreateSession(session))
 
-	factory := NewRunnerFactory(nil, nil, db, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil)
+	factory := NewRunnerFactory(nil, nil, db, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil)
 	task := &store.Task{SessionID: session.ID}
 
 	saveSessionBranch(factory, task, "ai/dev/issue-2")
@@ -205,7 +205,7 @@ func (s *stubModelMeta) GetModelMeta(provider, model string) *config.ModelDefini
 }
 
 func TestResolveMaxTokensUsesModelWhenAgentZero(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil)
 	factory.SetModelMetaProvider(&stubModelMeta{
 		defs: map[string]*config.ModelDefinition{
 			"deepseek/deepseek-v4-flash": {

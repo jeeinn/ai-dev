@@ -41,9 +41,9 @@
 
 - [ ] A0 本机 `opencode serve` PoC + API 字段记录
 - [x] A1 `agents.backends` + Agent `backend` / `backend_options` + migration
-- [ ] A3 `CodingBackend` + `OpenCodeHTTPBackend`；非写任务强制 `internal`
-- [ ] A3 health 失败 → 可读评论（默认不静默降级）
-- [ ] A4 mock 测试 + 运维说明（WebUI backend 可后置）
+- [x] A3 `CodingBackend` + `OpenCodeHTTPBackend`；非写任务强制 `internal`
+- [x] A3 health 失败 → 可读评论（默认不静默降级）
+- [x] A4 mock 测试 + 运维说明（WebUI backend 可后置）
 
 **约束**：默认 `internal`；Analyze / Review 永不走 OpenCode。
 

@@ -124,12 +124,13 @@ func applyDefaults(cfg *Config) {
 	} else if cfg.Debug.ConversationLog.MaxContentChars == 0 {
 		cfg.Debug.ConversationLog.MaxContentChars = DefaultConversationLogConfig().MaxContentChars
 	}
-	applyBackendDefaults(&cfg.Agents.Backends)
+	ApplyBackendDefaults(&cfg.Agents.Backends)
 }
 
-// applyBackendDefaults ensures the implicit `internal` builtin backend exists and
+// ApplyBackendDefaults ensures the implicit `internal` builtin backend exists and
 // is the default when none is set. Non-write tasks always use internal regardless.
-func applyBackendDefaults(backends *AgentBackendsConfig) {
+// Exported for use by runners / other packages that construct backends independently.
+func ApplyBackendDefaults(backends *AgentBackendsConfig) {
 	if backends.Default == "" {
 		backends.Default = "internal"
 	}

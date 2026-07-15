@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	agentpkg "gitea-agent-gateway/internal/agent"
 	"gitea-agent-gateway/internal/config"
@@ -59,10 +60,13 @@ type RunnerFactory struct {
 	defaultLoop      config.AgentLoopConfig
 	getDebugConfig   func() config.DebugConfig
 	modelMeta        ModelMetaProvider
+	backends         config.AgentBackendsConfig // coding backends (Path A)
+	internalBackend  *InternalCodingBackend     // always available, built from this factory
 }
 
 // NewRunnerFactory creates a new RunnerFactory from agent defaults and loop config.
-func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig) *RunnerFactory {
+// The backends config is optional — nil/empty falls back to the default "internal" only.
+func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig) *RunnerFactory {
 	maxOut := defaults.MaxOutputTokens
 	if maxOut <= 0 {
 		maxOut = fallbackMaxOutput
@@ -82,7 +86,15 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 	if defaultLoop.MaxIterations <= 0 {
 		defaultLoop = config.DefaultAgentLoopConfig()
 	}
-	return &RunnerFactory{
+
+	beCfg := config.DefaultAgentBackends()
+	if backends != nil {
+		beCfg = *backends
+		// Ensure defaults are applied so "internal" always exists
+		config.ApplyBackendDefaults(&beCfg)
+	}
+
+	factory := &RunnerFactory{
 		llmRegistry:      llmRegistry,
 		giteaFactory:     giteaFactory,
 		sandboxCfg:       sandbox.DefaultConfig(),
@@ -93,7 +105,10 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 		defaultTimeout:   timeout,
 		defaultLoop:      defaultLoop,
 		getDebugConfig:   getDebugConfig,
+		backends:         beCfg,
 	}
+	factory.internalBackend = NewInternalCodingBackend(factory)
+	return factory
 }
 
 // SetModelMetaProvider sets the model metadata provider for adaptive token limits.
@@ -501,8 +516,14 @@ func (r *BugfixRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 
 // runWriteTask is the shared implementation for write-type runners.
 //
-// Structure (extracted in P0.2):
-//   prepareWriteWorkspace → coding phase (AgentLoop) → finalizeWriteChanges
+// Structure (after A3):
+//
+//	prepareWriteWorkspace → CodingBackend.Run → finalizeWriteChanges
+//
+// The coding backend is resolved from agent.Backend (or agents.backends.default).
+// Non-write runners (Analyze/Review/Reply) never call this function — they
+// always use internal LLM directly, which matches the "Analyze forced internal"
+// constraint from server-runtime-design-v4.md §3.2.
 func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	factory *RunnerFactory, taskSubType string) (*Result, error) {
 
@@ -518,22 +539,44 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 
 	sb := wwc.Sandbox
 
-	// Phase 2: coding (AgentLoop with internal backend)
-	// Get LLM provider
-	provider, err := factory.llmRegistry.Get(agentCfg.Provider)
+	// Phase 2: coding (resolve backend and run)
+	backend, err := factory.ResolveCodingBackend(agentCfg)
 	if err != nil {
-		return nil, fmt.Errorf("get provider: %w", err)
+		return nil, fmt.Errorf("resolve coding backend: %w", err)
+	}
+	log.Printf("[INFO] Task %d using coding backend: %s", task.ID, backend.Name())
+
+	// Health check (optional). If the backend supports it and is unhealthy,
+	// return a user-friendly comment instead of failing the task. This gives
+	// operators a clear signal instead of a cryptic 500.
+	if hc, ok := backend.(HealthCheckableBackend); ok {
+		hcCtx, hcCancel := context.WithTimeout(ctx, 5*time.Second)
+		hcErr := hc.HealthCheck(hcCtx)
+		hcCancel()
+		if hcErr != nil {
+			log.Printf("[WARN] Task %d coding backend %s unhealthy: %v", task.ID, backend.Name(), hcErr)
+			return &Result{
+				Content: fmt.Sprintf(
+					"⚠️ Coding backend `%s` is not reachable. The coding agent cannot run right now.\n\n"+
+						"**Error:** %s\n\n"+
+						"Please check that the backend service is running and reachable at its configured endpoint.",
+					backend.Name(),
+					hcErr.Error(),
+				),
+				Action: "comment",
+			}, nil
+		}
 	}
 
+	// Build prompts (shared by all backends)
 	maxInput := factory.resolveMaxInputTokens(agentCfg.MaxInputTokens, agentCfg.Provider, agentCfg.Model)
 
-	// Load code context
+	// Load code context for the prompt (best-effort; warn on failure)
 	codeCtx, err := agentpkg.LoadCodeContext(sb, maxInput)
 	if err != nil {
 		log.Printf("[WARN] Failed to load code context: %v", err)
 	}
 
-	// Build prompt based on task type
 	taskCtx := agentpkg.TaskContext{
 		IssueTitle: task.Event,
 		IssueBody:  task.Context,
@@ -549,54 +592,37 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	}
 	systemPrompt := agentpkg.MergeAgentSystemPrompt(basePrompt, agentCfg.SystemPrompt)
 
-	// Create tool registry
-	toolRegistry := agentpkg.DefaultTools(sb)
-
-	// Create agent loop with config priority: Agent.LoopConfig > system agents.loop defaults
-	maxOutput := factory.resolveMaxOutputTokens(agentCfg.MaxOutputTokens, agentCfg.Provider, agentCfg.Model)
-	mergedLoop := MergeLoopConfig(agentCfg.LoopConfig, factory.defaultLoop)
-
-	loop := agentpkg.NewAgentLoopWithConfig(
-		provider,
-		toolRegistry,
-		agentCfg.Model,
-		maxOutput,
-		maxInput,
-		factory.resolveTemperature(agentCfg.Temperature, agentCfg.Provider, agentCfg.Model),
-		mergedLoop,
-	)
-
-	loop.SetModelMeta(factory.getModelMeta(agentCfg.Provider, agentCfg.Model))
-	loop.SetProviderName(agentCfg.Provider)
-	loop.SetUsageRecorder(func(p, m string, usage llm.Usage) {
-		factory.recordTaskUsage(task.ID, p, m, usage)
-	})
-
-	if factory.getDebugConfig != nil {
-		debugCfg := factory.getDebugConfig()
-		if debugCfg.ConversationLog.Enabled && factory.db != nil {
-			loop.SetConversationRecorder(
-				newConversationRecorder(factory.db, debugCfg.ConversationLog.MaxContentChars),
-				task.ID,
-			)
-		}
+	codingReq := CodingRequest{
+		WorkDir:          sb.WorkDir,
+		Sandbox:          sb,
+		Task:             task,
+		Agent:            agentCfg,
+		TaskSubType:      taskSubType,
+		Prompt:           task.Context,
+		SystemPrompt:     systemPrompt,
+		SessionID:        task.SessionID,
+		Continue:         task.SessionID != "",
+		BackendOptions:   agentCfg.BackendOptions,
 	}
 
-	// Run agent loop
-	messages := []llm.Message{
-		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: task.Context},
-	}
-
-	result, err := loop.Run(ctx, messages)
+	codingResult, err := backend.Run(ctx, codingReq)
 	if err != nil {
-		return nil, fmt.Errorf("agent loop: %w", err)
+		return nil, fmt.Errorf("coding backend %s: %w", backend.Name(), err)
 	}
-
-	log.Printf("[INFO] Task %d agent loop completed", task.ID)
 
 	// Phase 3: finalize (commit / push / PR)
-	return finalizeWriteChanges(ctx, wwc, task, agentCfg, factory, provider, taskSubType, result)
+	//
+	// For the internal backend, codingResult.Provider is the LLM provider
+	// used during coding, which we reuse for the commit message LLM call.
+	// For opencode backend, Provider is nil (LLM runs server-side), so
+	// finalize will look up the provider again from the registry — a minor
+	// overhead but keeps the contract simple.
+	provider := codingResult.Provider
+	if provider == nil {
+		provider, _ = factory.llmRegistry.Get(agentCfg.Provider)
+	}
+
+	return finalizeWriteChanges(ctx, wwc, task, agentCfg, factory, provider, taskSubType, codingResult.Summary)
 }
 
 // finalizeWriteTaskPR comments on an existing open PR or creates one if the branch has no open PR yet.

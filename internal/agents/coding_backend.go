@@ -7,6 +7,7 @@ import (
 	"time"
 
 	agentpkg "gitea-agent-gateway/internal/agent"
+	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/store"
@@ -29,6 +30,14 @@ type CodingBackend interface {
 	// no-op (cancellation is via the ctx passed to Run). For opencode it
 	// issues POST /session/:id/abort.
 	Abort(ctx context.Context, handle string) error
+}
+
+// HealthCheckableBackend is an optional interface for backends that support
+// an up-front health probe. When implemented, runWriteTask calls HealthCheck
+// before Run and converts failures into a user-friendly comment instead of
+// hard-failing the task.
+type HealthCheckableBackend interface {
+	HealthCheck(ctx context.Context) error
 }
 
 // CodingRequest is the input to CodingBackend.Run.
@@ -162,4 +171,50 @@ func (b *InternalCodingBackend) Abort(ctx context.Context, handle string) error 
 	_ = ctx
 	_ = handle
 	return nil
+}
+
+// --- Backend resolution ----------------------------------------------------
+
+// ResolveCodingBackend determines which CodingBackend to use for a write task.
+//
+// Resolution order (server-runtime-design-v4.md §3.2):
+//  1. Non-write tasks → always "internal" (enforced by caller, not here)
+//  2. Write tasks: agent.Backend != "" → use that name
+//  3. Otherwise → agents.backends.default (default: "internal")
+//  4. If the named backend is not found in config → error
+//  5. If the backend type is unknown → error
+//
+// The returned backend is ready to call Run. For opencode_http backends, the
+// instance is constructed fresh each call (they hold no state between calls);
+// the internal backend is reused (it has no state).
+func (f *RunnerFactory) ResolveCodingBackend(agent *store.Agent) (CodingBackend, error) {
+	name := agent.Backend
+	if name == "" {
+		name = f.backends.Default
+	}
+	if name == "" {
+		name = "internal"
+	}
+	// "internal" is always available, even if missing from config
+	if name == "internal" {
+		return f.internalBackend, nil
+	}
+
+	cfg, ok := f.backends.Backends[name]
+	if !ok {
+		return nil, fmt.Errorf("coding backend %q not found in agents.backends config", name)
+	}
+
+	switch cfg.Type {
+	case config.BackendTypeBuiltin:
+		return f.internalBackend, nil
+	case config.BackendTypeOpenCodeHTTP:
+		backend, err := NewOpenCodeHTTPBackend(name, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("create opencode backend %q: %w", name, err)
+		}
+		return backend, nil
+	default:
+		return nil, fmt.Errorf("unsupported coding backend type %q for %q", cfg.Type, name)
+	}
 }

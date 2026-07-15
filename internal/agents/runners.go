@@ -62,11 +62,12 @@ type RunnerFactory struct {
 	modelMeta        ModelMetaProvider
 	backends         config.AgentBackendsConfig // coding backends (Path A)
 	internalBackend  *InternalCodingBackend     // always available, built from this factory
+	toolPacks        config.ToolPacksConfig     // built-in + user-defined tool packs
 }
 
 // NewRunnerFactory creates a new RunnerFactory from agent defaults and loop config.
-// The backends config is optional — nil/empty falls back to the default "internal" only.
-func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig) *RunnerFactory {
+// The backends and toolPacks configs are optional — nil/empty falls back to defaults.
+func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig, toolPacks *config.ToolPacksConfig) *RunnerFactory {
 	maxOut := defaults.MaxOutputTokens
 	if maxOut <= 0 {
 		maxOut = fallbackMaxOutput
@@ -94,6 +95,12 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 		config.ApplyBackendDefaults(&beCfg)
 	}
 
+	tpCfg := config.DefaultToolPacks()
+	if toolPacks != nil {
+		tpCfg = *toolPacks
+		config.ApplyToolPackDefaults(&tpCfg)
+	}
+
 	factory := &RunnerFactory{
 		llmRegistry:      llmRegistry,
 		giteaFactory:     giteaFactory,
@@ -106,6 +113,7 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 		defaultLoop:      defaultLoop,
 		getDebugConfig:   getDebugConfig,
 		backends:         beCfg,
+		toolPacks:        tpCfg,
 	}
 	factory.internalBackend = NewInternalCodingBackend(factory)
 	return factory
@@ -231,6 +239,20 @@ func (f *RunnerFactory) resolveTimeout(agentTimeout string) string {
 		return f.defaultTimeout
 	}
 	return fallbackTimeout
+}
+
+// resolveToolPack returns the tool pack ID for a task based on task type.
+// Role-based defaults (agent-level override can be added later when the
+// Agent schema gains a tool_pack column):
+//   - write tasks (dev/bugfix) → "coder-default"
+//   - analyze tasks → "analyze-readonly"
+func (f *RunnerFactory) resolveToolPack(taskType string) string {
+	switch taskType {
+	case "analyze_issue", "trigger", "review_pr", "reply_comment":
+		return "analyze-readonly"
+	default:
+		return "coder-default"
+	}
 }
 
 // GetRunner returns the appropriate runner for the task type.
@@ -593,16 +615,17 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	systemPrompt := agentpkg.MergeAgentSystemPrompt(basePrompt, agentCfg.SystemPrompt)
 
 	codingReq := CodingRequest{
-		WorkDir:          sb.WorkDir,
-		Sandbox:          sb,
-		Task:             task,
-		Agent:            agentCfg,
-		TaskSubType:      taskSubType,
-		Prompt:           task.Context,
-		SystemPrompt:     systemPrompt,
-		SessionID:        task.SessionID,
-		Continue:         task.SessionID != "",
-		BackendOptions:   agentCfg.BackendOptions,
+		WorkDir:        sb.WorkDir,
+		Sandbox:        sb,
+		Task:           task,
+		Agent:          agentCfg,
+		TaskSubType:    taskSubType,
+		Prompt:         task.Context,
+		SystemPrompt:   systemPrompt,
+		SessionID:      task.SessionID,
+		Continue:       task.SessionID != "",
+		BackendOptions: agentCfg.BackendOptions,
+		ToolPack:       factory.resolveToolPack(task.TaskType),
 	}
 
 	codingResult, err := backend.Run(ctx, codingReq)

@@ -86,7 +86,7 @@ func (e *Executor) SetOnFailed(cb TaskFailedCallback) {
 // SetGiteaClientFactory sets the factory for creating Gitea clients.
 func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig) {
 	e.giteaFactory = factory
-	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.agentDefaults, e.defaultLoop, getDebugConfig, backends)
+	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.agentDefaults, e.defaultLoop, getDebugConfig, backends, nil)
 }
 
 // SetModelMetaProvider sets the model metadata provider for adaptive token limits.

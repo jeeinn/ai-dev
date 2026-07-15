@@ -305,7 +305,7 @@ func TestNewOpenCodeHTTPBackendRejectsUnsupportedWorkspaceMode(t *testing.T) {
 // --- ResolveCodingBackend tests -------------------------------------------
 
 func TestResolveCodingBackendInternal(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
 	agent := &store.Agent{Backend: ""} // default
 
 	backend, err := factory.ResolveCodingBackend(agent)
@@ -314,7 +314,7 @@ func TestResolveCodingBackendInternal(t *testing.T) {
 }
 
 func TestResolveCodingBackendExplicitInternal(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
 	agent := &store.Agent{Backend: "internal"}
 
 	backend, err := factory.ResolveCodingBackend(agent)
@@ -334,7 +334,7 @@ func TestResolveCodingBackendOpenCodeHTTP(t *testing.T) {
 			},
 		},
 	}
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, backends)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, backends, nil)
 	agent := &store.Agent{Backend: "opencode-local"}
 
 	backend, err := factory.ResolveCodingBackend(agent)
@@ -347,7 +347,7 @@ func TestResolveCodingBackendOpenCodeHTTP(t *testing.T) {
 }
 
 func TestResolveCodingBackendNotFound(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
 	agent := &store.Agent{Backend: "nonexistent"}
 
 	_, err := factory.ResolveCodingBackend(agent)
@@ -366,7 +366,7 @@ func TestResolveCodingBackendUsesDefault(t *testing.T) {
 			},
 		},
 	}
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, backends)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, backends, nil)
 	agent := &store.Agent{Backend: ""} // should use default
 
 	backend, err := factory.ResolveCodingBackend(agent)

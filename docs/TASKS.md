@@ -58,9 +58,10 @@
 
 ### 4. ToolPack
 
-- [ ] `config.yaml` 命名包（`coder-default` / `analyze-readonly`）
-- [ ] Agent `tool_pack` 字段；`AssembleToolRegistry`
-- [ ] coder 行为与现行 `DefaultTools` **零回归**
+- [x] `config.yaml` 命名包（`coder-default` / `analyze-readonly`）
+- [x] `AssembleToolRegistry` + `resolveToolPack`（role-based 默认）
+- [ ] Agent `tool_pack` 字段持久化（DB/API/DTO）— 可后置到 P1.5
+- [x] coder 行为与现行 `DefaultTools` **零回归**
 
 ### 5. Analyze 短只读 Loop（读仓）
 

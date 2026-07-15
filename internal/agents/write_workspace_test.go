@@ -18,7 +18,7 @@ import (
 // one. Until implemented it must report not-implemented rather than silently
 // succeed.
 func TestPrepareAnalyzeWorkspaceReservedShape(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
 	task := &store.Task{Repo: "owner/repo"}
 	agent := &store.Agent{Provider: "mock"}
 
@@ -70,7 +70,7 @@ func TestFinalizeWriteChangesNoChangesReturnsComment(t *testing.T) {
 	task := &store.Task{ID: 9001, Repo: "owner/repo"}
 	agent := &store.Agent{Provider: "mock", Model: "m"}
 
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil)
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
 
 	result, err := finalizeWriteChanges(context.Background(), wwc, task, agent, factory, nil, "dev", "nothing changed")
 	require.NoError(t, err)

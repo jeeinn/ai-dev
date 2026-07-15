@@ -69,6 +69,10 @@ type CodingRequest struct {
 
 	// Backend-specific options (Agent.BackendOptions)
 	BackendOptions map[string]any
+
+	// ToolPack selects the tool pack for this task. Empty defaults to
+	// "coder-default" for write tasks and "analyze-readonly" for analyze tasks.
+	ToolPack string
 }
 
 // CodingResult is the output of CodingBackend.Run.
@@ -118,7 +122,19 @@ func (b *InternalCodingBackend) Run(ctx context.Context, req CodingRequest) (*Co
 	temperature := factory.resolveTemperature(agentCfg.Temperature, agentCfg.Provider, agentCfg.Model)
 	mergedLoop := MergeLoopConfig(agentCfg.LoopConfig, factory.defaultLoop)
 
-	toolRegistry := agentpkg.DefaultTools(sb)
+	// Resolve tool pack and assemble registry
+	packID := req.ToolPack
+	if packID == "" {
+		packID = "coder-default"
+	}
+	packCfg, ok := factory.toolPacks.Packs[packID]
+	if !ok {
+		return nil, fmt.Errorf("tool pack %q not found", packID)
+	}
+	toolRegistry, err := agentpkg.AssembleToolRegistry(packCfg.Tools, sb)
+	if err != nil {
+		return nil, fmt.Errorf("assemble tool registry for pack %q: %w", packID, err)
+	}
 
 	loop := agentpkg.NewAgentLoopWithConfig(
 		provider,

@@ -39,7 +39,7 @@ func newInternalTestFactory(t *testing.T, providerName string, provider llm.Prov
 	if provider != nil {
 		registry.Register(providerName, provider)
 	}
-	factory := NewRunnerFactory(registry, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil)
+	factory := NewRunnerFactory(registry, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
 	return factory
 }
 

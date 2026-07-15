@@ -176,6 +176,20 @@ type AgentsConfig struct {
 	Templates map[string]AgentTemplateConfig `yaml:"templates"`
 	Loop      AgentLoopConfig                `yaml:"loop"`
 	Backends  AgentBackendsConfig            `yaml:"backends"`
+	ToolPacks ToolPacksConfig                `yaml:"tool_packs"`
+}
+
+// ToolPacksConfig defines named tool packs that map pack IDs to ordered tool
+// name lists. The runner uses these lists to assemble a ToolRegistry via
+// AssembleToolRegistry. Built-in defaults (coder-default, analyze-readonly)
+// are applied when the config is empty.
+type ToolPacksConfig struct {
+	Packs map[string]ToolPackConfig `yaml:"packs"`
+}
+
+// ToolPackConfig is one named pack: an ordered list of tool names.
+type ToolPackConfig struct {
+	Tools []string `yaml:"tools"`
 }
 
 // AgentBackendsConfig holds coding-backend definitions for write tasks.

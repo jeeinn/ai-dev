@@ -231,18 +231,66 @@ func finalizeWriteChanges(ctx context.Context, wwc *WriteWorkspaceContext, task 
 	return finalizeWriteTaskPR(adminClient, wwc.Owner, wwc.Repo, branchName, wwc.RepoInfo.DefaultBranch, task, taskSubType, agentResult)
 }
 
-// prepareAnalyzeWorkspace is reserved for P1.5 (Analyze short read-only loop):
-// a shallow clone of the default branch without creating a work branch. Analyze
-// tasks are read-only and must never push or open PRs.
+// prepareAnalyzeWorkspace sets up a temporary sandbox with a shallow clone of
+// the repository's default branch for read-only analysis tasks.
 //
-// This stub exists to lock the shape so that future read-only workspace
-// preparation shares the same clone codepath instead of forking a second one.
-// Not yet wired into AnalyzeRunner — until P1.5, analyze operates LLM-only
-// (no workspace).
+// No branch is created, no changes are pushed, and the workspace is always
+// cleaned up by the caller. On clone failure an error is returned so the
+// caller can fall back to single-shot analysis.
 func prepareAnalyzeWorkspace(ctx context.Context, task *store.Task, agent *store.Agent, factory *RunnerFactory) (*WriteWorkspaceContext, error) {
 	_ = ctx
-	_ = task
-	_ = agent
-	_ = factory
-	return nil, fmt.Errorf("prepareAnalyzeWorkspace not implemented (reserved for P1.5: shallow clone + readonly toolpack)")
+
+	// Parse repo owner/name
+	parts := strings.SplitN(task.Repo, "/", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid repo format: %s", task.Repo)
+	}
+	owner, repo := parts[0], parts[1]
+
+	// Get Gitea client
+	client := factory.giteaFactory.GetGiteaClient(agent.GiteaToken)
+
+	// Get repo info for clone URL and default branch
+	repoInfo, err := client.GetRepo(owner, repo)
+	if err != nil {
+		return nil, fmt.Errorf("get repo info: %w", err)
+	}
+	cloneURL, err := gitea.AuthenticatedCloneURL(repoInfo.CloneURL, agent.GiteaUsername, agent.GiteaToken)
+	if err != nil {
+		return nil, fmt.Errorf("authenticated clone url: %w", err)
+	}
+	redactedCloneURL := gitea.RedactCloneURL(cloneURL)
+
+	// Create temporary sandbox (always cleaned up by caller)
+	sb := sandbox.New(factory.sandboxCfg, task.ID)
+	if err := sb.Setup(); err != nil {
+		return nil, fmt.Errorf("setup sandbox: %w", err)
+	}
+
+	wwc := &WriteWorkspaceContext{
+		Sandbox:    sb,
+		Owner:      owner,
+		Repo:       repo,
+		RepoInfo:   repoInfo,
+		UseSession: false,
+	}
+
+	git := sandbox.NewGit(sb)
+	wwc.Git = git
+
+	// Shallow clone default branch
+	cloneResult := git.CloneBranch(cloneURL, repoInfo.DefaultBranch)
+	wwc.Audit = sandbox.NewAuditLogger(factory.db, task.ID, agent.ID)
+	wwc.Audit.LogCommand("git", []string{"clone", "--depth", "1", "--branch", repoInfo.DefaultBranch, redactedCloneURL}, cloneResult)
+
+	if cloneResult.Error != nil {
+		errMsg := cloneResult.Stderr
+		if errMsg == "" {
+			errMsg = cloneResult.Error.Error()
+		}
+		sb.Cleanup()
+		return nil, fmt.Errorf("clone repo: %s", errMsg)
+	}
+
+	return wwc, nil
 }

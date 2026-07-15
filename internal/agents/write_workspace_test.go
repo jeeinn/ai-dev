@@ -13,21 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestPrepareAnalyzeWorkspaceReservedShape locks the stub signature so that
-// future P1.5 work shares the same clone codepath instead of forking a second
-// one. Until implemented it must report not-implemented rather than silently
-// succeed.
-func TestPrepareAnalyzeWorkspaceReservedShape(t *testing.T) {
-	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
-	task := &store.Task{Repo: "owner/repo"}
-	agent := &store.Agent{Provider: "mock"}
-
-	_, err := prepareAnalyzeWorkspace(context.Background(), task, agent, factory)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
-	assert.Contains(t, err.Error(), "P1.5")
-}
-
 // setupLocalGitRepo builds a minimal local git workspace (no network) suitable
 // for exercising finalizeWriteChanges without a Gitea server.
 func setupLocalGitRepo(t *testing.T) (*sandbox.Sandbox, *sandbox.Git, *sandbox.AuditLogger) {

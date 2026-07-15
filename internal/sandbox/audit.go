@@ -25,7 +25,11 @@ func NewAuditLogger(db *store.DB, taskID, agentID int64) *AuditLogger {
 }
 
 // LogCommand logs a command execution to the database.
+// Safe to call when db is nil (no-op).
 func (l *AuditLogger) LogCommand(command string, args []string, result *Result) {
+	if l.db == nil {
+		return
+	}
 	// Truncate output for logging
 	stdout := truncateString(result.Stdout, 1000)
 	stderr := truncateString(result.Stderr, 1000)
@@ -35,7 +39,11 @@ func (l *AuditLogger) LogCommand(command string, args []string, result *Result) 
 }
 
 // LogAction logs a high-level action to the database.
+// Safe to call when db is nil (no-op).
 func (l *AuditLogger) LogAction(action, detail string) {
+	if l.db == nil {
+		return
+	}
 	l.db.LogOperation(l.agentID, l.taskID, action, detail)
 }
 

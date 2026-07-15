@@ -286,25 +286,38 @@ func NewAnalyzeRunner(factory *RunnerFactory) *AnalyzeRunner {
 }
 
 // Run executes the analyze task.
+//
+// It first attempts a shallow clone + short read-only AgentLoop for richer
+// analysis. If clone fails it falls back to single-shot LLM (legacy behavior).
 func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.Agent) (*Result, error) {
-	// Get LLM provider
 	provider, err := r.factory.llmRegistry.Get(agent.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("get provider: %w", err)
 	}
 
-	// Build messages
+	// Try read-only workspace + short loop for richer analysis
+	wwc, err := prepareAnalyzeWorkspace(ctx, task, agent, r.factory)
+	if err != nil {
+		log.Printf("[WARN] Task %d analyze workspace failed (%v); falling back to single-shot", task.ID, err)
+		return r.runSingleShot(ctx, task, agent, provider)
+	}
+	defer wwc.Sandbox.Cleanup()
+
+	return r.runAnalyzeLoop(ctx, task, agent, provider, wwc.Sandbox)
+}
+
+// runSingleShot is the legacy single-shot LLM analysis (no workspace).
+func (r *AnalyzeRunner) runSingleShot(ctx context.Context, task *store.Task, agent *store.Agent, provider llm.Provider) (*Result, error) {
 	messages := []llm.Message{
 		{Role: "system", Content: agent.SystemPrompt},
 		{Role: "user", Content: task.Context},
 	}
 
-	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model), r.factory.getModelMeta(agent.Provider, agent.Model))
+	messages, err := agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model), r.factory.getModelMeta(agent.Provider, agent.Model))
 	if err != nil {
 		return nil, fmt.Errorf("truncate messages: %w", err)
 	}
 
-	// Call LLM
 	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
 		Model:       agent.Model,
 		Messages:    messages,
@@ -320,6 +333,89 @@ func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.
 
 	return &Result{
 		Content: resp.Content,
+		Action:  "comment",
+	}, nil
+}
+
+// runAnalyzeLoop runs a short read-only AgentLoop on a prepared workspace.
+func (r *AnalyzeRunner) runAnalyzeLoop(ctx context.Context, task *store.Task, agent *store.Agent, provider llm.Provider, sb *sandbox.Sandbox) (*Result, error) {
+	maxInput := r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model)
+	maxOutput := r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model)
+	temperature := r.factory.resolveTemperature(agent.Temperature, agent.Provider, agent.Model)
+
+	// Load code context (best-effort)
+	codeCtx, err := agentpkg.LoadCodeContext(sb, maxInput)
+	if err != nil {
+		log.Printf("[WARN] Failed to load code context: %v", err)
+	}
+
+	// Build analyze prompt
+	taskCtx := agentpkg.TaskContext{
+		IssueTitle: task.Event,
+		IssueBody:  task.Context,
+		RepoName:   task.Repo,
+		TaskType:   "analyze",
+	}
+	basePrompt := agentpkg.BuildAnalyzePrompt(taskCtx, codeCtx)
+	systemPrompt := agentpkg.MergeAgentSystemPrompt(basePrompt, agent.SystemPrompt)
+
+	// Assemble analyze-readonly tool pack
+	packID := r.factory.resolveToolPack(task.TaskType)
+	packCfg, ok := r.factory.toolPacks.Packs[packID]
+	if !ok {
+		return nil, fmt.Errorf("tool pack %q not found", packID)
+	}
+	toolRegistry, err := agentpkg.AssembleToolRegistry(packCfg.Tools, sb)
+	if err != nil {
+		return nil, fmt.Errorf("assemble tool registry for pack %q: %w", packID, err)
+	}
+
+	// Short loop: max 5 iterations for read-only analysis
+	loop := agentpkg.NewAgentLoopWithConfig(
+		provider,
+		toolRegistry,
+		agent.Model,
+		maxOutput,
+		maxInput,
+		temperature,
+		r.factory.defaultLoop,
+	)
+	loop.SetMaxIterations(5)
+	loop.SetModelMeta(r.factory.getModelMeta(agent.Provider, agent.Model))
+	loop.SetProviderName(agent.Provider)
+	loop.SetUsageRecorder(func(p, m string, usage llm.Usage) {
+		r.factory.recordTaskUsage(task.ID, p, m, usage)
+	})
+
+	if r.factory.getDebugConfig != nil {
+		debugCfg := r.factory.getDebugConfig()
+		if debugCfg.ConversationLog.Enabled && r.factory.db != nil {
+			loop.SetConversationRecorder(
+				newConversationRecorder(r.factory.db, debugCfg.ConversationLog.MaxContentChars),
+				task.ID,
+			)
+		}
+	}
+
+	messages := []llm.Message{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: task.Context},
+	}
+
+	messages, err = agentpkg.TruncateMessages(messages, toolRegistry.ToLLMTools(), maxInput, r.factory.getModelMeta(agent.Provider, agent.Model))
+	if err != nil {
+		return nil, fmt.Errorf("truncate messages: %w", err)
+	}
+
+	result, err := loop.Run(ctx, messages)
+	if err != nil {
+		return nil, fmt.Errorf("analyze agent loop: %w", err)
+	}
+
+	log.Printf("[INFO] Task %d analyze loop completed", task.ID)
+
+	return &Result{
+		Content: result,
 		Action:  "comment",
 	}, nil
 }

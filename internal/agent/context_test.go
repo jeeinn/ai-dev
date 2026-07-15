@@ -117,3 +117,26 @@ func TestBuildBugfixPromptIncludesToolInstructions(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildAnalyzePromptIsReadOnly(t *testing.T) {
+	task := TaskContext{
+		IssueTitle: "Investigate slow query",
+		IssueBody:  "The user list endpoint is slow.",
+		RepoName:   "owner/repo",
+		TaskType:   "analyze",
+	}
+	prompt := BuildAnalyzePrompt(task, nil)
+	for _, want := range []string{
+		"read-only analysis",
+		"## Task",
+		"Investigate slow query",
+		"## Instructions",
+		"read-only tools",
+		"Do NOT write any files",
+		"analysis only",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("BuildAnalyzePrompt() missing %q", want)
+		}
+	}
+}

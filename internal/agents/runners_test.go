@@ -6,11 +6,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/store"
 
 	"github.com/stretchr/testify/assert"
@@ -42,6 +45,25 @@ func (m *mockGiteaFactory) GetGiteaClient(token string) *gitea.Client {
 
 func (m *mockGiteaFactory) GetAdminGiteaClient() *gitea.Client {
 	return gitea.NewClient("http://localhost:0", "admin-token")
+}
+
+// mockProviderWithToolCalls is a mock LLM provider that returns a sequence of
+// responses (tool calls followed by final content).
+type mockProviderWithToolCalls struct {
+	responses []llm.ChatResponse
+	callIndex int
+}
+
+func (m *mockProviderWithToolCalls) ChatCompletion(ctx context.Context, req *llm.ChatRequest) (*llm.ChatResponse, error) {
+	if m.callIndex >= len(m.responses) {
+		return &llm.ChatResponse{
+			Content: "default",
+			Usage:   llm.Usage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+		}, nil
+	}
+	resp := m.responses[m.callIndex]
+	m.callIndex++
+	return &resp, nil
 }
 
 func TestRunnerFactoryGetRunner(t *testing.T) {
@@ -239,4 +261,108 @@ func TestRecordTaskUsageCostPerThousandTokens(t *testing.T) {
 	prompt, completion := 1000, 500
 	cost := (float64(prompt)*meta.InputPrice + float64(completion)*meta.OutputPrice) / 1000.0
 	assert.InDelta(t, 2.0, cost, 0.0001) // 1000*1/1000 + 500*2/1000 = 1 + 1 = 2
+}
+
+// TestAnalyzeRunnerLoopPath verifies the read-only AgentLoop path when a
+// shallow clone succeeds. The mock provider returns one tool call (list_files)
+// followed by a final content response.
+func TestAnalyzeRunnerLoopPath(t *testing.T) {
+	// 1. Create a local bare repo to clone from
+	tmpDir := t.TempDir()
+	workDir := filepath.Join(tmpDir, "work")
+	bareDir := filepath.Join(tmpDir, "remote.git")
+
+	require.NoError(t, os.MkdirAll(workDir, 0755))
+	sb := sandbox.New(sandbox.SandboxConfig{Mode: sandbox.ModeFixed, BaseDir: workDir, MaxFileSize: 1024 * 1024, CommandTimeout: 30 * time.Second}, 1)
+	require.NoError(t, sb.Setup())
+	t.Cleanup(func() { sb.Cleanup() })
+
+	git := sandbox.NewGit(sb)
+	sb.Execute("git", "init")
+	sb.Execute("git", "config", "user.email", "test@test.com")
+	sb.Execute("git", "config", "user.name", "Test")
+	require.NoError(t, sb.WriteFile("README.md", []byte("# Test Repo\n")))
+	git.Add()
+	require.NoError(t, git.Commit("initial").Error)
+
+	// Push to bare repo
+	require.NoError(t, os.MkdirAll(bareDir, 0755))
+	sb.Execute("git", "init", "--bare", bareDir)
+	sb.Execute("git", "remote", "add", "origin", bareDir)
+	require.NoError(t, git.Push("origin", "HEAD:refs/heads/main").Error)
+
+	// 2. Mock Gitea server returning repo info pointing to the bare repo
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/repos/owner/repo" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(gitea.RepoInfo{
+				DefaultBranch: "main",
+				CloneURL:      bareDir,
+			})
+			return
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	giteaFactory := &testGiteaFactory{baseURL: server.URL}
+
+	// 3. Mock provider: first returns a tool call (list_files), then final content
+	provider := &mockProviderWithToolCalls{
+		responses: []llm.ChatResponse{
+			{
+				ToolCalls: []llm.ToolCall{
+					{ID: "call_1", Type: "function", Function: llm.FuncCall{Name: "list_files", Arguments: `{}`}},
+				},
+				Usage: llm.Usage{PromptTokens: 50, CompletionTokens: 10, TotalTokens: 60},
+			},
+			{
+				Content: "Analysis complete: README.md found.",
+				Usage:   llm.Usage{PromptTokens: 80, CompletionTokens: 20, TotalTokens: 100},
+			},
+		},
+	}
+
+	registry := &llm.Registry{}
+	registry.Register("mock", provider)
+
+	factory := NewRunnerFactory(registry, giteaFactory, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil)
+	// Use ModeTemp to avoid workspace directory conflicts between tests
+	factory.sandboxCfg = sandbox.SandboxConfig{Mode: sandbox.ModeTemp, CommandTimeout: 30 * time.Second}
+	runner := NewAnalyzeRunner(factory)
+
+	task := &store.Task{
+		ID:       1,
+		AgentID:  1,
+		TaskType: "analyze_issue",
+		Repo:     "owner/repo",
+		Context:  "Analyze the repository structure.",
+	}
+	agent := &store.Agent{
+		ID:              1,
+		Provider:        "mock",
+		Model:           "mock-model",
+		SystemPrompt:    "You are an analyst.",
+		MaxOutputTokens: 1024,
+		MaxInputTokens:  8192,
+	}
+
+	result, err := runner.Run(context.Background(), task, agent)
+	require.NoError(t, err)
+	assert.Equal(t, "comment", result.Action)
+	assert.Equal(t, "Analysis complete: README.md found.", result.Content)
+	assert.Equal(t, 2, provider.callIndex) // two LLM calls
+}
+
+// testGiteaFactory creates Gitea clients pointing at a test server.
+type testGiteaFactory struct {
+	baseURL string
+}
+
+func (m *testGiteaFactory) GetGiteaClient(token string) *gitea.Client {
+	return gitea.NewClient(m.baseURL, token)
+}
+
+func (m *testGiteaFactory) GetAdminGiteaClient() *gitea.Client {
+	return gitea.NewClient(m.baseURL, "admin-token")
 }

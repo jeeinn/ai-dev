@@ -65,10 +65,10 @@
 
 ### 5. Analyze 短只读 Loop（读仓）
 
-- [ ] 浅 clone `default_branch` + `analyze-readonly` ToolPack
-- [ ] 短 `AgentLoop`（低 `max_iterations`）；禁止写工具 / 随意 `run_command`
-- [ ] 评论引用真实路径；不建分支、不提 PR；workspace 可清理
-- [ ] clone 失败策略（失败注释或可选弱降级 single-shot）
+- [x] 浅 clone `default_branch` + `analyze-readonly` ToolPack
+- [x] 短 `AgentLoop`（低 `max_iterations`）；禁止写工具 / 随意 `run_command`
+- [x] 评论引用真实路径；不建分支、不提 PR；workspace 可清理
+- [x] clone 失败策略（失败注释或可选弱降级 single-shot）
 
 ### 6. 沙箱可运维化（支撑 4/5）
 

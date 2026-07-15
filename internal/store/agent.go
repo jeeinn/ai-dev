@@ -34,13 +34,14 @@ type Agent struct {
 	Status          string           `json:"status"`
 	Backend         string           `json:"backend"`                   // coding backend name; default "internal" (OpenCode Path A)
 	BackendOptions   map[string]any   `json:"backend_options,omitempty"` // backend-specific options (JSON)
+	ToolPack        string           `json:"tool_pack"`                 // ToolPack name; empty = use role-based default
 	CreatedAt       time.Time        `json:"created_at"`
 	UpdatedAt       time.Time        `json:"updated_at"`
 }
 
 const agentSelectCols = `id, name, gitea_username, gitea_token, avatar_url, provider, model,
 	max_output_tokens, max_input_tokens, temperature, timeout, system_prompt, user_template,
-	loop_config, repos, role, status, backend, backend_options, created_at, updated_at`
+	loop_config, repos, role, status, backend, backend_options, tool_pack, created_at, updated_at`
 
 func scanAgent(scanner interface {
 	Scan(dest ...any) error
@@ -50,7 +51,7 @@ func scanAgent(scanner interface {
 	err := scanner.Scan(
 		&a.ID, &a.Name, &a.GiteaUsername, &a.GiteaToken, &a.AvatarURL, &a.Provider, &a.Model,
 		&a.MaxOutputTokens, &a.MaxInputTokens, &a.Temperature, &a.Timeout, &a.SystemPrompt, &a.UserTemplate,
-		&loopConfigJSON, &reposJSON, &a.Role, &a.Status, &a.Backend, &backendOptionsJSON, &a.CreatedAt, &a.UpdatedAt,
+		&loopConfigJSON, &reposJSON, &a.Role, &a.Status, &a.Backend, &backendOptionsJSON, &a.ToolPack, &a.CreatedAt, &a.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -94,11 +95,11 @@ func (db *DB) CreateAgent(a *Agent) error {
 	result, err := db.Exec(`INSERT INTO agents
 		(name, gitea_username, gitea_token, avatar_url, provider, model,
 		 max_output_tokens, max_input_tokens, temperature, timeout, system_prompt, user_template,
-		 loop_config, repos, role, status, backend, backend_options)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 loop_config, repos, role, status, backend, backend_options, tool_pack)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, a.GiteaUsername, a.GiteaToken, a.AvatarURL, a.Provider, a.Model,
 		a.MaxOutputTokens, a.MaxInputTokens, a.Temperature, a.Timeout, a.SystemPrompt, a.UserTemplate,
-		loopConfigJSON, reposJSON, a.Role, a.Status, a.Backend, backendOptionsJSON)
+		loopConfigJSON, reposJSON, a.Role, a.Status, a.Backend, backendOptionsJSON, a.ToolPack)
 	if err != nil {
 		return fmt.Errorf("insert agent: %w", err)
 	}
@@ -168,12 +169,12 @@ func (db *DB) UpdateAgent(a *Agent) error {
 	_, err := db.Exec(`UPDATE agents SET name=?, provider=?, model=?,
 		max_output_tokens=?, max_input_tokens=?, temperature=?, timeout=?,
 		system_prompt=?, user_template=?, loop_config=?, repos=?, role=?, status=?,
-		avatar_url=?, gitea_token=?, backend=?, backend_options=?, updated_at=CURRENT_TIMESTAMP
+		avatar_url=?, gitea_token=?, backend=?, backend_options=?, tool_pack=?, updated_at=CURRENT_TIMESTAMP
 		WHERE id=?`,
 		a.Name, a.Provider, a.Model,
 		a.MaxOutputTokens, a.MaxInputTokens, a.Temperature, a.Timeout,
 		a.SystemPrompt, a.UserTemplate, loopConfigJSON, reposJSON, a.Role, a.Status,
-		a.AvatarURL, a.GiteaToken, a.Backend, backendOptionsJSON, a.ID)
+		a.AvatarURL, a.GiteaToken, a.Backend, backendOptionsJSON, a.ToolPack, a.ID)
 	if err != nil {
 		return fmt.Errorf("update agent: %w", err)
 	}

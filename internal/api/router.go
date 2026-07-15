@@ -328,6 +328,7 @@ type AgentDTO struct {
 	Status          string                 `json:"status"`
 	Backend         string                 `json:"backend"`
 	BackendOptions  map[string]any         `json:"backend_options,omitempty"`
+	ToolPack        string                 `json:"tool_pack"`
 }
 
 func toAgentDTO(a *store.Agent) AgentDTO {
@@ -350,6 +351,7 @@ func toAgentDTO(a *store.Agent) AgentDTO {
 		Status:          a.Status,
 		Backend:         a.Backend,
 		BackendOptions:  a.BackendOptions,
+		ToolPack:        a.ToolPack,
 	}
 }
 

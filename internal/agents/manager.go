@@ -53,6 +53,7 @@ func (m *Manager) SetRegistry(registry *Registry) {
 		Role            string                 `json:"role"`            // analyze | coder | review
 		Backend         string                 `json:"backend"`                    // coding backend; default "internal"
 		BackendOptions  map[string]any         `json:"backend_options,omitempty"`  // backend-specific options
+		ToolPack        string                 `json:"tool_pack"`                  // ToolPack name; empty = use role-based default
 	}
 
 // ReloadGitea updates the Gitea client after config changes.

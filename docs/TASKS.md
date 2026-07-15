@@ -82,7 +82,9 @@
 
 ### 7. 工作流可观测
 
-- [ ] Web UI / 任务详情消费已有 `GET /api/workflow-context`
+> `WorkflowDetail.vue` + `/workflows` 导航；Tasks 详情入口跳转；调用 `GET /api/workflow-context` 与 `POST /api/sessions/reset`。
+
+- [x] Web UI / 任务详情消费已有 `GET /api/workflow-context`
 - [ ] （可选）preset `free|standard|strict` 配置入口（现仅 yaml）
 
 ---

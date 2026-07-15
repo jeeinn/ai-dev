@@ -54,6 +54,7 @@ func (m *Manager) SetRegistry(registry *Registry) {
 		Backend         string                 `json:"backend"`                    // coding backend; default "internal"
 		BackendOptions  map[string]any         `json:"backend_options,omitempty"`  // backend-specific options
 		ToolPack        string                 `json:"tool_pack"`                  // ToolPack name; empty = use role-based default
+		McpServers      []string               `json:"mcp_servers,omitempty"`      // Enabled MCP server names
 	}
 
 // ReloadGitea updates the Gitea client after config changes.
@@ -168,6 +169,8 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 			Status:          "active",
 			Backend:         req.Backend,
 			BackendOptions:  req.BackendOptions,
+			ToolPack:        req.ToolPack,
+			McpServers:      req.McpServers,
 		}
 	if err := m.db.CreateAgent(agent); err != nil {
 		return nil, fmt.Errorf("store agent: %w", err)

@@ -60,7 +60,7 @@
 
 - [x] `config.yaml` 命名包（`coder-default` / `analyze-readonly`）
 - [x] `AssembleToolRegistry` + `resolveToolPack`（role-based 默认）
-- [ ] Agent `tool_pack` 字段持久化（DB/API/DTO）— 可后置
+- [x] Agent `tool_pack` 字段持久化（DB/API/DTO）
 - [x] coder 行为与现行 `DefaultTools` **零回归**
 
 ### 5. Analyze 短只读 Loop（读仓）✅
@@ -93,8 +93,8 @@
 
 ### 8. 远程 MCP → ToolRegistry
 
-- [ ] `mcp_servers` 定义 + Agent 启用列表
-- [ ] 合并进同一 `ToolRegistry`；Analyze 仅只读类
+- [x] `mcp_servers` 定义 + Agent 启用列表
+- [x] 合并进同一 `ToolRegistry`；Analyze 仅只读类（按 Agent 配置自管理）
 
 ### 9. 文件型 Skills
 

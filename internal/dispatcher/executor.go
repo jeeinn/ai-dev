@@ -12,6 +12,7 @@ import (
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/mcp"
 	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/workflow"
@@ -41,6 +42,7 @@ type Executor struct {
 	agentDefaults config.AgentDefaultsConfig
 	defaultLoop   config.AgentLoopConfig
 	sandboxCfg    sandbox.SandboxConfig
+	mcpCfg        config.MCPConfig
 	onComplete    TaskCompleteCallback
 	onFailed      TaskFailedCallback
 
@@ -50,7 +52,7 @@ type Executor struct {
 }
 
 // NewExecutor creates a new Executor.
-func NewExecutor(maxConcurrent, retryCount int, llmRegistry *llm.Registry, db *store.DB, agentDefaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, sandboxCfg sandbox.SandboxConfig) *Executor {
+func NewExecutor(maxConcurrent, retryCount int, llmRegistry *llm.Registry, db *store.DB, agentDefaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, sandboxCfg sandbox.SandboxConfig, mcpCfg config.MCPConfig) *Executor {
 	if defaultLoop.MaxIterations <= 0 {
 		defaultLoop = config.DefaultAgentLoopConfig()
 	}
@@ -64,6 +66,7 @@ func NewExecutor(maxConcurrent, retryCount int, llmRegistry *llm.Registry, db *s
 		retryCount:    retryCount,
 		agentDefaults: agentDefaults,
 		defaultLoop:   defaultLoop,
+		mcpCfg:        mcpCfg,
 		rootCtx:       rootCtx,
 		rootCancel:    rootCancel,
 	}
@@ -89,7 +92,8 @@ func (e *Executor) SetOnFailed(cb TaskFailedCallback) {
 // SetGiteaClientFactory sets the factory for creating Gitea clients.
 func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig) {
 	e.giteaFactory = factory
-	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.agentDefaults, e.defaultLoop, getDebugConfig, backends, nil, e.sandboxCfg)
+	mcpReg := mcp.NewRegistry(e.mcpCfg)
+	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.agentDefaults, e.defaultLoop, getDebugConfig, backends, nil, e.sandboxCfg, mcpReg)
 }
 
 // SetModelMetaProvider sets the model metadata provider for adaptive token limits.

@@ -329,6 +329,7 @@ type AgentDTO struct {
 	Backend         string                 `json:"backend"`
 	BackendOptions  map[string]any         `json:"backend_options,omitempty"`
 	ToolPack        string                 `json:"tool_pack"`
+	McpServers      []string               `json:"mcp_servers,omitempty"`
 }
 
 func toAgentDTO(a *store.Agent) AgentDTO {
@@ -352,6 +353,7 @@ func toAgentDTO(a *store.Agent) AgentDTO {
 		Backend:         a.Backend,
 		BackendOptions:  a.BackendOptions,
 		ToolPack:        a.ToolPack,
+		McpServers:      a.McpServers,
 	}
 }
 
@@ -460,6 +462,13 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 	// backend_options: replace if provided in request (nil → keep existing)
 	if req.BackendOptions != nil {
 		agent.BackendOptions = req.BackendOptions
+	}
+	if req.ToolPack != "" {
+		agent.ToolPack = req.ToolPack
+	}
+	// mcp_servers: replace if provided in request (nil → keep existing)
+	if req.McpServers != nil {
+		agent.McpServers = req.McpServers
 	}
 	agent.ID = id
 	if err := h.manager.UpdateAgent(agent); err != nil {

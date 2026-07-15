@@ -232,3 +232,18 @@ sandbox:
   max_file_size: 1048576
   # 失败任务保留时间（fixed 模式）
   cleanup_after: "24h"
+
+# ===== MCP 服务器配置 (P2.8) =====
+# 远程 MCP (Model Context Protocol) 服务器定义
+# Agent 可通过 mcp_servers 字段启用指定服务器的工具
+mcp:
+  servers:
+    # 示例：一个提供知识库检索的 MCP 服务器
+    # knowledge-base:
+    #   base_url: "http://localhost:8081/mcp"
+    #   api_key: "${MCP_KB_API_KEY}"   # Bearer token；无鉴权可留空
+    #   timeout: "30s"
+    # 示例：文件系统 MCP
+    # filesystem:
+    #   base_url: "http://localhost:8082/mcp"
+    #   timeout: "15s"

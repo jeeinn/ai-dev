@@ -93,7 +93,7 @@ func TestHandleTaskPanicMarksTaskFailed(t *testing.T) {
 	}
 
 	var failedTask *store.Task
-	e := NewExecutor(1, 0, nil, db, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), sandbox.DefaultConfig())
+	e := NewExecutor(1, 0, nil, db, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), sandbox.DefaultConfig(), config.DefaultMCPConfig())
 	e.SetOnFailed(func(t *store.Task) {
 		failedTask = t
 	})
@@ -137,7 +137,7 @@ func newWritebackExecutor(t *testing.T, serverURL string) (*Executor, *store.Tas
 	}
 
 	var completeCalls, failedCalls int32
-	e := NewExecutor(1, 0, nil, db, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), sandbox.DefaultConfig())
+	e := NewExecutor(1, 0, nil, db, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), sandbox.DefaultConfig(), config.DefaultMCPConfig())
 	e.SetGiteaClientFactory(&fakeGiteaFactory{serverURL: serverURL}, func() config.DebugConfig { return config.DebugConfig{} }, nil)
 	e.SetOnComplete(func(*store.Task) { atomic.AddInt32(&completeCalls, 1) })
 	e.SetOnFailed(func(*store.Task) { atomic.AddInt32(&failedCalls, 1) })

@@ -86,7 +86,7 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	sandboxCfg := parseSandboxConfig(&cfg.Sandbox)
 
 	// Create dispatcher
-	d := dispatcher.NewDispatcher(db, &cfg.Gitea, &cfg.Dispatcher, llmRegistry, &cfg.Agents, sandboxCfg)
+	d := dispatcher.NewDispatcher(db, &cfg.Gitea, &cfg.Dispatcher, llmRegistry, &cfg.Agents, sandboxCfg, cfg.MCP)
 
 	// Create API handler
 	manager := agents.NewManager(db, &cfg.Gitea)

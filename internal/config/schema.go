@@ -15,6 +15,7 @@ type Config struct {
 	Workflow   WorkflowConfig   `yaml:"workflow"`
 	Session    SessionConfig    `yaml:"session"`
 	Sandbox    SandboxConfig    `yaml:"sandbox"`
+	MCP        MCPConfig        `yaml:"mcp"`
 	Debug      DebugConfig      `yaml:"debug"`
 }
 
@@ -296,6 +297,29 @@ func DefaultAgentLoopConfig() AgentLoopConfig {
 		MaxIterations:     20,
 		TotalTimeout:      "30m",
 		IterationInterval: 0,
+	}
+}
+
+// MCPConfig holds MCP (Model Context Protocol) server definitions.
+// MCP tools are merged into the ToolRegistry per-agent based on the
+// agent's mcp_servers enable list.
+type MCPConfig struct {
+	Servers map[string]MCPServerConfig `yaml:"servers"`
+}
+
+// MCPServerConfig describes one MCP server connection.
+// Transport is HTTP (Streamable HTTP / JSON-RPC) for remote servers;
+// stdio transport can be added later.
+type MCPServerConfig struct {
+	BaseURL string `yaml:"base_url"` // e.g. "http://localhost:3000/mcp"
+	APIKey  string `yaml:"api_key"`  // Bearer token auth; empty = no auth
+	Timeout string `yaml:"timeout"`  // Go duration string, e.g. "30s"
+}
+
+// DefaultMCPConfig returns empty MCP config (no servers defined).
+func DefaultMCPConfig() MCPConfig {
+	return MCPConfig{
+		Servers: make(map[string]MCPServerConfig),
 	}
 }
 

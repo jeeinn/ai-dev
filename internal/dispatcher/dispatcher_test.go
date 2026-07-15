@@ -110,7 +110,7 @@ func TestDispatcherHandleEvent(t *testing.T) {
 
 	agentsCfg := &config.AgentsConfig{}
 	sandboxCfg := sandbox.DefaultConfig()
-	d := NewDispatcher(db, giteaCfg, dispatcherCfg, llmRegistry, agentsCfg, sandboxCfg)
+	d := NewDispatcher(db, giteaCfg, dispatcherCfg, llmRegistry, agentsCfg, sandboxCfg, config.DefaultMCPConfig())
 
 	// Wire v2 components
 	registry := agents.NewRegistry()
@@ -184,7 +184,7 @@ func TestDispatcherDuplicateDelivery(t *testing.T) {
 		}
 
 	sandboxCfg := sandbox.DefaultConfig()
-	d := NewDispatcher(db, giteaCfg, dispatcherCfg, nil, nil, sandboxCfg)
+	d := NewDispatcher(db, giteaCfg, dispatcherCfg, nil, nil, sandboxCfg, config.DefaultMCPConfig())
 
 	// Wire v2 components
 	registry := agents.NewRegistry()

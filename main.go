@@ -110,7 +110,7 @@ func main() {
 	sandboxCfg := parseSandboxConfig(&activeCfg.Sandbox)
 
 	// Initialize dispatcher (Router + TaskQueue + Executor)
-	d := dispatcher.NewDispatcher(db, &activeCfg.Gitea, &activeCfg.Dispatcher, llmRegistry, &activeCfg.Agents, sandboxCfg)
+	d := dispatcher.NewDispatcher(db, &activeCfg.Gitea, &activeCfg.Dispatcher, llmRegistry, &activeCfg.Agents, sandboxCfg, activeCfg.MCP)
 	d.SetDebugConfigGetter(func() config.DebugConfig {
 		return cfgManager.Get().Debug
 	})

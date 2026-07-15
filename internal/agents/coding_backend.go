@@ -136,6 +136,13 @@ func (b *InternalCodingBackend) Run(ctx context.Context, req CodingRequest) (*Co
 		return nil, fmt.Errorf("assemble tool registry for pack %q: %w", packID, err)
 	}
 
+	// Register MCP tools if enabled for this agent
+	if len(agentCfg.McpServers) > 0 && factory.mcpRegistry != nil {
+		if err := toolRegistry.RegisterMCPTools(ctx, factory.mcpRegistry, agentCfg.McpServers); err != nil {
+			return nil, fmt.Errorf("register mcp tools: %w", err)
+		}
+	}
+
 	loop := agentpkg.NewAgentLoopWithConfig(
 		provider,
 		toolRegistry,

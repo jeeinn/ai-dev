@@ -233,6 +233,7 @@ func (db *DB) migrate() error {
 		`ALTER TABLE agents ADD COLUMN backend TEXT DEFAULT 'internal'`,       // OpenCode Path A
 		`ALTER TABLE agents ADD COLUMN backend_options TEXT DEFAULT '{}'`,     // OpenCode Path A
 		`ALTER TABLE agents ADD COLUMN tool_pack TEXT DEFAULT ''`,             // P1.4: ToolPack per agent
+		`ALTER TABLE agents ADD COLUMN mcp_servers TEXT DEFAULT '[]'`,        // P2.8: MCP servers per agent
 		`DROP TABLE IF EXISTS routes`, // v2: routes table removed (Assign model replaces Label trigger)
 	}
 

@@ -48,6 +48,7 @@ func NewDispatcher(
 	llmRegistry *llm.Registry,
 	agentsCfg *config.AgentsConfig,
 	sandboxCfg sandbox.SandboxConfig,
+	mcpCfg config.MCPConfig,
 ) *Dispatcher {
 	queue := NewTaskQueue(db, dispatcherCfg.QueueSize)
 	agentDefaults := config.DefaultAgentDefaults()
@@ -74,6 +75,7 @@ func NewDispatcher(
 		agentDefaults,
 		resolveDefaultLoop(agentsCfg),
 		sandboxCfg,
+		mcpCfg,
 	)
 
 	d := &Dispatcher{

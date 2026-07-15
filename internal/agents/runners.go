@@ -11,6 +11,7 @@ import (
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/mcp"
 	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/store"
 )
@@ -63,11 +64,12 @@ type RunnerFactory struct {
 	backends         config.AgentBackendsConfig // coding backends (Path A)
 	internalBackend  *InternalCodingBackend     // always available, built from this factory
 	toolPacks        config.ToolPacksConfig     // built-in + user-defined tool packs
+	mcpRegistry      *mcp.Registry              // MCP server registry (nil = no MCP)
 }
 
 // NewRunnerFactory creates a new RunnerFactory from agent defaults and loop config.
-// The backends and toolPacks configs are optional — nil/empty falls back to defaults.
-func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig, toolPacks *config.ToolPacksConfig, sandboxCfg sandbox.SandboxConfig) *RunnerFactory {
+// The backends, toolPacks, and mcpReg configs are optional — nil/empty falls back to defaults.
+func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig, toolPacks *config.ToolPacksConfig, sandboxCfg sandbox.SandboxConfig, mcpReg *mcp.Registry) *RunnerFactory {
 	maxOut := defaults.MaxOutputTokens
 	if maxOut <= 0 {
 		maxOut = fallbackMaxOutput
@@ -113,6 +115,7 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 		getDebugConfig:   getDebugConfig,
 		backends:         beCfg,
 		toolPacks:        tpCfg,
+		mcpRegistry:      mcpReg,
 	}
 	factory.internalBackend = NewInternalCodingBackend(factory)
 	return factory
@@ -367,6 +370,13 @@ func (r *AnalyzeRunner) runAnalyzeLoop(ctx context.Context, task *store.Task, ag
 	toolRegistry, err := agentpkg.AssembleToolRegistry(packCfg.Tools, sb)
 	if err != nil {
 		return nil, fmt.Errorf("assemble tool registry for pack %q: %w", packID, err)
+	}
+
+	// Register MCP tools if enabled for this agent
+	if len(agent.McpServers) > 0 && r.factory.mcpRegistry != nil {
+		if err := toolRegistry.RegisterMCPTools(ctx, r.factory.mcpRegistry, agent.McpServers); err != nil {
+			return nil, fmt.Errorf("register mcp tools: %w", err)
+		}
 	}
 
 	// Short loop: max 5 iterations for read-only analysis

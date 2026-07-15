@@ -123,15 +123,22 @@
           </el-descriptions-item>
         </el-descriptions>
       </div>
+
+      <div v-if="selectedTask?.repo && selectedTask?.issue_id" class="task-workflow">
+        <el-button type="primary" link @click="goToWorkflow">查看工作流详情</el-button>
+      </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../api'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+
+const router = useRouter()
 
 const tasks = ref([])
 const agents = ref([])
@@ -243,6 +250,14 @@ const resetTask = async (task) => {
   } finally {
     resettingId.value = null
   }
+}
+
+const goToWorkflow = () => {
+  showDetail.value = false
+  router.push({
+    path: '/workflows',
+    query: { repo: selectedTask.value.repo, issue: selectedTask.value.issue_id }
+  })
 }
 
 onMounted(() => {

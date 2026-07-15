@@ -35,6 +35,11 @@ const routes = [
         component: () => import('../views/Tasks.vue')
       },
       {
+        path: 'workflows',
+        name: 'Workflows',
+        component: () => import('../views/WorkflowDetail.vue')
+      },
+      {
         path: 'users',
         name: 'Users',
         component: () => import('../views/Users.vue'),

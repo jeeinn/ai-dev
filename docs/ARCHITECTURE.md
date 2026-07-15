@@ -229,7 +229,7 @@ type RunnerFactory struct {
 ```
 
 工厂方法根据 **task type** 返回 Runner（task type 由 EventResolver 根据 **Agent.role + 事件** 决定，不再经 routes 或 Label 匹配）：
-- `analyze_issue` / `trigger` → **AnalyzeRunner**: 单次 LLM 调用，返回评论
+- `analyze_issue` / `trigger` → **AnalyzeRunner**: 优先浅 clone + 短只读 AgentLoop（`analyze-readonly` ToolPack，max 5 轮）；clone 失败则降级单次 LLM，返回评论
 - `review_pr` → **ReviewRunner**: 获取 PR diff + 文件列表 → LLM 审查 → 评论
 - `reply_comment` → **InteractionRunner**: 获取最近 10 条评论历史 → LLM 回复 → 评论
 - `solve_issue` → **DevRunner**: 调用 `runWriteTask(task, agent, factory, "dev")`

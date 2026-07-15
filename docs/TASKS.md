@@ -33,7 +33,7 @@
 设计：[server-runtime-design-v4.md](server-runtime-design-v4.md) §4.5 / A2
 
 - [x] `prepareWriteWorkspace` / `finalizeWriteChanges`（**零行为变更**，独立可合并）
-- [x] 预留只读 `prepareAnalyzeWorkspace` 形状（stub；**真实现属 P1.5**，主路径仍为 single-shot）
+- [x] `prepareAnalyzeWorkspace`（浅 clone default_branch；已由 P1.5 兑现，不再仅 stub）
 
 ### 3. OpenCode Path A
 
@@ -60,10 +60,12 @@
 
 - [x] `config.yaml` 命名包（`coder-default` / `analyze-readonly`）
 - [x] `AssembleToolRegistry` + `resolveToolPack`（role-based 默认）
-- [ ] Agent `tool_pack` 字段持久化（DB/API/DTO）— 可后置到 P1.5
+- [ ] Agent `tool_pack` 字段持久化（DB/API/DTO）— 可后置
 - [x] coder 行为与现行 `DefaultTools` **零回归**
 
-### 5. Analyze 短只读 Loop（读仓）
+### 5. Analyze 短只读 Loop（读仓）✅
+
+> 已合入 `feature/write-back-reliability`（`4563a7f`）：浅 clone → `analyze-readonly` 短 Loop（max 5）；clone 失败降级 `runSingleShot`。
 
 - [x] 浅 clone `default_branch` + `analyze-readonly` ToolPack
 - [x] 短 `AgentLoop`（低 `max_iterations`）；禁止写工具 / 随意 `run_command`

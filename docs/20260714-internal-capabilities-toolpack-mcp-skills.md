@@ -25,7 +25,7 @@
 
 | Runner | 现状 | 与本方案关系 |
 |--------|------|--------------|
-| **AnalyzeRunner** | **单次** `ChatCompletion`，上下文 = Issue title/body；**无** sandbox、**无** tools | 无法真正检索仓库；这是本文要补的主缺口之一 |
+| **AnalyzeRunner** | **短只读 AgentLoop**（浅 clone + `analyze-readonly`）；clone 失败降级单次 LLM | 已落地（P1.5） |
 | **ReviewRunner** | 单次 LLM；上下文含 PR diff / files（Gitea API） | 已有变更面；可选后续挂只读 ToolPack 深挖，P2 |
 | **Dev / Bugfix** | 多轮 `AgentLoop` + `DefaultTools(sb)`（写死） | ToolPack/MCP/Skills 的第一受益方 |
 

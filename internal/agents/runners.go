@@ -65,11 +65,12 @@ type RunnerFactory struct {
 	internalBackend  *InternalCodingBackend     // always available, built from this factory
 	toolPacks        config.ToolPacksConfig     // built-in + user-defined tool packs
 	mcpRegistry      *mcp.Registry              // MCP server registry (nil = no MCP)
+	gatewayDir       string                     // gateway root directory for SKILL.md scanning
 }
 
 // NewRunnerFactory creates a new RunnerFactory from agent defaults and loop config.
 // The backends, toolPacks, and mcpReg configs are optional — nil/empty falls back to defaults.
-func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig, toolPacks *config.ToolPacksConfig, sandboxCfg sandbox.SandboxConfig, mcpReg *mcp.Registry) *RunnerFactory {
+func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig, toolPacks *config.ToolPacksConfig, sandboxCfg sandbox.SandboxConfig, mcpReg *mcp.Registry, gatewayDir string) *RunnerFactory {
 	maxOut := defaults.MaxOutputTokens
 	if maxOut <= 0 {
 		maxOut = fallbackMaxOutput
@@ -116,6 +117,7 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 		backends:         beCfg,
 		toolPacks:        tpCfg,
 		mcpRegistry:      mcpReg,
+		gatewayDir:       gatewayDir,
 	}
 	factory.internalBackend = NewInternalCodingBackend(factory)
 	return factory
@@ -378,6 +380,11 @@ func (r *AnalyzeRunner) runAnalyzeLoop(ctx context.Context, task *store.Task, ag
 			return nil, fmt.Errorf("register mcp tools: %w", err)
 		}
 	}
+
+	// Register skill discovery tools (Analyze: no arbitrary skill scripts)
+	skillReg := agentpkg.NewSkillRegistry(sb, r.factory.gatewayDir)
+	toolRegistry.Register(agentpkg.NewListSkillsTool(skillReg))
+	toolRegistry.Register(agentpkg.NewLoadSkillTool(skillReg, toolRegistry, false))
 
 	// Short loop: max 5 iterations for read-only analysis
 	loop := agentpkg.NewAgentLoopWithConfig(

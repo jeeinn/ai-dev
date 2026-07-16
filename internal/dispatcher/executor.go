@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -93,7 +94,8 @@ func (e *Executor) SetOnFailed(cb TaskFailedCallback) {
 func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig) {
 	e.giteaFactory = factory
 	mcpReg := mcp.NewRegistry(e.mcpCfg)
-	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.agentDefaults, e.defaultLoop, getDebugConfig, backends, nil, e.sandboxCfg, mcpReg)
+	gatewayDir, _ := os.Getwd()
+	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.agentDefaults, e.defaultLoop, getDebugConfig, backends, nil, e.sandboxCfg, mcpReg, gatewayDir)
 }
 
 // SetModelMetaProvider sets the model metadata provider for adaptive token limits.

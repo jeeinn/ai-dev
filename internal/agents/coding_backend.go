@@ -143,6 +143,11 @@ func (b *InternalCodingBackend) Run(ctx context.Context, req CodingRequest) (*Co
 		}
 	}
 
+	// Register skill discovery tools (coder may load script-backed skill tools)
+	skillReg := agentpkg.NewSkillRegistry(sb, factory.gatewayDir)
+	toolRegistry.Register(agentpkg.NewListSkillsTool(skillReg))
+	toolRegistry.Register(agentpkg.NewLoadSkillTool(skillReg, toolRegistry, true))
+
 	loop := agentpkg.NewAgentLoopWithConfig(
 		provider,
 		toolRegistry,

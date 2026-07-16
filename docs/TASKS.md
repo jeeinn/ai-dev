@@ -98,9 +98,11 @@
 
 ### 9. 文件型 Skills
 
-- [x] 扫描 Gateway 目录 + 仓库内 `SKILL.md`（骨架：`list_skills` / `load_skill`；**尚未**严格对齐 agentskills.io YAML frontmatter / 专用 `skills/` 扫描根）
+- [x] 扫描 Gateway 目录 + 仓库内 `SKILL.md`（骨架：`list_skills` / `load_skill`）
 - [x] 渐进披露 + `load_skill`；Analyze `allowScripts=false`（禁脚本工具注册，仅披露元数据）
-- [ ] （后续）agentskills.io frontmatter 解析；扫描根收敛到 `skills/` / `.agents/skills/`；注入 SKILL 正文指令
+- [x] agentskills.io YAML frontmatter 解析（`---` 界限 → `skillFrontmatter` → `Skill`；兼容旧 heading 格式）
+- [x] 扫描根收敛到 `skills/` / `.agents/skills/` + 子目录 `skills/<name>/SKILL.md`；根 `SKILL.md` 向后兼容
+- [x] 渐进披露完善：`list_skills` 仅返回 name/description；`load_skill` 注入 SKILL.md 正文指令 + 注册工具
 
 ### 10. 产品打磨（旧 backlog 摘录）
 

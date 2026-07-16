@@ -1,5 +1,6 @@
 # Gitea Agent Gateway 配置文件
-# 复制为 config.yaml 并修改
+# 复制为 config.yaml 并修改（config.yaml 已在 .gitignore，请勿提交含 Token 的配置）
+# 敏感项建议用环境变量：见 .env.example（复制为 .env，勿提交）
 
 server:
   host: "0.0.0.0"
@@ -90,6 +91,14 @@ api:
   # 管理 API 认证 Token（留空则不认证）
   # 调用 API 时需要在 Header 中添加: Authorization: Bearer <token>
   auth_token: "${API_AUTH_TOKEN}"
+
+# Web UI / JWT 认证
+# 安全：生产环境必须更换 jwt_secret；首次登录后立即修改默认管理员密码
+auth:
+  jwt_secret: "${JWT_SECRET:-change-me-in-production}"
+  jwt_expiration: "24h"
+  # 仅首次创建 admin 用户时生效
+  default_admin_password: "${ADMIN_PASSWORD:-admin123}"
 
 # Agent 模板配置
 agents:

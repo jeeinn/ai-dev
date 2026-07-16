@@ -1,116 +1,94 @@
-# 任务清单（核心演进）
+# 任务清单
 
 > 更新：2026-07-16  
 > 产品边界：**Gitea 优先** · 内置 Agent 默认可用 · OpenCode 可选 · 不做多托管平台抽象  
 > 决策：[archived/20260714-coding-gateway-multi-vcs.md](archived/20260714-coding-gateway-multi-vcs.md)  
-> 旧版分散 backlog 已归档：[archived/20260714-TASKS.md](archived/20260714-TASKS.md)
+> P0–P2 核心演进已归档：[archived/20260716-TASKS.md](archived/20260716-TASKS.md)
 
 ---
 
 ## 演进主线
 
 ```text
-可靠性 + 写路径抽取
+P0–P2 核心能力（已交付）
         │
-        ├─► OpenCode Path A（可选加强 coder）
-        │
-        └─► Internal 能力：ToolPack → Analyze 短 Loop → MCP → Skills
+        └─► P3 开源准备 ──► 首发后：沙箱补强 / 产品打磨 / Harness 验证
 ```
 
-两条线正交：OpenCode **不替代** Analyze 读仓；Analyze **永远** `backend=internal`。
+---
+
+## P3 — 开源准备
+
+详单：[OPEN-SOURCE-CHECKLIST.md](OPEN-SOURCE-CHECKLIST.md)
+
+### 11. 开源阻塞（首发前必须）
+
+- [x] LICENSE 文件（MIT，与 README 一致）
+- [x] CI：`.github/workflows` 跑 `go test ./... -count=1` + `go vet ./...`
+- [x] 清理 `DEPLOYMENT.md` 等占位 URL（`your-org`）
+- [x] README / DEPLOYMENT 安全默认值警示（改默认密码、`jwt_secret`）
+- [x] 敏感配置：`config.example.yaml` 完整；可选 `.env.example`；勿提交 token
+- [x] README「5 分钟 Mock 测试」+ Gitea 完整联调入口
+
+### 12. 强烈建议（首发前质量加固）
+
+- [ ] v2 联调 Sign-off：补 **Merge → `done` + session archived**（见 [archived/20260709-v2-gitea-integration-checklist.md](archived/20260709-v2-gitea-integration-checklist.md) §2.4）
+- [ ] Session / Sandbox **双轨 `base_dir` 对齐**（P0.3 已知缺口）
+- [ ] `loop_config` 启动参数校验（`max_iterations` 1–100、`timeout` 范围）
+- [x] Dockerfile：**文档澄清：示例暂未提供**（短期不做 compose/K8s；见 [DEPLOYMENT.md](DEPLOYMENT.md)）
+- [ ] Linux E2E 脚本，或 TESTING.md 说明当前以 Windows 为主
+- [ ] 文档同步：`sandbox-roadmap.md`、`todo-20260714-opencode-path-a.md`、内部能力验收状态
+- [x] `CONTRIBUTING.md` + `SECURITY.md`
+- [ ] 首版 Release：`v0.1.0` tag + 预编译二进制
 
 ---
 
-## P0 — 立即
+## P1 — 遗留（不阻塞开源）
 
-### 1. 写回可靠性
+详见 [sandbox-roadmap.md](sandbox-roadmap.md)
 
-- [x] Executor：Gitea 评论/写回失败时任务不得标为纯粹 `success`（失败或「部分完成」+ 可读错误）
-- [x] 关键失败可观测（日志 + task.error / 评论）
+### 6. 沙箱补强
 
-### 2. 写路径抽取（OpenCode 与 Analyze 共用前置）
-
-设计：[server-runtime-design-v4.md](server-runtime-design-v4.md) §4.5 / A2
-
-- [x] `prepareWriteWorkspace` / `finalizeWriteChanges`（**零行为变更**，独立可合并）
-- [x] `prepareAnalyzeWorkspace`（浅 clone default_branch；已由 P1.5 兑现，不再仅 stub）
-
-### 3. OpenCode Path A
-
-设计：[todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md) · [server-runtime-design-v4.md](server-runtime-design-v4.md) · [opencode-a0-notes.md](opencode-a0-notes.md)
-
-- [x] A0 本机 `opencode serve` PoC 端到端验收（字段笔记已写：[opencode-a0-notes.md](opencode-a0-notes.md)；代码已绑定 `?directory=` + `X-Opencode-Directory`；E1+E6 本机验收见 [20260716-e2e-test-report.md](20260716-e2e-test-report.md)）
-- [x] A1 `agents.backends` + Agent `backend` / `backend_options` + migration
-- [x] A3 `CodingBackend` + `OpenCodeHTTPBackend`；非写任务强制 `internal`
-- [x] A3 health：失败 → 任务 **failed**（可读错误评论）；默认不静默降级；可选 `allow_fallback_internal`
-- [x] A4 mock 测试
-- [x] A4 运维说明（ARCHITECTURE / DEPLOYMENT）
-- [x] A4 WebUI backend 下拉（可后置）
-
-**约束**：默认 `internal`；Analyze / Review 永不走 OpenCode。
-**已知缺口**：Sandbox / Session `workspace` 双轨 base_dir 属 P1.6。
+- [ ] `rg` 工具（Analyze 读仓效率）
+- [ ] temp 模式清理与 Session workspace 生命周期对齐
+- [ ] （可选）`cat` 行号范围、`find` glob、审计日志内容摘要
 
 ---
 
-## P1 — 核心能力（Internal Loop）
+## P2 — 增强（开源后 / 按需）
 
-设计：[20260714-internal-capabilities-toolpack-mcp-skills.md](20260714-internal-capabilities-toolpack-mcp-skills.md)
+### 13. OpenCode A+
 
-### 4. ToolPack
+设计：[server-runtime-design-v4.md](server-runtime-design-v4.md) §A+ · [todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md)
 
-- [x] `config.yaml` 命名包（`coder-default` / `analyze-readonly`）
-- [x] `AssembleToolRegistry` + `resolveToolPack`（role-based 默认）
-- [x] Agent `tool_pack` 字段持久化（DB/API/DTO）
-- [x] coder 行为与现行 `DefaultTools` **零回归**
+- [ ] SSE 进度 → Issue 评论或 task progress
+- [ ] 持久化 `opencode_session_id`（Session 续作）
+- [ ] OpenCode 集成测试：mock server + 假仓库
+- [ ] Claude PrintBackend（契约型 CLI，非 Path B）
 
-### 5. Analyze 短只读 Loop（读仓）✅
+### 14. LLM 可选增强
 
-> 已合入 `feature/write-back-reliability`（`4563a7f`）：浅 clone → `analyze-readonly` 短 Loop（max 5）；clone 失败降级 `runSingleShot`。
+[todo-20260714-LLMProvider-可选增强.md](todo-20260714-LLMProvider-可选增强.md)
 
-- [x] 浅 clone `default_branch` + `analyze-readonly` ToolPack
-- [x] 短 `AgentLoop`（低 `max_iterations`）；禁止写工具 / 随意 `run_command`
-- [x] 评论引用真实路径；不建分支、不提 PR；workspace 可清理
-- [x] clone 失败策略（失败注释或可选弱降级 single-shot）
+- [ ] tiktoken 精确计数（可选开启）
+- [ ] 超长 Session 语义摘要
+- [ ] per-task 成本预算上限
 
-### 6. 沙箱可运维化（支撑 4/5）
+### 15. 产品打磨
 
-详见 [sandbox-roadmap.md](sandbox-roadmap.md)；本清单只收核心：
+完整列表见 [archived/20260714-TASKS.md](archived/20260714-TASKS.md)、[archived/20260716-TASKS.md](archived/20260716-TASKS.md) §10。
 
-- [x] `SandboxConfig` 接入 YAML（替换 runner 硬编码默认）
-- [x] 路径穿越 / 输出与文件大小限制（安全底线）
-- [ ] （按需）`rg` 工具；temp 清理与 Session workspace 对齐后再上
+- [ ] `AgentDetail.vue` 移除「触发规则」弃用 Tab
+- [ ] Agent 创建向导（按 role 一键填 Prompt）
+- [ ] WorkflowPolicy per-repo DB 覆盖
+- [ ] 阶段切换 Gitea unassign（设计曾标可选跳过）
+- [ ] 组织级 Webhook 注册指引（DEPLOYMENT 扩展）
 
-### 7. 工作流可观测
+### 16. Harness 验证（建议 backlog）
 
-> `WorkflowDetail.vue` + `/workflows` 导航；Tasks 详情入口跳转；调用 `GET /api/workflow-context` 与 `POST /api/sessions/reset`。
-
-- [x] Web UI / 任务详情消费已有 `GET /api/workflow-context`
-- [x] （可选）preset `free|standard|strict` 配置入口（SystemConfig「工作流策略」+ `workflow.preset`/`gates`；启动合并 gates，配置热更新刷新 `wfPolicy`）
-
----
-
-## P2 — 增强（不阻塞主线）
-
-### 8. 远程 MCP → ToolRegistry
-
-- [x] `mcp_servers` 定义 + Agent 启用列表
-- [x] 合并进同一 `ToolRegistry`；Analyze 仅只读类（按 Agent 配置自管理）
-
-### 9. 文件型 Skills
-
-- [x] 扫描 Gateway 目录 + 仓库内 `SKILL.md`（骨架：`list_skills` / `load_skill`）
-- [x] 渐进披露 + `load_skill`；Analyze `allowScripts=false`（禁脚本工具注册，仅披露元数据）
-- [x] agentskills.io YAML frontmatter 解析（`---` 界限 → `skillFrontmatter` → `Skill`；兼容旧 heading 格式）
-- [x] 扫描根收敛到 `skills/` / `.agents/skills/` + 子目录 `skills/<name>/SKILL.md`；根 `SKILL.md` 向后兼容
-- [x] 渐进披露完善：`list_skills` 仅返回 name/description；`load_skill` 注入 SKILL.md 正文指令 + 注册工具
-
-### 10. 产品打磨（旧 backlog 摘录）
-
-完整列表见 [archived/20260714-TASKS.md](archived/20260714-TASKS.md)。按需选自：
-
-- UI：移除废弃 TriggerRules Tab；Agent 创建向导  
-- 多仓：WorkflowPolicy per-repo；阶段切换 unassign  
-- LLM 可选：tiktoken / 摘要 / 成本预算 — [todo-20260714-LLMProvider-可选增强.md](todo-20260714-LLMProvider-可选增强.md)
+- [ ] Dev/Bugfix：测试/构建通过作为程序化完成条件
+- [ ] Review 与 Coder 独立 Checker 上下文（防自评）
+- [ ] Loop 无进展退出（连续 N 轮无 diff / 测试不过则停）
 
 ---
 
@@ -127,13 +105,11 @@
 
 ## 建议节奏
 
-| 周次 | 焦点 |
+| 阶段 | 焦点 |
 |------|------|
-| 1 | P0.1 写回可靠性 + P0.2 写路径抽取 |
-| 1–2 | P0.3 OpenCode A0–A1 |
-| 2–3 | P0.3 A3–A4；并行 P1.4 ToolPack |
-| 3–4 | P1.5 Analyze 短 Loop + P1.6 沙箱 YAML |
-| 之后 | P1.7 可观测；P2 MCP → Skills |
+| 第 1 周 | P3.11 开源阻塞 + CONTRIBUTING/SECURITY |
+| 第 2 周 | P3.12 质量加固 + v0.1.0 Release |
+| 之后 | P1.6 沙箱 / P2 OpenCode A+ / 产品打磨 / Harness |
 
 ---
 
@@ -141,12 +117,11 @@
 
 | 文档 | 用途 |
 |------|------|
+| [OPEN-SOURCE-CHECKLIST.md](OPEN-SOURCE-CHECKLIST.md) | 开源阻塞 + 强烈建议详单 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 现行架构 |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | 部署 |
+| [20260716-e2e-test-report.md](20260716-e2e-test-report.md) | 本机 E2E 报告 |
 | [server-runtime-design-v4.md](server-runtime-design-v4.md) | OpenCode / CodingBackend |
-| [20260714-internal-capabilities-toolpack-mcp-skills.md](20260714-internal-capabilities-toolpack-mcp-skills.md) | ToolPack / MCP / Skills / Analyze |
-| [todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md) | Path A checklist |
 | [sandbox-roadmap.md](sandbox-roadmap.md) | 沙箱细项 |
+| [archived/20260716-TASKS.md](archived/20260716-TASKS.md) | P0–P2 交付记录 |
 | [archived/](archived/) | 历史设计与旧 TASKS |
-
-已交付：Assign 工作流 v2（[archived/20260616-TASKS.md](archived/20260616-TASKS.md)）、LLM Provider 主方案（[archived/20260710-LLMProvider…](archived/20260710-LLMProvider模型选择与Token配置扩展方案.md)）。

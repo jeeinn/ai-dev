@@ -299,9 +299,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SQLite 存储 (WAL 模式)
 - YAML 配置 (环境变量展开)
 
-[Unreleased]: https://github.com/your-org/gitea-agent-gateway/compare/v0.7.0...HEAD
-[0.7.0]: https://github.com/your-org/gitea-agent-gateway/compare/v0.3.1...v0.7.0
-[0.3.1]: https://github.com/your-org/gitea-agent-gateway/compare/v0.3.0...v0.3.1
-[0.3.0]: https://github.com/your-org/gitea-agent-gateway/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/your-org/gitea-agent-gateway/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/your-org/gitea-agent-gateway/releases/tag/v0.1.0
+[Unreleased]: https://github.com/jeeinn/ai-dev/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/jeeinn/ai-dev/compare/v0.3.1...v0.7.0
+[0.3.1]: https://github.com/jeeinn/ai-dev/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/jeeinn/ai-dev/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/jeeinn/ai-dev/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/jeeinn/ai-dev/releases/tag/v0.1.0

@@ -4,6 +4,7 @@ gateway.exe*
 
 # Local config (contains tokens)
 config.yaml
+.env
 .codegraph/
 .claude/
 .workbuddy/

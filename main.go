@@ -125,7 +125,7 @@ func main() {
 	wfMgr := workflow.NewWorkflowManager(db)
 	l1Gate := workflow.NewL1Gate(db)
 	sessionSvc := workflow.NewSessionService(db, activeCfg.Workspace.BaseDir)
-	wfPolicy := workflow.GetPreset(activeCfg.Workflow.Preset)
+	wfPolicy := workflow.BuildPolicy(activeCfg.Workflow.Preset, activeCfg.Workflow.Gates)
 	sessionCfg := &activeCfg.Session
 	if sessionCfg.IdleTTL == "" {
 		defaultSessionCfg := config.DefaultSessionConfig()
@@ -208,7 +208,8 @@ func main() {
 		llmRegistry.Reload(&newCfg.LLM)
 		llmRegistry.SetRateLimitBackoff(newCfg.Dispatcher.RateLimitBackoff, newCfg.LLM.RateLimitRetries)
 		manager.ReloadGitea(&newCfg.Gitea)
-		log.Printf("[INFO] LLM registry and Gitea client reloaded")
+		d.SetWorkflowPolicy(workflow.BuildPolicy(newCfg.Workflow.Preset, newCfg.Workflow.Gates))
+		log.Printf("[INFO] LLM registry, Gitea client, and workflow policy reloaded")
 	})
 	apiHandler.RegisterRoutes(mux)
 

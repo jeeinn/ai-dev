@@ -310,6 +310,11 @@ func (m *ConfigManager) GetDisplayMap() (map[string]interface{}, error) {
 		"models":   modelsMeta,
 		"backends": backendsMeta,
 		"backends_default": activeBackends.Default,
+		"workflow_presets": []map[string]interface{}{
+			{"name": "free", "label": "自由模式", "description": "最小限制，允许跳过分析直接开发"},
+			{"name": "standard", "label": "标准模式", "description": "平衡配置，开发中重新分析会警告"},
+			{"name": "strict", "label": "严格模式", "description": "最大限制，强制分析后才能开发"},
+		},
 	}
 	return result, nil
 }
@@ -530,6 +535,8 @@ var configKeys = []string{
 	"agents.loop.iteration_interval",
 	"debug.conversation_log.enabled",
 	"debug.conversation_log.max_content_chars",
+	"workflow.preset",
+	"workflow.gates",
 }
 
 func parseConfigValue(key, value string) (interface{}, error) {
@@ -611,6 +618,10 @@ func getConfigValueTyped(cfg *Config, key string) interface{} {
 		return cfg.Debug.ConversationLog.Enabled
 	case "debug.conversation_log.max_content_chars":
 		return cfg.Debug.ConversationLog.MaxContentChars
+	case "workflow.preset":
+		return cfg.Workflow.Preset
+	case "workflow.gates":
+		return cfg.Workflow.Gates
 	default:
 		return ""
 	}
@@ -714,6 +725,14 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 			return fmt.Errorf("not a number: %s", value)
 		}
 		cfg.Debug.ConversationLog.MaxContentChars = n
+	case "workflow.preset":
+		cfg.Workflow.Preset = value
+	case "workflow.gates":
+		var gates map[string]string
+		if err := json.Unmarshal([]byte(value), &gates); err != nil {
+			return fmt.Errorf("invalid JSON: %w", err)
+		}
+		cfg.Workflow.Gates = gates
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}

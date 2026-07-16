@@ -188,6 +188,11 @@ func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *
 	})
 }
 
+// SetWorkflowPolicy replaces the live L2 policy (e.g. after WebUI config hot-reload).
+func (d *Dispatcher) SetWorkflowPolicy(wfPolicy *workflow.WorkflowPolicy) {
+	d.wfPolicy = wfPolicy
+}
+
 // Shutdown cancels in-flight executor work so agent loops can exit on process stop.
 func (d *Dispatcher) Shutdown() {
 	if d.executor != nil {

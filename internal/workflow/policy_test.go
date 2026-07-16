@@ -41,6 +41,28 @@ func TestGetPreset(t *testing.T) {
 	assert.Equal(t, "standard", GetPreset("").Preset)
 }
 
+func TestBuildPolicyMergesGateOverrides(t *testing.T) {
+	p := BuildPolicy("standard", map[string]string{
+		GateCoderRequiresAnalyzed: "hard",
+		GateAllowSkipAnalyze:      "false",
+		"":                        "ignored-key",
+	})
+	assert.Equal(t, "standard", p.Preset)
+	assert.Equal(t, "hard", p.Gates[GateCoderRequiresAnalyzed])
+	assert.Equal(t, "false", p.Gates[GateAllowSkipAnalyze])
+	// Unoverridden gates keep preset defaults
+	assert.Equal(t, "soft", p.Gates[GateReanalyzeWhileDev])
+}
+
+func TestBuildPolicyEmptyOverridesKeepsPreset(t *testing.T) {
+	p := BuildPolicy("strict", nil)
+	assert.Equal(t, "strict", p.Preset)
+	assert.Equal(t, "hard", p.Gates[GateCoderRequiresAnalyzed])
+
+	p2 := BuildPolicy("free", map[string]string{GateCoderRequiresAnalyzed: ""})
+	assert.Equal(t, "off", p2.Gates[GateCoderRequiresAnalyzed])
+}
+
 func TestGetGateLevel(t *testing.T) {
 	p := PresetStandard()
 

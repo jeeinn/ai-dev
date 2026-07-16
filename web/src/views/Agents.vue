@@ -29,6 +29,13 @@
         </el-table-column>
         <el-table-column prop="provider" label="Provider" width="100" />
         <el-table-column prop="model" label="模型" />
+        <el-table-column prop="backend" label="Backend" width="120">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.backend === 'internal' ? 'info' : 'primary'">
+              {{ row.backend || 'internal' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">{{ row.status === 'active' ? '活跃' : '禁用' }}</el-tag>
@@ -73,6 +80,19 @@
             <el-option label="审查 (review)" value="review" />
           </el-select>
           <div class="form-tip">角色决定 Assign 后的行为：分析=只读分析，开发=读写代码，审查=只读审查</div>
+        </el-form-item>
+        <el-form-item label="Coding Backend">
+          <el-select v-model="form.backend" placeholder="选择后端" style="width: 100%">
+            <el-option
+              v-for="b in backends"
+              :key="b.name"
+              :label="`${b.name} (${backendTypeLabel(b.type)})`"
+              :value="b.name"
+            />
+          </el-select>
+          <div class="form-tip">
+            编码阶段的执行后端。internal 为内置 AgentLoop，opencode_http 为远程 OpenCode 服务
+          </div>
         </el-form-item>
         <el-form-item label="关联仓库">
           <el-select v-model="form.repos" multiple filterable placeholder="选择仓库（可多选）" style="width: 100%">
@@ -252,7 +272,8 @@ const {
   effectiveProviderNames,
   createEmptyAgentForm,
   loopDefaults,
-  defaultLoopConfig
+  defaultLoopConfig,
+  backends
 } = useAgentDefaults()
 
 const systemDefaultOutput = DEFAULT_AGENT_MAX_OUTPUT_TOKENS
@@ -314,6 +335,12 @@ const selectedModelMeta = computed(() => {
 const formatContextWindow = (n) => {
   if (n >= 1000) return (n / 1000).toFixed(0) + 'K'
   return n.toString()
+}
+
+const backendTypeLabel = (type) => {
+  if (type === 'builtin') return '内置'
+  if (type === 'opencode_http') return 'OpenCode'
+  return type
 }
 
 const loadModelCatalog = async () => {

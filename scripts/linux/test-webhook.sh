@@ -1,6 +1,6 @@
 #!/bin/bash
 # Test webhook endpoint with simulated Gitea event
-# Usage: ./scripts/test-webhook.sh [port]
+# Usage: ./scripts/linux/test-webhook.sh [port]
 
 PORT=${1:-8080}
 URL="http://localhost:${PORT}/webhook/gitea"

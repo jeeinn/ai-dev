@@ -124,4 +124,85 @@ func applyDefaults(cfg *Config) {
 	} else if cfg.Debug.ConversationLog.MaxContentChars == 0 {
 		cfg.Debug.ConversationLog.MaxContentChars = DefaultConversationLogConfig().MaxContentChars
 	}
+	ApplyToolPackDefaults(&cfg.Agents.ToolPacks)
+	ApplyBackendDefaults(&cfg.Agents.Backends)
+	applySandboxDefaults(&cfg.Sandbox)
+}
+
+// DefaultToolPacks returns the built-in tool pack definitions.
+// These are used when the config does not override them.
+func DefaultToolPacks() ToolPacksConfig {
+	return ToolPacksConfig{
+		Packs: map[string]ToolPackConfig{
+			"coder-default": {
+				Tools: []string{
+					"read_file", "write_file", "list_files", "search_code",
+					"run_command", "apply_diff", "tree", "git_log", "git_blame",
+				},
+			},
+			"analyze-readonly": {
+				Tools: []string{
+					"list_files", "search_code", "read_file", "tree", "git_log",
+				},
+			},
+		},
+	}
+}
+
+// ApplyToolPackDefaults fills in built-in packs when the config is empty.
+// User-defined packs in config override built-in ones with the same name.
+func ApplyToolPackDefaults(tpc *ToolPacksConfig) {
+	defaults := DefaultToolPacks()
+	if tpc.Packs == nil {
+		tpc.Packs = make(map[string]ToolPackConfig)
+	}
+	for name, def := range defaults.Packs {
+		if _, ok := tpc.Packs[name]; !ok {
+			tpc.Packs[name] = def
+		}
+	}
+}
+
+// ApplyBackendDefaults ensures the implicit `internal` builtin backend exists and
+// is the default when none is set. Non-write tasks always use internal regardless.
+// Exported for use by runners / other packages that construct backends independently.
+func ApplyBackendDefaults(backends *AgentBackendsConfig) {
+	if backends.Default == "" {
+		backends.Default = "internal"
+	}
+	if backends.Backends == nil {
+		backends.Backends = map[string]BackendConfig{}
+	}
+	if _, ok := backends.Backends["internal"]; !ok {
+		backends.Backends["internal"] = BackendConfig{Type: BackendTypeBuiltin}
+	} else if backends.Backends["internal"].Type == "" {
+		b := backends.Backends["internal"]
+		b.Type = BackendTypeBuiltin
+		backends.Backends["internal"] = b
+	}
+}
+
+func applySandboxDefaults(cfg *SandboxConfig) {
+	def := DefaultSandboxConfig()
+	if cfg.Mode == "" {
+		cfg.Mode = def.Mode
+	}
+	if cfg.BaseDir == "" {
+		cfg.BaseDir = def.BaseDir
+	}
+	if cfg.CommandTimeout == "" {
+		cfg.CommandTimeout = def.CommandTimeout
+	}
+	if cfg.TaskTimeout == "" {
+		cfg.TaskTimeout = def.TaskTimeout
+	}
+	if cfg.MaxOutput == 0 {
+		cfg.MaxOutput = def.MaxOutput
+	}
+	if cfg.MaxFileSize == 0 {
+		cfg.MaxFileSize = def.MaxFileSize
+	}
+	if cfg.CleanupAfter == "" {
+		cfg.CleanupAfter = def.CleanupAfter
+	}
 }

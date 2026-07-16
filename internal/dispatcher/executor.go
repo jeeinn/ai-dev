@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/mcp"
+	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/workflow"
 )
@@ -39,6 +42,8 @@ type Executor struct {
 	runnerFactory *agents.RunnerFactory
 	agentDefaults config.AgentDefaultsConfig
 	defaultLoop   config.AgentLoopConfig
+	sandboxCfg    sandbox.SandboxConfig
+	mcpCfg        config.MCPConfig
 	onComplete    TaskCompleteCallback
 	onFailed      TaskFailedCallback
 
@@ -48,7 +53,7 @@ type Executor struct {
 }
 
 // NewExecutor creates a new Executor.
-func NewExecutor(maxConcurrent, retryCount int, llmRegistry *llm.Registry, db *store.DB, agentDefaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig) *Executor {
+func NewExecutor(maxConcurrent, retryCount int, llmRegistry *llm.Registry, db *store.DB, agentDefaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, sandboxCfg sandbox.SandboxConfig, mcpCfg config.MCPConfig) *Executor {
 	if defaultLoop.MaxIterations <= 0 {
 		defaultLoop = config.DefaultAgentLoopConfig()
 	}
@@ -56,11 +61,13 @@ func NewExecutor(maxConcurrent, retryCount int, llmRegistry *llm.Registry, db *s
 	return &Executor{
 		maxConcurrent: maxConcurrent,
 		llmRegistry:   llmRegistry,
+		sandboxCfg:    sandboxCfg,
 		db:            db,
 		sem:           make(chan struct{}, maxConcurrent),
 		retryCount:    retryCount,
 		agentDefaults: agentDefaults,
 		defaultLoop:   defaultLoop,
+		mcpCfg:        mcpCfg,
 		rootCtx:       rootCtx,
 		rootCancel:    rootCancel,
 	}
@@ -84,9 +91,11 @@ func (e *Executor) SetOnFailed(cb TaskFailedCallback) {
 }
 
 // SetGiteaClientFactory sets the factory for creating Gitea clients.
-func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory, getDebugConfig func() config.DebugConfig) {
+func (e *Executor) SetGiteaClientFactory(factory GiteaClientFactory, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig) {
 	e.giteaFactory = factory
-	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.agentDefaults, e.defaultLoop, getDebugConfig)
+	mcpReg := mcp.NewRegistry(e.mcpCfg)
+	gatewayDir, _ := os.Getwd()
+	e.runnerFactory = agents.NewRunnerFactory(e.llmRegistry, factory, e.db, e.agentDefaults, e.defaultLoop, getDebugConfig, backends, nil, e.sandboxCfg, mcpReg, gatewayDir)
 }
 
 // SetModelMetaProvider sets the model metadata provider for adaptive token limits.
@@ -152,15 +161,7 @@ func (e *Executor) execute(task *store.Task) {
 	// Load agent first so timeout can be resolved per agent/task type
 	agent, err := e.db.GetAgent(task.AgentID)
 	if err != nil {
-		finished := time.Now()
-		task.FinishedAt = &finished
-		task.Status = "failed"
-		task.Error = fmt.Sprintf("load agent: %v", err)
-		e.db.UpdateTaskStatus(task.ID, "failed", "", task.Error)
-		log.Printf("[ERROR] Task %d failed: %v", task.ID, err)
-		if e.onFailed != nil {
-			e.onFailed(task)
-		}
+		e.finalizeTaskResult(task, fmt.Errorf("load agent: %w", err))
 		return
 	}
 
@@ -202,33 +203,79 @@ func (e *Executor) execute(task *store.Task) {
 		}
 	}
 
-	// Update final status
+	e.finalizeTaskResult(task, err)
+}
+
+// finalizeTaskResult records the terminal task status, attempts Gitea writeback,
+// and fires the appropriate callback. Extracted from execute() so the
+// success/partial/failed branching is unit-testable without spinning up a runner.
+//
+// Status rules:
+//   - runErr != nil                       -> failed  (existing behavior)
+//   - runErr == nil, writeback succeeds   -> success (existing behavior)
+//   - runErr == nil, writeback fails      -> partial (NEW: previously silent success)
+//   - runErr == nil, writeback skipped    -> partial (NEW: e.g. no factory, empty result, no target)
+//
+// For partial, task.Result is still persisted so a human can inspect what the
+// runner produced; task.Error carries the writeback error; onFailed (not
+// onComplete) fires so the workflow does not advance past a failed delivery.
+//
+// Ordering: callbacks (onComplete/onFailed) and writeback run BEFORE the
+// terminal status is persisted. Observers that poll for status==success/failed
+// can therefore rely on workflow / session state already being consistent.
+func (e *Executor) finalizeTaskResult(task *store.Task, runErr error) {
 	finished := time.Now()
 	task.FinishedAt = &finished
-	if err != nil {
-		task.Status = "failed"
-		task.Error = err.Error()
-		e.db.UpdateTaskStatus(task.ID, "failed", "", err.Error())
-		log.Printf("[ERROR] Task %d failed: %v", task.ID, err)
-		if writeErr := e.writeFailureToGitea(task, err); writeErr != nil {
+
+	if runErr != nil {
+		// Failure path: write failure comment + fire onFailed, then persist
+		// status=failed so the workflow rollback is observable by the time
+		// external watchers see the status flip.
+		task.Status = store.StatusFailed
+		task.Error = runErr.Error()
+		log.Printf("[ERROR] Task %d failed: %v", task.ID, runErr)
+		if writeErr := e.writeFailureToGitea(task, runErr); writeErr != nil {
 			log.Printf("[ERROR] Task %d failure writeback failed: %v", task.ID, writeErr)
 		}
 		if e.onFailed != nil {
 			e.onFailed(task)
 		}
-	} else {
-		task.Status = "success"
-		e.db.UpdateTaskStatus(task.ID, "success", task.Result, "")
-		log.Printf("[INFO] Task %d completed successfully", task.ID)
-
-		if e.onComplete != nil {
-			e.onComplete(task)
-		}
-
-		if writeErr := e.writeBackToGitea(task); writeErr != nil {
-			log.Printf("[ERROR] Task %d writeback failed: %v", task.ID, writeErr)
-		}
+		e.db.UpdateTaskStatus(task.ID, store.StatusFailed, "", task.Error)
+		return
 	}
+
+	// Runner succeeded — attempt writeback BEFORE committing success so that
+	// a writeback failure is observable in task.Status / task.Error instead of
+	// being silently swallowed (P0.1: 写回可靠性).
+	if writeErr := e.writeBackToGitea(task); writeErr != nil {
+		wbErr := fmt.Errorf("writeback failed: %w", writeErr)
+		task.Status = store.StatusPartial
+		task.Error = wbErr.Error()
+		log.Printf("[ERROR] Task %d writeback failed (marked partial): %v", task.ID, writeErr)
+		// Best-effort notice via admin token — the agent token may be the culprit.
+		if commentErr := e.writePartialFailureComment(task, wbErr); commentErr != nil {
+			log.Printf("[ERROR] Task %d partial-failure comment also failed: %v", task.ID, commentErr)
+		}
+		// Treat as failure from workflow's perspective: do not advance (no onComplete),
+		// release locks / rollback stage so the issue can accept a manual retry.
+		if e.onFailed != nil {
+			e.onFailed(task)
+		}
+		// Keep task.Result in DB so a human can inspect what the runner produced.
+		e.db.UpdateTaskStatus(task.ID, store.StatusPartial, task.Result, task.Error)
+		return
+	}
+
+	// Success path: fire onComplete before persisting so workflow/session state
+	// is consistent by the time observers see status=success (WaitForTask polls
+	// task.Status; without this ordering the test could observe success before
+	// OnTaskComplete / session completion had run).
+	task.Status = store.StatusSuccess
+	log.Printf("[INFO] Task %d completed successfully", task.ID)
+	if e.onComplete != nil {
+		e.onComplete(task)
+	}
+	e.db.UpdateTaskStatus(task.ID, store.StatusSuccess, task.Result, "")
 }
 
 func (e *Executor) resolveTaskTimeout(taskType string, agent *store.Agent) time.Duration {
@@ -297,19 +344,16 @@ func writebackTargetID(task *store.Task) (targetID int, ok bool) {
 // writeBackToGitea posts the LLM result as a comment on the Gitea issue/PR.
 func (e *Executor) writeBackToGitea(task *store.Task) error {
 	if e.giteaFactory == nil {
-		log.Printf("[DEBUG] No Gitea factory configured, skipping writeback for task %d", task.ID)
-		return nil
+		return fmt.Errorf("no Gitea factory configured, writeback skipped")
 	}
 
 	if task.Result == "" {
-		log.Printf("[DEBUG] No result to write back for task %d", task.ID)
-		return nil
+		return fmt.Errorf("no result to write back")
 	}
 
 	targetID, ok := writebackTargetID(task)
 	if !ok {
-		log.Printf("[DEBUG] No issue/PR target for task %d, skipping writeback", task.ID)
-		return nil
+		return fmt.Errorf("no issue/PR target for writeback")
 	}
 
 	agent, err := e.db.GetAgent(task.AgentID)
@@ -371,6 +415,48 @@ func (e *Executor) writeFailureToGitea(task *store.Task, taskErr error) error {
 
 	log.Printf("[INFO] Task %d failure written back to %s#%d", task.ID, task.Repo, targetID)
 	return nil
+}
+
+// writePartialFailureComment posts a "writeback failed" notice to the Gitea
+// issue/PR using the admin client. This is best-effort: if the agent token was
+// the cause of the writeback failure, the admin token may still be able to
+// deliver a minimal notice so the user is not left without any signal.
+func (e *Executor) writePartialFailureComment(task *store.Task, wbErr error) error {
+	if e.giteaFactory == nil {
+		return nil
+	}
+	targetID, ok := writebackTargetID(task)
+	if !ok {
+		return nil
+	}
+	client := e.giteaFactory.GetAdminGiteaClient()
+	if client == nil {
+		return nil
+	}
+	parts := strings.SplitN(task.Repo, "/", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid repo format: %s", task.Repo)
+	}
+	owner, repo := parts[0], parts[1]
+	body := workflow.FormatAgentComment(formatPartialFailureComment(task, wbErr))
+	if err := client.IssueComment(owner, repo, targetID, body); err != nil {
+		return fmt.Errorf("post partial failure comment: %w", err)
+	}
+	log.Printf("[INFO] Task %d partial-failure notice posted to %s#%d", task.ID, task.Repo, targetID)
+	return nil
+}
+
+func formatPartialFailureComment(task *store.Task, wbErr error) string {
+	var sb strings.Builder
+	sb.WriteString("⚠️ **任务已执行但写回失败**\n\n")
+	sb.WriteString("Agent 已完成计算，但结果未能成功评论到此 Issue/PR。可在任务列表查看完整结果（状态：部分完成）。\n\n")
+	sb.WriteString("**写回错误：**\n")
+	sb.WriteString("```\n")
+	sb.WriteString(strings.TrimSpace(wbErr.Error()))
+	sb.WriteString("\n```\n\n")
+	sb.WriteString("---\n")
+	sb.WriteString(fmt.Sprintf("*Task ID: %d | Agent: %d | Type: %s*", task.ID, task.AgentID, task.TaskType))
+	return sb.String()
 }
 
 func formatFailureComment(task *store.Task, taskErr error) string {

@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
+	"time"
 
 	agentpkg "gitea-agent-gateway/internal/agent"
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/mcp"
 	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/store"
 )
@@ -61,10 +61,16 @@ type RunnerFactory struct {
 	defaultLoop      config.AgentLoopConfig
 	getDebugConfig   func() config.DebugConfig
 	modelMeta        ModelMetaProvider
+	backends         config.AgentBackendsConfig // coding backends (Path A)
+	internalBackend  *InternalCodingBackend     // always available, built from this factory
+	toolPacks        config.ToolPacksConfig     // built-in + user-defined tool packs
+	mcpRegistry      *mcp.Registry              // MCP server registry (nil = no MCP)
+	gatewayDir       string                     // gateway root directory for SKILL.md scanning
 }
 
 // NewRunnerFactory creates a new RunnerFactory from agent defaults and loop config.
-func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig) *RunnerFactory {
+// The backends, toolPacks, and mcpReg configs are optional — nil/empty falls back to defaults.
+func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory, db *store.DB, defaults config.AgentDefaultsConfig, defaultLoop config.AgentLoopConfig, getDebugConfig func() config.DebugConfig, backends *config.AgentBackendsConfig, toolPacks *config.ToolPacksConfig, sandboxCfg sandbox.SandboxConfig, mcpReg *mcp.Registry, gatewayDir string) *RunnerFactory {
 	maxOut := defaults.MaxOutputTokens
 	if maxOut <= 0 {
 		maxOut = fallbackMaxOutput
@@ -84,10 +90,23 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 	if defaultLoop.MaxIterations <= 0 {
 		defaultLoop = config.DefaultAgentLoopConfig()
 	}
-	return &RunnerFactory{
+
+	beCfg := config.DefaultAgentBackends()
+	if backends != nil {
+		beCfg = *backends
+		config.ApplyBackendDefaults(&beCfg)
+	}
+
+	tpCfg := config.DefaultToolPacks()
+	if toolPacks != nil {
+		tpCfg = *toolPacks
+		config.ApplyToolPackDefaults(&tpCfg)
+	}
+
+	factory := &RunnerFactory{
 		llmRegistry:      llmRegistry,
 		giteaFactory:     giteaFactory,
-		sandboxCfg:       sandbox.DefaultConfig(),
+		sandboxCfg:       sandboxCfg,
 		db:               db,
 		defaultMaxOutput: maxOut,
 		defaultMaxInput:  maxIn,
@@ -95,7 +114,13 @@ func NewRunnerFactory(llmRegistry *llm.Registry, giteaFactory GiteaClientFactory
 		defaultTimeout:   timeout,
 		defaultLoop:      defaultLoop,
 		getDebugConfig:   getDebugConfig,
+		backends:         beCfg,
+		toolPacks:        tpCfg,
+		mcpRegistry:      mcpReg,
+		gatewayDir:       gatewayDir,
 	}
+	factory.internalBackend = NewInternalCodingBackend(factory)
+	return factory
 }
 
 // SetModelMetaProvider sets the model metadata provider for adaptive token limits.
@@ -220,6 +245,20 @@ func (f *RunnerFactory) resolveTimeout(agentTimeout string) string {
 	return fallbackTimeout
 }
 
+// resolveToolPack returns the tool pack ID for a task based on task type.
+// Role-based defaults (agent-level override can be added later when the
+// Agent schema gains a tool_pack column):
+//   - write tasks (dev/bugfix) → "coder-default"
+//   - analyze tasks → "analyze-readonly"
+func (f *RunnerFactory) resolveToolPack(taskType string) string {
+	switch taskType {
+	case "analyze_issue", "trigger", "review_pr", "reply_comment":
+		return "analyze-readonly"
+	default:
+		return "coder-default"
+	}
+}
+
 // GetRunner returns the appropriate runner for the task type.
 func (f *RunnerFactory) GetRunner(taskType string) Runner {
 	switch taskType {
@@ -251,25 +290,38 @@ func NewAnalyzeRunner(factory *RunnerFactory) *AnalyzeRunner {
 }
 
 // Run executes the analyze task.
+//
+// It first attempts a shallow clone + short read-only AgentLoop for richer
+// analysis. If clone fails it falls back to single-shot LLM (legacy behavior).
 func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.Agent) (*Result, error) {
-	// Get LLM provider
 	provider, err := r.factory.llmRegistry.Get(agent.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("get provider: %w", err)
 	}
 
-	// Build messages
+	// Try read-only workspace + short loop for richer analysis
+	wwc, err := prepareAnalyzeWorkspace(ctx, task, agent, r.factory)
+	if err != nil {
+		log.Printf("[WARN] Task %d analyze workspace failed (%v); falling back to single-shot", task.ID, err)
+		return r.runSingleShot(ctx, task, agent, provider)
+	}
+	defer wwc.Sandbox.Cleanup()
+
+	return r.runAnalyzeLoop(ctx, task, agent, provider, wwc.Sandbox)
+}
+
+// runSingleShot is the legacy single-shot LLM analysis (no workspace).
+func (r *AnalyzeRunner) runSingleShot(ctx context.Context, task *store.Task, agent *store.Agent, provider llm.Provider) (*Result, error) {
 	messages := []llm.Message{
 		{Role: "system", Content: agent.SystemPrompt},
 		{Role: "user", Content: task.Context},
 	}
 
-	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model), r.factory.getModelMeta(agent.Provider, agent.Model))
+	messages, err := agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model), r.factory.getModelMeta(agent.Provider, agent.Model))
 	if err != nil {
 		return nil, fmt.Errorf("truncate messages: %w", err)
 	}
 
-	// Call LLM
 	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
 		Model:       agent.Model,
 		Messages:    messages,
@@ -285,6 +337,101 @@ func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.
 
 	return &Result{
 		Content: resp.Content,
+		Action:  "comment",
+	}, nil
+}
+
+// runAnalyzeLoop runs a short read-only AgentLoop on a prepared workspace.
+func (r *AnalyzeRunner) runAnalyzeLoop(ctx context.Context, task *store.Task, agent *store.Agent, provider llm.Provider, sb *sandbox.Sandbox) (*Result, error) {
+	maxInput := r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model)
+	maxOutput := r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model)
+	temperature := r.factory.resolveTemperature(agent.Temperature, agent.Provider, agent.Model)
+
+	// Load code context (best-effort)
+	codeCtx, err := agentpkg.LoadCodeContext(sb, maxInput)
+	if err != nil {
+		log.Printf("[WARN] Failed to load code context: %v", err)
+	}
+
+	// Build analyze prompt
+	taskCtx := agentpkg.TaskContext{
+		IssueTitle: task.Event,
+		IssueBody:  task.Context,
+		RepoName:   task.Repo,
+		TaskType:   "analyze",
+	}
+	basePrompt := agentpkg.BuildAnalyzePrompt(taskCtx, codeCtx)
+	systemPrompt := agentpkg.MergeAgentSystemPrompt(basePrompt, agent.SystemPrompt)
+
+	// Assemble analyze-readonly tool pack
+	packID := r.factory.resolveToolPack(task.TaskType)
+	packCfg, ok := r.factory.toolPacks.Packs[packID]
+	if !ok {
+		return nil, fmt.Errorf("tool pack %q not found", packID)
+	}
+	toolRegistry, err := agentpkg.AssembleToolRegistry(packCfg.Tools, sb)
+	if err != nil {
+		return nil, fmt.Errorf("assemble tool registry for pack %q: %w", packID, err)
+	}
+
+	// Register MCP tools if enabled for this agent
+	if len(agent.McpServers) > 0 && r.factory.mcpRegistry != nil {
+		if err := toolRegistry.RegisterMCPTools(ctx, r.factory.mcpRegistry, agent.McpServers); err != nil {
+			return nil, fmt.Errorf("register mcp tools: %w", err)
+		}
+	}
+
+	// Register skill discovery tools (Analyze: no arbitrary skill scripts)
+	skillReg := agentpkg.NewSkillRegistry(sb, r.factory.gatewayDir)
+	toolRegistry.Register(agentpkg.NewListSkillsTool(skillReg))
+	toolRegistry.Register(agentpkg.NewLoadSkillTool(skillReg, toolRegistry, false))
+
+	// Short loop: max 5 iterations for read-only analysis
+	loop := agentpkg.NewAgentLoopWithConfig(
+		provider,
+		toolRegistry,
+		agent.Model,
+		maxOutput,
+		maxInput,
+		temperature,
+		r.factory.defaultLoop,
+	)
+	loop.SetMaxIterations(5)
+	loop.SetModelMeta(r.factory.getModelMeta(agent.Provider, agent.Model))
+	loop.SetProviderName(agent.Provider)
+	loop.SetUsageRecorder(func(p, m string, usage llm.Usage) {
+		r.factory.recordTaskUsage(task.ID, p, m, usage)
+	})
+
+	if r.factory.getDebugConfig != nil {
+		debugCfg := r.factory.getDebugConfig()
+		if debugCfg.ConversationLog.Enabled && r.factory.db != nil {
+			loop.SetConversationRecorder(
+				newConversationRecorder(r.factory.db, debugCfg.ConversationLog.MaxContentChars),
+				task.ID,
+			)
+		}
+	}
+
+	messages := []llm.Message{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: task.Context},
+	}
+
+	messages, err = agentpkg.TruncateMessages(messages, toolRegistry.ToLLMTools(), maxInput, r.factory.getModelMeta(agent.Provider, agent.Model))
+	if err != nil {
+		return nil, fmt.Errorf("truncate messages: %w", err)
+	}
+
+	result, err := loop.Run(ctx, messages)
+	if err != nil {
+		return nil, fmt.Errorf("analyze agent loop: %w", err)
+	}
+
+	log.Printf("[INFO] Task %d analyze loop completed", task.ID)
+
+	return &Result{
+		Content: result,
 		Action:  "comment",
 	}, nil
 }
@@ -502,133 +649,68 @@ func (r *BugfixRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 }
 
 // runWriteTask is the shared implementation for write-type runners.
+//
+// Structure (after A3):
+//
+//	prepareWriteWorkspace → CodingBackend.Run → finalizeWriteChanges
+//
+// The coding backend is resolved from agent.Backend (or agents.backends.default).
+// Non-write runners (Analyze/Review/Reply) never call this function — they
+// always use internal LLM directly, which matches the "Analyze forced internal"
+// constraint from server-runtime-design-v4.md §3.2.
 func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	factory *RunnerFactory, taskSubType string) (*Result, error) {
 
-	// Parse repo owner/name
-	parts := strings.SplitN(task.Repo, "/", 2)
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid repo format: %s", task.Repo)
-	}
-	owner, repo := parts[0], parts[1]
-
-	// Get Gitea client
-	client := factory.giteaFactory.GetGiteaClient(agentCfg.GiteaToken)
-
-	// Get repo info for clone URL
-	repoInfo, err := client.GetRepo(owner, repo)
+	// Phase 0: resolve backend + optional health probe BEFORE preparing the
+	// workspace. Sidecar-down must not leave session clones / branches behind.
+	backend, err := factory.ResolveCodingBackend(agentCfg)
 	if err != nil {
-		return nil, fmt.Errorf("get repo info: %w", err)
+		return nil, fmt.Errorf("resolve coding backend: %w", err)
 	}
-	cloneURL, err := gitea.AuthenticatedCloneURL(repoInfo.CloneURL, agentCfg.GiteaUsername, agentCfg.GiteaToken)
-	if err != nil {
-		return nil, fmt.Errorf("authenticated clone url: %w", err)
-	}
-	redactedCloneURL := gitea.RedactCloneURL(cloneURL)
+	log.Printf("[INFO] Task %d using coding backend: %s", task.ID, backend.Name())
 
-	// Determine workspace strategy: session-level or task-level
-	var sb *sandbox.Sandbox
-	useSessionWorkspace := false
-	var sessionBranch string
-
-	if task.SessionID != "" && factory.db != nil {
-		// Look up session for workspace reuse
-		if session, err := factory.db.GetSession(task.SessionID); err == nil && session.WorkspacePath != "" {
-			useSessionWorkspace = true
-			sessionBranch = session.Branch
-			sb = sandbox.NewWithPath(factory.sandboxCfg, task.ID, session.WorkspacePath)
-			log.Printf("[INFO] Using session workspace: %s", session.WorkspacePath)
+	if hc, ok := backend.(HealthCheckableBackend); ok {
+		hcCtx, hcCancel := context.WithTimeout(ctx, 5*time.Second)
+		hcErr := hc.HealthCheck(hcCtx)
+		hcCancel()
+		if hcErr != nil {
+			if allowsInternalFallback(backend) {
+				log.Printf("[WARN] Task %d coding backend %s unhealthy (%v); allow_fallback_internal=true → switching to internal",
+					task.ID, backend.Name(), hcErr)
+				backend = factory.internalBackend
+			} else {
+				// Return error so Executor marks failed (not success) and posts
+				// a failure comment via writeFailureToGitea.
+				return nil, fmt.Errorf(
+					"coding backend %q is not reachable (health check failed): %w",
+					backend.Name(), hcErr,
+				)
+			}
 		}
 	}
 
-	if sb == nil {
-		sb = sandbox.New(factory.sandboxCfg, task.ID)
+	// Phase 1: prepare workspace (sandbox / clone / branch)
+	wwc, err := prepareWriteWorkspace(ctx, task, agentCfg, factory, taskSubType)
+	if err != nil {
+		return nil, err
 	}
-
-	if err := sb.Setup(); err != nil {
-		return nil, fmt.Errorf("setup sandbox: %w", err)
-	}
-
 	// Only cleanup for non-session workspaces (session workspaces persist)
-	if !useSessionWorkspace {
-		defer sb.Cleanup()
+	if !wwc.UseSession {
+		defer wwc.Sandbox.Cleanup()
 	}
 
-	// Create audit logger
-	audit := sandbox.NewAuditLogger(factory.db, task.ID, agentCfg.ID)
+	sb := wwc.Sandbox
 
-	// Clone or fetch repository
-	git := sandbox.NewGit(sb)
-
-	if useSessionWorkspace && sb.WorkDir != "" {
-		// Check if the session workspace already has a git repo
-		gitDir := filepath.Join(sb.WorkDir, ".git")
-		if _, statErr := os.Stat(gitDir); statErr == nil {
-			log.Printf("[INFO] Session workspace has existing repo, syncing")
-			if err := syncSessionWorkspace(sb, git, audit, task, sessionBranch); err != nil {
-				return nil, err
-			}
-		} else {
-			// New session workspace — clone
-			cloneResult := git.Clone(cloneURL)
-			audit.LogCommand("git", []string{"clone", redactedCloneURL}, cloneResult)
-			if cloneResult.Error != nil {
-				errMsg := cloneResult.Stderr
-				if errMsg == "" {
-					errMsg = cloneResult.Error.Error()
-				}
-				return nil, fmt.Errorf("clone repo: %s", errMsg)
-			}
-		}
-	} else {
-		// Standard task-level clone
-		cloneResult := git.Clone(cloneURL)
-		audit.LogCommand("git", []string{"clone", redactedCloneURL}, cloneResult)
-		if cloneResult.Error != nil {
-			errMsg := cloneResult.Stderr
-			if errMsg == "" {
-				errMsg = cloneResult.Error.Error()
-			}
-			return nil, fmt.Errorf("clone repo: %s", errMsg)
-		}
-	}
-
-	branchName, isExistingBranch := resolveBranchPlan(task, sessionBranch, taskSubType, git)
-
-	if isExistingBranch {
-		if err := prepareExistingBranch(sb, git, audit, branchName); err != nil {
-			return nil, err
-		}
-		log.Printf("[INFO] Checked out existing branch: %s", branchName)
-	} else {
-		// Create new branch
-		branchResult := git.CreateBranch(branchName)
-		audit.LogCommand("git", []string{"checkout", "-b", branchName}, branchResult)
-		if branchResult.Error != nil {
-			errMsg := branchResult.Stderr
-			if errMsg == "" {
-				errMsg = branchResult.Error.Error()
-			}
-			return nil, fmt.Errorf("create branch: %s", errMsg)
-		}
-		saveSessionBranch(factory, task, branchName)
-	}
-
-	// Get LLM provider
-	provider, err := factory.llmRegistry.Get(agentCfg.Provider)
-	if err != nil {
-		return nil, fmt.Errorf("get provider: %w", err)
-	}
-
+	// Phase 2: coding
+	// Build prompts (shared by all backends)
 	maxInput := factory.resolveMaxInputTokens(agentCfg.MaxInputTokens, agentCfg.Provider, agentCfg.Model)
 
-	// Load code context
+	// Load code context for the prompt (best-effort; warn on failure)
 	codeCtx, err := agentpkg.LoadCodeContext(sb, maxInput)
 	if err != nil {
 		log.Printf("[WARN] Failed to load code context: %v", err)
 	}
 
-	// Build prompt based on task type
 	taskCtx := agentpkg.TaskContext{
 		IssueTitle: task.Event,
 		IssueBody:  task.Context,
@@ -644,96 +726,38 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	}
 	systemPrompt := agentpkg.MergeAgentSystemPrompt(basePrompt, agentCfg.SystemPrompt)
 
-	// Create tool registry
-	toolRegistry := agentpkg.DefaultTools(sb)
-
-	// Create agent loop with config priority: Agent.LoopConfig > system agents.loop defaults
-	maxOutput := factory.resolveMaxOutputTokens(agentCfg.MaxOutputTokens, agentCfg.Provider, agentCfg.Model)
-	mergedLoop := MergeLoopConfig(agentCfg.LoopConfig, factory.defaultLoop)
-
-	loop := agentpkg.NewAgentLoopWithConfig(
-		provider,
-		toolRegistry,
-		agentCfg.Model,
-		maxOutput,
-		maxInput,
-		factory.resolveTemperature(agentCfg.Temperature, agentCfg.Provider, agentCfg.Model),
-		mergedLoop,
-	)
-
-	loop.SetModelMeta(factory.getModelMeta(agentCfg.Provider, agentCfg.Model))
-	loop.SetProviderName(agentCfg.Provider)
-	loop.SetUsageRecorder(func(p, m string, usage llm.Usage) {
-		factory.recordTaskUsage(task.ID, p, m, usage)
-	})
-
-	if factory.getDebugConfig != nil {
-		debugCfg := factory.getDebugConfig()
-		if debugCfg.ConversationLog.Enabled && factory.db != nil {
-			loop.SetConversationRecorder(
-				newConversationRecorder(factory.db, debugCfg.ConversationLog.MaxContentChars),
-				task.ID,
-			)
-		}
+	codingReq := CodingRequest{
+		WorkDir:        sb.WorkDir,
+		Sandbox:        sb,
+		Task:           task,
+		Agent:          agentCfg,
+		TaskSubType:    taskSubType,
+		Prompt:         task.Context,
+		SystemPrompt:   systemPrompt,
+		SessionID:      task.SessionID,
+		Continue:       task.SessionID != "",
+		BackendOptions: agentCfg.BackendOptions,
+		ToolPack:       factory.resolveToolPack(task.TaskType),
 	}
 
-	// Run agent loop
-	messages := []llm.Message{
-		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: task.Context},
-	}
-
-	result, err := loop.Run(ctx, messages)
+	codingResult, err := backend.Run(ctx, codingReq)
 	if err != nil {
-		return nil, fmt.Errorf("agent loop: %w", err)
+		return nil, fmt.Errorf("coding backend %s: %w", backend.Name(), err)
 	}
 
-	log.Printf("[INFO] Task %d agent loop completed", task.ID)
-
-	// Check if there are changes to commit
-	if !git.HasChanges() {
-		return &Result{
-			Content: result,
-			Action:  "comment",
-		}, nil
+	// Phase 3: finalize (commit / push / PR)
+	//
+	// For the internal backend, codingResult.Provider is the LLM provider
+	// used during coding, which we reuse for the commit message LLM call.
+	// For opencode backend, Provider is nil (LLM runs server-side), so
+	// finalize will look up the provider again from the registry — a minor
+	// overhead but keeps the contract simple.
+	provider := codingResult.Provider
+	if provider == nil {
+		provider, _ = factory.llmRegistry.Get(agentCfg.Provider)
 	}
 
-	// Stage and commit
-	git.Add()
-	commitMsg := GenerateCommitMessage(ctx, CommitMessageInput{
-		Git:          git,
-		Provider:     provider,
-		Model:        agentCfg.Model,
-		Temperature:  factory.resolveTemperature(agentCfg.Temperature, agentCfg.Provider, agentCfg.Model),
-		TaskSubType:  taskSubType,
-		Task:         task,
-		AgentSummary: result,
-	})
-	log.Printf("[INFO] Task %d commit message: %s", task.ID, commitMsg)
-	commitResult := git.Commit(commitMsg)
-	audit.LogCommand("git", []string{"commit"}, commitResult)
-	if commitResult.Error != nil {
-		return nil, fmt.Errorf("commit: %w", commitResult.Error)
-	}
-
-	// Push to remote
-	pushResult := git.Push("origin", branchName)
-	audit.LogCommand("git", []string{"push", "origin", branchName}, pushResult)
-	if pushResult.Error != nil {
-		errMsg := pushResult.Stderr
-		if errMsg == "" {
-			errMsg = pushResult.Error.Error()
-		}
-		return nil, fmt.Errorf("push: %s", errMsg)
-	}
-
-	// Update session branch after successful push
-	if useSessionWorkspace {
-		saveSessionBranch(factory, task, branchName)
-	}
-
-	adminClient := factory.giteaFactory.GetAdminGiteaClient()
-	return finalizeWriteTaskPR(adminClient, owner, repo, branchName, repoInfo.DefaultBranch, task, taskSubType, result)
+	return finalizeWriteChanges(ctx, wwc, task, agentCfg, factory, provider, taskSubType, codingResult.Summary)
 }
 
 // finalizeWriteTaskPR comments on an existing open PR or creates one if the branch has no open PR yet.

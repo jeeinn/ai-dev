@@ -18,6 +18,7 @@ import (
 	"gitea-agent-gateway/internal/api"
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/dispatcher"
+	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
@@ -82,8 +83,10 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	llmRegistry := &llm.Registry{}
 	llmRegistry.Register("mock", &mockLLMProvider{response: "Mock AI response"})
 
+	sandboxCfg := parseSandboxConfig(&cfg.Sandbox)
+
 	// Create dispatcher
-	d := dispatcher.NewDispatcher(db, &cfg.Gitea, &cfg.Dispatcher, llmRegistry, &cfg.Agents)
+	d := dispatcher.NewDispatcher(db, &cfg.Gitea, &cfg.Dispatcher, llmRegistry, &cfg.Agents, sandboxCfg, cfg.MCP)
 
 	// Create API handler
 	manager := agents.NewManager(db, &cfg.Gitea)
@@ -122,6 +125,22 @@ func NewTestEnv(t *testing.T) *TestEnv {
 func (e *TestEnv) Cleanup() {
 	for _, fn := range e.CleanupFuncs {
 		fn()
+	}
+}
+
+func parseSandboxConfig(cfg *config.SandboxConfig) sandbox.SandboxConfig {
+	cmdTimeout, _ := time.ParseDuration(cfg.CommandTimeout)
+	taskTimeout, _ := time.ParseDuration(cfg.TaskTimeout)
+	cleanupAfter, _ := time.ParseDuration(cfg.CleanupAfter)
+
+	return sandbox.SandboxConfig{
+		Mode:           sandbox.SandboxMode(cfg.Mode),
+		BaseDir:        cfg.BaseDir,
+		CommandTimeout: cmdTimeout,
+		TaskTimeout:    taskTimeout,
+		MaxOutput:      cfg.MaxOutput,
+		MaxFileSize:    cfg.MaxFileSize,
+		CleanupAfter:   cleanupAfter,
 	}
 }
 

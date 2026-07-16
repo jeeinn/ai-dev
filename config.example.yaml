@@ -106,6 +106,27 @@ agents:
     total_timeout: "30m"    # 仅多轮任务（solve/fix_bug）总超时
     iteration_interval: 3
 
+  # 编码后端配置（OpenCode Path A）
+  # 默认 internal（内置 AgentLoop）；非写任务（analyze/review/reply）始终 internal
+  # opencode-local 为可选 sidecar，需本机启动 opencode serve
+  backends:
+    default: internal
+    backends:
+      internal:
+        type: builtin
+      # opencode-local:
+      #   type: opencode_http
+      #   base_url: "http://127.0.0.1:4096"
+      #   auth:
+      #     username: opencode
+      #     password: "${OPENCODE_SERVER_PASSWORD}"
+      #   timeout: "45m"
+      #   workspace_mode: gateway_path   # 第一期唯一合法值
+      #   health_check:
+      #     path: /global/health
+      #     interval: 30s
+      #   allow_fallback_internal: false  # false=探活失败任务 failed；true=降级到 internal Loop
+
   templates:
     analyze:
       name: "需求分析 Agent"
@@ -192,3 +213,37 @@ agents:
 #   workspace_retention: "24h"    # archived 后延迟删盘
 #   pr_closed_retention: "168h"   # PR 未合并关闭后保留
 #   max_disk_per_repo: "5GB"      # 超限 LRU
+
+# ===== 沙箱配置 (P1.6) =====
+sandbox:
+  # 工作目录模式: "fixed" | "temp"
+  # fixed: 使用固定 base_dir + task_{id} 子目录
+  # temp: 使用临时目录 (os.MkdirTemp)，任务完成后自动清理
+  mode: "fixed"
+  # fixed 模式下的基础目录
+  base_dir: "./data/workspace"
+  # 单命令超时
+  command_timeout: "5m"
+  # 任务总超时
+  task_timeout: "30m"
+  # 命令输出最大字节数
+  max_output: 1048576
+  # 文件写入最大字节数
+  max_file_size: 1048576
+  # 失败任务保留时间（fixed 模式）
+  cleanup_after: "24h"
+
+# ===== MCP 服务器配置 (P2.8) =====
+# 远程 MCP (Model Context Protocol) 服务器定义
+# Agent 可通过 mcp_servers 字段启用指定服务器的工具
+mcp:
+  servers:
+    # 示例：一个提供知识库检索的 MCP 服务器
+    # knowledge-base:
+    #   base_url: "http://localhost:8081/mcp"
+    #   api_key: "${MCP_KB_API_KEY}"   # Bearer token；无鉴权可留空
+    #   timeout: "30s"
+    # 示例：文件系统 MCP
+    # filesystem:
+    #   base_url: "http://localhost:8082/mcp"
+    #   timeout: "15s"

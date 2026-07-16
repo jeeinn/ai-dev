@@ -1,84 +1,152 @@
-# 任务执行文档
+# 任务清单（核心演进）
 
-> 当前待办：**Phase 14 沙箱增强** + 下方可选项 + OpenCode / LLM 扩展方案。  
-> v2 Assign 工作流（Phase 16–19）已于 2026-06-16 完成，见 [archived/20260616-TASKS.md](archived/20260616-TASKS.md)。  
-> 平台策略（Gitea 优先）：见 [archived/20260714-coding-gateway-multi-vcs.md](archived/20260714-coding-gateway-multi-vcs.md)。
+> 更新：2026-07-16  
+> 产品边界：**Gitea 优先** · 内置 Agent 默认可用 · OpenCode 可选 · 不做多托管平台抽象  
+> 决策：[archived/20260714-coding-gateway-multi-vcs.md](archived/20260714-coding-gateway-multi-vcs.md)  
+> 旧版分散 backlog 已归档：[archived/20260714-TASKS.md](archived/20260714-TASKS.md)
 
 ---
 
-## 当前文档（docs 根目录）
+## 演进主线
 
-| 文档 | 说明 |
+```text
+可靠性 + 写路径抽取
+        │
+        ├─► OpenCode Path A（可选加强 coder）
+        │
+        └─► Internal 能力：ToolPack → Analyze 短 Loop → MCP → Skills
+```
+
+两条线正交：OpenCode **不替代** Analyze 读仓；Analyze **永远** `backend=internal`。
+
+---
+
+## P0 — 立即
+
+### 1. 写回可靠性
+
+- [x] Executor：Gitea 评论/写回失败时任务不得标为纯粹 `success`（失败或「部分完成」+ 可读错误）
+- [x] 关键失败可观测（日志 + task.error / 评论）
+
+### 2. 写路径抽取（OpenCode 与 Analyze 共用前置）
+
+设计：[server-runtime-design-v4.md](server-runtime-design-v4.md) §4.5 / A2
+
+- [x] `prepareWriteWorkspace` / `finalizeWriteChanges`（**零行为变更**，独立可合并）
+- [x] `prepareAnalyzeWorkspace`（浅 clone default_branch；已由 P1.5 兑现，不再仅 stub）
+
+### 3. OpenCode Path A
+
+设计：[todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md) · [server-runtime-design-v4.md](server-runtime-design-v4.md) · [opencode-a0-notes.md](opencode-a0-notes.md)
+
+- [x] A0 本机 `opencode serve` PoC 端到端验收（字段笔记已写：[opencode-a0-notes.md](opencode-a0-notes.md)；代码已绑定 `?directory=` + `X-Opencode-Directory`；E1+E6 本机验收见 [20260716-e2e-test-report.md](20260716-e2e-test-report.md)）
+- [x] A1 `agents.backends` + Agent `backend` / `backend_options` + migration
+- [x] A3 `CodingBackend` + `OpenCodeHTTPBackend`；非写任务强制 `internal`
+- [x] A3 health：失败 → 任务 **failed**（可读错误评论）；默认不静默降级；可选 `allow_fallback_internal`
+- [x] A4 mock 测试
+- [x] A4 运维说明（ARCHITECTURE / DEPLOYMENT）
+- [x] A4 WebUI backend 下拉（可后置）
+
+**约束**：默认 `internal`；Analyze / Review 永不走 OpenCode。
+**已知缺口**：Sandbox / Session `workspace` 双轨 base_dir 属 P1.6。
+
+---
+
+## P1 — 核心能力（Internal Loop）
+
+设计：[20260714-internal-capabilities-toolpack-mcp-skills.md](20260714-internal-capabilities-toolpack-mcp-skills.md)
+
+### 4. ToolPack
+
+- [x] `config.yaml` 命名包（`coder-default` / `analyze-readonly`）
+- [x] `AssembleToolRegistry` + `resolveToolPack`（role-based 默认）
+- [x] Agent `tool_pack` 字段持久化（DB/API/DTO）
+- [x] coder 行为与现行 `DefaultTools` **零回归**
+
+### 5. Analyze 短只读 Loop（读仓）✅
+
+> 已合入 `feature/write-back-reliability`（`4563a7f`）：浅 clone → `analyze-readonly` 短 Loop（max 5）；clone 失败降级 `runSingleShot`。
+
+- [x] 浅 clone `default_branch` + `analyze-readonly` ToolPack
+- [x] 短 `AgentLoop`（低 `max_iterations`）；禁止写工具 / 随意 `run_command`
+- [x] 评论引用真实路径；不建分支、不提 PR；workspace 可清理
+- [x] clone 失败策略（失败注释或可选弱降级 single-shot）
+
+### 6. 沙箱可运维化（支撑 4/5）
+
+详见 [sandbox-roadmap.md](sandbox-roadmap.md)；本清单只收核心：
+
+- [x] `SandboxConfig` 接入 YAML（替换 runner 硬编码默认）
+- [x] 路径穿越 / 输出与文件大小限制（安全底线）
+- [ ] （按需）`rg` 工具；temp 清理与 Session workspace 对齐后再上
+
+### 7. 工作流可观测
+
+> `WorkflowDetail.vue` + `/workflows` 导航；Tasks 详情入口跳转；调用 `GET /api/workflow-context` 与 `POST /api/sessions/reset`。
+
+- [x] Web UI / 任务详情消费已有 `GET /api/workflow-context`
+- [x] （可选）preset `free|standard|strict` 配置入口（SystemConfig「工作流策略」+ `workflow.preset`/`gates`；启动合并 gates，配置热更新刷新 `wfPolicy`）
+
+---
+
+## P2 — 增强（不阻塞主线）
+
+### 8. 远程 MCP → ToolRegistry
+
+- [x] `mcp_servers` 定义 + Agent 启用列表
+- [x] 合并进同一 `ToolRegistry`；Analyze 仅只读类（按 Agent 配置自管理）
+
+### 9. 文件型 Skills
+
+- [x] 扫描 Gateway 目录 + 仓库内 `SKILL.md`（骨架：`list_skills` / `load_skill`）
+- [x] 渐进披露 + `load_skill`；Analyze `allowScripts=false`（禁脚本工具注册，仅披露元数据）
+- [x] agentskills.io YAML frontmatter 解析（`---` 界限 → `skillFrontmatter` → `Skill`；兼容旧 heading 格式）
+- [x] 扫描根收敛到 `skills/` / `.agents/skills/` + 子目录 `skills/<name>/SKILL.md`；根 `SKILL.md` 向后兼容
+- [x] 渐进披露完善：`list_skills` 仅返回 name/description；`load_skill` 注入 SKILL.md 正文指令 + 注册工具
+
+### 10. 产品打磨（旧 backlog 摘录）
+
+完整列表见 [archived/20260714-TASKS.md](archived/20260714-TASKS.md)。按需选自：
+
+- UI：移除废弃 TriggerRules Tab；Agent 创建向导  
+- 多仓：WorkflowPolicy per-repo；阶段切换 unassign  
+- LLM 可选：tiktoken / 摘要 / 成本预算 — [todo-20260714-LLMProvider-可选增强.md](todo-20260714-LLMProvider-可选增强.md)
+
+---
+
+## 明确不做
+
+| 项 | 说明 |
+|----|------|
+| GitHub / GitLab / Gitee 多平台 Host SPI | 中小团队 Gitea-first |
+| Issue 级任意 PR base（label/body） | 边缘场景 |
+| 远程 OpenCode / Path B worktree 基础设施 | v4 非目标；另议 |
+| Gateway 反向做成 MCP Server | 后置，非当前 ToolPack/MCP 消费路径 |
+
+---
+
+## 建议节奏
+
+| 周次 | 焦点 |
 |------|------|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | 现行技术架构 |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | 部署与运维 |
-| [server-runtime-design-v4.md](server-runtime-design-v4.md) | 服务器端 Agent 运行时（现行） |
-| [sandbox-roadmap.md](sandbox-roadmap.md) | Phase 14 沙箱增强（进行中） |
-| [llm-prompt-design.md](llm-prompt-design.md) | Prompt 设计 |
-| [todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md) | OpenCode Path A（未完成） |
-| [todo-20260714-LLMProvider-可选增强.md](todo-20260714-LLMProvider-可选增强.md) | LLM 剩余可选增强（P2） |
-
-历史设计、已完成阶段任务与决策归档见 [`archived/`](archived/)。
+| 1 | P0.1 写回可靠性 + P0.2 写路径抽取 |
+| 1–2 | P0.3 OpenCode A0–A1 |
+| 2–3 | P0.3 A3–A4；并行 P1.4 ToolPack |
+| 3–4 | P1.5 Analyze 短 Loop + P1.6 沙箱 YAML |
+| 之后 | P1.7 可观测；P2 MCP → Skills |
 
 ---
 
-## 已完成（归档）
+## 关键文档
 
-| 阶段 | 内容 | 归档 |
-|------|------|------|
-| Phase 1–13 | 项目骨架 → 集成收尾 | [archived/20260604-TASKS.md](archived/20260604-TASKS.md) |
-| Phase 14.5 | Agent 迭代控制配置化 | [sandbox-roadmap.md](sandbox-roadmap.md) |
-| Phase 15 | Web UI 优化 | [archived/20260605-TASKS.md](archived/20260605-TASKS.md) |
-| Phase 16–19 | Assign 工作流 v2 | [archived/20260616-TASKS.md](archived/20260616-TASKS.md) |
-| 平台策略 | Gitea 优先（多平台不做） | [archived/20260714-coding-gateway-multi-vcs.md](archived/20260714-coding-gateway-multi-vcs.md) |
+| 文档 | 用途 |
+|------|------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 现行架构 |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | 部署 |
+| [server-runtime-design-v4.md](server-runtime-design-v4.md) | OpenCode / CodingBackend |
+| [20260714-internal-capabilities-toolpack-mcp-skills.md](20260714-internal-capabilities-toolpack-mcp-skills.md) | ToolPack / MCP / Skills / Analyze |
+| [todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md) | Path A checklist |
+| [sandbox-roadmap.md](sandbox-roadmap.md) | 沙箱细项 |
+| [archived/](archived/) | 历史设计与旧 TASKS |
 
-参考：[archived/20260616-assign-workflow-progress.md](archived/20260616-assign-workflow-progress.md) · [archived/20260615-trigger-rules-and-workflow-improvement.md](archived/20260615-trigger-rules-and-workflow-improvement.md) · [ARCHITECTURE.md](ARCHITECTURE.md)
-
-端到端测试报告：[archived/20260605-e2e-test-report.md](archived/20260605-e2e-test-report.md)（v2 主路径见 `tests/integration/workflow_test.go`）
-
----
-
-## 待开发
-
-### Phase 14：沙箱增强
-
-详见 [沙箱迭代计划](sandbox-roadmap.md)
-
-- [ ] 14.1 临时目录模式（与 Session 级 workspace 路径约定需对齐）
-- [ ] 14.2 更丰富的上下文工具
-- [ ] 14.3 配置化的超时和限制
-- [ ] 14.4 安全增强
-
-### 运行时 / 模型（规划中）
-
-- [ ] OpenCode Path A — [todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md) · [server-runtime-design-v4.md](server-runtime-design-v4.md)
-- [ ] LLM Provider 可选增强（tiktoken / 摘要 / 成本预算）— [todo-20260714-LLMProvider-可选增强.md](todo-20260714-LLMProvider-可选增强.md)（主方案已归档）
-
----
-
-## 可选 / 后续
-
-非 v2 阻塞；按需排期。
-
-### UI / API
-
-- [ ] `GET /api/workflow-context?repo=&issue=` — Issue/任务详情展示 stage、active agent、session 状态
-- [ ] Web UI：工作流策略 preset（free/standard/strict）配置页（当前仅 `config.yaml`）
-- [ ] 删除未挂载的 `TriggerRules.vue` 源文件
-- [ ] AgentDetail 移除「触发规则」弃用 Tab（或合并为 Playbook 链接）
-
-### 工作流 / 多仓库
-
-- [ ] **WorkflowPolicy 按 repo DB 覆盖** — 同一 Gateway 多仓库时，各 repo 独立 L2 门禁（全局 preset + per-repo 覆盖）
-- [ ] 阶段切换时 Gitea unassign 上一 Agent
-- [ ] 组织级 Webhook 注册指引补充（DEPLOYMENT 扩展）
-
-### 运维 / 文档
-
-- [ ] 独立 v2 E2E 测试报告（Feature + Bug Assign 全流程）
-- [ ] `scripts/setup-test.go` 移除对已删除 `routes` 表的 INSERT
-- [ ] `webhook/parser.go` 清理仅 legacy 使用的 `HasLabel`（若测试不再依赖）
-
-### Agent 创建
-
-- [ ] Agent 创建「向导」：按 role 一键填充 analyze/coder/review 默认 Prompt + 命名建议（当前为模板下拉 + 手动创建）
+已交付：Assign 工作流 v2（[archived/20260616-TASKS.md](archived/20260616-TASKS.md)）、LLM Provider 主方案（[archived/20260710-LLMProvider…](archived/20260710-LLMProvider模型选择与Token配置扩展方案.md)）。

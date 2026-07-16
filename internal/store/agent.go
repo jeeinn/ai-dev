@@ -32,23 +32,27 @@ type Agent struct {
 	Repos           []string         `json:"repos,omitempty"`
 	Role            string           `json:"role"` // analyze | coder | review
 	Status          string           `json:"status"`
+	Backend         string           `json:"backend"`                   // coding backend name; default "internal" (OpenCode Path A)
+	BackendOptions   map[string]any   `json:"backend_options,omitempty"` // backend-specific options (JSON)
+	ToolPack        string           `json:"tool_pack"`                 // ToolPack name; empty = use role-based default
+	McpServers      []string         `json:"mcp_servers,omitempty"`     // Enabled MCP server names; empty = none
 	CreatedAt       time.Time        `json:"created_at"`
 	UpdatedAt       time.Time        `json:"updated_at"`
 }
 
 const agentSelectCols = `id, name, gitea_username, gitea_token, avatar_url, provider, model,
 	max_output_tokens, max_input_tokens, temperature, timeout, system_prompt, user_template,
-	loop_config, repos, role, status, created_at, updated_at`
+	loop_config, repos, role, status, backend, backend_options, tool_pack, mcp_servers, created_at, updated_at`
 
 func scanAgent(scanner interface {
 	Scan(dest ...any) error
 }) (*Agent, error) {
 	var a Agent
-	var loopConfigJSON, reposJSON string
+	var loopConfigJSON, reposJSON, backendOptionsJSON, mcpServersJSON string
 	err := scanner.Scan(
 		&a.ID, &a.Name, &a.GiteaUsername, &a.GiteaToken, &a.AvatarURL, &a.Provider, &a.Model,
 		&a.MaxOutputTokens, &a.MaxInputTokens, &a.Temperature, &a.Timeout, &a.SystemPrompt, &a.UserTemplate,
-		&loopConfigJSON, &reposJSON, &a.Role, &a.Status, &a.CreatedAt, &a.UpdatedAt,
+		&loopConfigJSON, &reposJSON, &a.Role, &a.Status, &a.Backend, &backendOptionsJSON, &a.ToolPack, &mcpServersJSON, &a.CreatedAt, &a.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -58,6 +62,15 @@ func scanAgent(scanner interface {
 	}
 	if reposJSON != "" && reposJSON != "[]" {
 		json.Unmarshal([]byte(reposJSON), &a.Repos)
+	}
+	if backendOptionsJSON != "" && backendOptionsJSON != "{}" {
+		json.Unmarshal([]byte(backendOptionsJSON), &a.BackendOptions)
+	}
+	if mcpServersJSON != "" && mcpServersJSON != "[]" {
+		json.Unmarshal([]byte(mcpServersJSON), &a.McpServers)
+	}
+	if a.Backend == "" {
+		a.Backend = "internal"
 	}
 	return &a, nil
 }
@@ -74,15 +87,28 @@ func (db *DB) CreateAgent(a *Agent) error {
 		data, _ := json.Marshal(a.Repos)
 		reposJSON = string(data)
 	}
+	backendOptionsJSON := "{}"
+	if a.BackendOptions != nil {
+		data, _ := json.Marshal(a.BackendOptions)
+		backendOptionsJSON = string(data)
+	}
+	mcpServersJSON := "[]"
+	if a.McpServers != nil {
+		data, _ := json.Marshal(a.McpServers)
+		mcpServersJSON = string(data)
+	}
+	if a.Backend == "" {
+		a.Backend = "internal"
+	}
 
 	result, err := db.Exec(`INSERT INTO agents
 		(name, gitea_username, gitea_token, avatar_url, provider, model,
 		 max_output_tokens, max_input_tokens, temperature, timeout, system_prompt, user_template,
-		 loop_config, repos, role, status)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 loop_config, repos, role, status, backend, backend_options, tool_pack, mcp_servers)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, a.GiteaUsername, a.GiteaToken, a.AvatarURL, a.Provider, a.Model,
 		a.MaxOutputTokens, a.MaxInputTokens, a.Temperature, a.Timeout, a.SystemPrompt, a.UserTemplate,
-		loopConfigJSON, reposJSON, a.Role, a.Status)
+		loopConfigJSON, reposJSON, a.Role, a.Status, a.Backend, backendOptionsJSON, a.ToolPack, mcpServersJSON)
 	if err != nil {
 		return fmt.Errorf("insert agent: %w", err)
 	}
@@ -140,16 +166,29 @@ func (db *DB) UpdateAgent(a *Agent) error {
 		data, _ := json.Marshal(a.Repos)
 		reposJSON = string(data)
 	}
+	backendOptionsJSON := "{}"
+	if a.BackendOptions != nil {
+		data, _ := json.Marshal(a.BackendOptions)
+		backendOptionsJSON = string(data)
+	}
+	mcpServersJSON := "[]"
+	if a.McpServers != nil {
+		data, _ := json.Marshal(a.McpServers)
+		mcpServersJSON = string(data)
+	}
+	if a.Backend == "" {
+		a.Backend = "internal"
+	}
 
 	_, err := db.Exec(`UPDATE agents SET name=?, provider=?, model=?,
 		max_output_tokens=?, max_input_tokens=?, temperature=?, timeout=?,
 		system_prompt=?, user_template=?, loop_config=?, repos=?, role=?, status=?,
-		avatar_url=?, gitea_token=?, updated_at=CURRENT_TIMESTAMP
+		avatar_url=?, gitea_token=?, backend=?, backend_options=?, tool_pack=?, mcp_servers=?, updated_at=CURRENT_TIMESTAMP
 		WHERE id=?`,
 		a.Name, a.Provider, a.Model,
 		a.MaxOutputTokens, a.MaxInputTokens, a.Temperature, a.Timeout,
 		a.SystemPrompt, a.UserTemplate, loopConfigJSON, reposJSON, a.Role, a.Status,
-		a.AvatarURL, a.GiteaToken, a.ID)
+		a.AvatarURL, a.GiteaToken, a.Backend, backendOptionsJSON, a.ToolPack, mcpServersJSON, a.ID)
 	if err != nil {
 		return fmt.Errorf("update agent: %w", err)
 	}

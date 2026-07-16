@@ -14,6 +14,8 @@ type Config struct {
 	Agents     AgentsConfig     `yaml:"agents"`
 	Workflow   WorkflowConfig   `yaml:"workflow"`
 	Session    SessionConfig    `yaml:"session"`
+	Sandbox    SandboxConfig    `yaml:"sandbox"`
+	MCP        MCPConfig        `yaml:"mcp"`
 	Debug      DebugConfig      `yaml:"debug"`
 }
 
@@ -175,6 +177,102 @@ type AgentsConfig struct {
 	Defaults  AgentDefaultsConfig            `yaml:"defaults"`
 	Templates map[string]AgentTemplateConfig `yaml:"templates"`
 	Loop      AgentLoopConfig                `yaml:"loop"`
+	Backends  AgentBackendsConfig            `yaml:"backends"`
+	ToolPacks ToolPacksConfig                `yaml:"tool_packs"`
+}
+
+// SandboxMode defines the workspace directory mode.
+type SandboxMode string
+
+const (
+	// SandboxModeTemp uses os.MkdirTemp for automatic temporary directories.
+	SandboxModeTemp SandboxMode = "temp"
+	// SandboxModeFixed uses a fixed base directory with task subdirectories.
+	SandboxModeFixed SandboxMode = "fixed"
+)
+
+// SandboxConfig contains sandbox configuration for isolation and safety.
+type SandboxConfig struct {
+	Mode           SandboxMode `yaml:"mode"`             // "temp" | "fixed"
+	BaseDir        string      `yaml:"base_dir"`         // Fixed mode base directory
+	CommandTimeout string      `yaml:"command_timeout"`  // Single command timeout (duration string)
+	TaskTimeout    string      `yaml:"task_timeout"`     // Total task timeout (duration string)
+	MaxOutput      int         `yaml:"max_output"`       // Max output bytes per command
+	MaxFileSize    int         `yaml:"max_file_size"`    // Max file size for write operations
+	CleanupAfter   string      `yaml:"cleanup_after"`    // Failed task retention time (duration string)
+}
+
+// DefaultSandboxConfig returns default sandbox configuration.
+func DefaultSandboxConfig() SandboxConfig {
+	return SandboxConfig{
+		Mode:           SandboxModeFixed,
+		BaseDir:        "./workspace",
+		CommandTimeout: "5m",
+		TaskTimeout:    "30m",
+		MaxOutput:      1024 * 1024, // 1MB
+		MaxFileSize:    1024 * 1024, // 1MB
+		CleanupAfter:   "24h",
+	}
+}
+
+// ToolPacksConfig defines named tool packs that map pack IDs to ordered tool
+// name lists. The runner uses these lists to assemble a ToolRegistry via
+// AssembleToolRegistry. Built-in defaults (coder-default, analyze-readonly)
+// are applied when the config is empty.
+type ToolPacksConfig struct {
+	Packs map[string]ToolPackConfig `yaml:"packs"`
+}
+
+// ToolPackConfig is one named pack: an ordered list of tool names.
+type ToolPackConfig struct {
+	Tools []string `yaml:"tools"`
+}
+
+// AgentBackendsConfig holds coding-backend definitions for write tasks.
+// Non-write tasks (Analyze/Review/Reply) always use the implicit `internal` backend
+// regardless of this config. See server-runtime-design-v4.md §3 / §4.4.
+type AgentBackendsConfig struct {
+	Default  string                  `yaml:"default"`  // backend name; empty → "internal"
+	Backends map[string]BackendConfig `yaml:"backends"` // named backends; "internal" is implicit
+}
+
+// BackendConfig describes one coding backend. Type distinguishes builtin vs opencode.
+type BackendConfig struct {
+	Type                  string                   `yaml:"type"`        // builtin | opencode_http
+	BaseURL               string                   `yaml:"base_url"`    // opencode_http only
+	Auth                  BackendAuthConfig        `yaml:"auth"`        // opencode_http only
+	Timeout               string                   `yaml:"timeout"`     // e.g. "45m"
+	WorkspaceMode         string                   `yaml:"workspace_mode"`         // first release: "gateway_path" only
+	HealthCheck           BackendHealthCheckConfig `yaml:"health_check"`           // opencode_http only
+	AllowFallbackInternal bool                     `yaml:"allow_fallback_internal"` // default false
+}
+
+// BackendAuthConfig holds HTTP Basic auth credentials for an opencode_http backend.
+type BackendAuthConfig struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+}
+
+// BackendHealthCheckConfig configures a periodic readiness probe for a backend.
+type BackendHealthCheckConfig struct {
+	Path     string `yaml:"path"`     // e.g. "/global/health"
+	Interval string `yaml:"interval"` // e.g. "30s"
+}
+
+// Backend type constants.
+const (
+	BackendTypeBuiltin      = "builtin"
+	BackendTypeOpenCodeHTTP = "opencode_http"
+)
+
+// DefaultAgentBackends returns the default backends config: a single implicit `internal` builtin.
+func DefaultAgentBackends() AgentBackendsConfig {
+	return AgentBackendsConfig{
+		Default: "internal",
+		Backends: map[string]BackendConfig{
+			"internal": {Type: BackendTypeBuiltin},
+		},
+	}
 }
 
 // AgentTemplateConfig is a template for creating agents.
@@ -199,6 +297,29 @@ func DefaultAgentLoopConfig() AgentLoopConfig {
 		MaxIterations:     20,
 		TotalTimeout:      "30m",
 		IterationInterval: 0,
+	}
+}
+
+// MCPConfig holds MCP (Model Context Protocol) server definitions.
+// MCP tools are merged into the ToolRegistry per-agent based on the
+// agent's mcp_servers enable list.
+type MCPConfig struct {
+	Servers map[string]MCPServerConfig `yaml:"servers"`
+}
+
+// MCPServerConfig describes one MCP server connection.
+// Transport is HTTP (Streamable HTTP / JSON-RPC) for remote servers;
+// stdio transport can be added later.
+type MCPServerConfig struct {
+	BaseURL string `yaml:"base_url"` // e.g. "http://localhost:3000/mcp"
+	APIKey  string `yaml:"api_key"`  // Bearer token auth; empty = no auth
+	Timeout string `yaml:"timeout"`  // Go duration string, e.g. "30s"
+}
+
+// DefaultMCPConfig returns empty MCP config (no servers defined).
+func DefaultMCPConfig() MCPConfig {
+	return MCPConfig{
+		Servers: make(map[string]MCPServerConfig),
 	}
 }
 

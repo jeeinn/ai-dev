@@ -229,7 +229,7 @@ type RunnerFactory struct {
 ```
 
 工厂方法根据 **task type** 返回 Runner（task type 由 EventResolver 根据 **Agent.role + 事件** 决定，不再经 routes 或 Label 匹配）：
-- `analyze_issue` / `trigger` → **AnalyzeRunner**: 单次 LLM 调用，返回评论
+- `analyze_issue` / `trigger` → **AnalyzeRunner**: 优先浅 clone + 短只读 AgentLoop（`analyze-readonly` ToolPack，max 5 轮）；clone 失败则降级单次 LLM，返回评论
 - `review_pr` → **ReviewRunner**: 获取 PR diff + 文件列表 → LLM 审查 → 评论
 - `reply_comment` → **InteractionRunner**: 获取最近 10 条评论历史 → LLM 回复 → 评论
 - `solve_issue` → **DevRunner**: 调用 `runWriteTask(task, agent, factory, "dev")`
@@ -678,3 +678,16 @@ web/src/                             # Vue 3 前端
 └── router/                           # 路由
     └── index.js
 ```
+
+## OpenCode CodingBackend（可选 Path A）
+
+写任务路径：`prepareWriteWorkspace → CodingBackend.Run → finalizeWriteChanges`。
+
+| Backend | 说明 |
+|---------|------|
+| `internal`（默认） | 内置 `AgentLoop` + 沙箱工具 |
+| `opencode_http` | 本机 `opencode serve` sidecar；Gateway 负责 clone/分支/PR |
+
+约束：Analyze / Review **永不**走 OpenCode。Health 探活在 prepare **之前**；失败默认任务 `failed`，仅当配置 `allow_fallback_internal: true` 才降级 internal。
+
+Session 工作目录通过 `?directory=` + `X-Opencode-Directory` 绑定到 Gateway workspace（[opencode-a0-notes.md](opencode-a0-notes.md)）。运维步骤见 [DEPLOYMENT.md](DEPLOYMENT.md#opencode-sidecar可选-path-a)。

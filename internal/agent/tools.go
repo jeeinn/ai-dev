@@ -4,6 +4,8 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 
 	"gitea-agent-gateway/internal/llm"
 	"gitea-agent-gateway/internal/sandbox"
@@ -82,12 +84,10 @@ func (r *ToolRegistry) ExecuteTool(call llm.ToolCall) (string, error) {
 	return tool.Fn(params)
 }
 
-// DefaultTools creates the default set of tools for code editing.
-func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
-	registry := NewToolRegistry()
+// --- Tool builders (individual, for AssembleToolRegistry) ------------------
 
-	// read_file
-	registry.Register(&ToolDef{
+func newReadFileTool(sb *sandbox.Sandbox) *ToolDef {
+	return &ToolDef{
 		Name:        "read_file",
 		Description: "Read the contents of a file at the given path. Returns the file content as a string.",
 		Parameters: llm.Parameters{
@@ -111,10 +111,11 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 			}
 			return string(content), nil
 		},
-	})
+	}
+}
 
-	// write_file
-	registry.Register(&ToolDef{
+func newWriteFileTool(sb *sandbox.Sandbox) *ToolDef {
+	return &ToolDef{
 		Name:        "write_file",
 		Description: "Write content to a file at the given path. Creates the file if it doesn't exist, overwrites if it does. Creates parent directories as needed.",
 		Parameters: llm.Parameters{
@@ -142,10 +143,11 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 			}
 			return fmt.Sprintf("File written successfully: %s", path), nil
 		},
-	})
+	}
+}
 
-	// list_files
-	registry.Register(&ToolDef{
+func newListFilesTool(sb *sandbox.Sandbox) *ToolDef {
+	return &ToolDef{
 		Name:        "list_files",
 		Description: "List files under the given path (max depth 3). Returns one path per line.",
 		Parameters: llm.Parameters{
@@ -169,10 +171,11 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 			}
 			return result.Stdout, nil
 		},
-	})
+	}
+}
 
-	// search_code
-	registry.Register(&ToolDef{
+func newSearchCodeTool(sb *sandbox.Sandbox) *ToolDef {
+	return &ToolDef{
 		Name:        "search_code",
 		Description: "Search for a pattern in the codebase. Returns matching lines with file paths and line numbers.",
 		Parameters: llm.Parameters{
@@ -206,10 +209,11 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 			}
 			return result.Stdout, nil
 		},
-	})
+	}
+}
 
-	// run_command
-	registry.Register(&ToolDef{
+func newRunCommandTool(sb *sandbox.Sandbox) *ToolDef {
+	return &ToolDef{
 		Name:        "run_command",
 		Description: "Execute a shell command in the workspace. On Windows uses cmd /C; on Unix uses sh -c. Prefer portable commands (go, git) when possible.",
 		Parameters: llm.Parameters{
@@ -238,10 +242,11 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 			output += fmt.Sprintf("\nExit code: %d", result.ExitCode)
 			return output, nil
 		},
-	})
+	}
+}
 
-	// apply_diff
-	registry.Register(&ToolDef{
+func newApplyDiffTool(sb *sandbox.Sandbox) *ToolDef {
+	return &ToolDef{
 		Name:        "apply_diff",
 		Description: "Apply a unified diff patch to a file. The diff should be in standard unified diff format.",
 		Parameters: llm.Parameters{
@@ -270,10 +275,11 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 			}
 			return "Diff applied successfully.", nil
 		},
-	})
+	}
+}
 
-	// tree - Show directory structure
-	registry.Register(&ToolDef{
+func newTreeTool(sb *sandbox.Sandbox) *ToolDef {
+	return &ToolDef{
 		Name:        "tree",
 		Description: "Show directory structure (files and directories). Useful for understanding project layout.",
 		Parameters: llm.Parameters{
@@ -305,10 +311,11 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 			}
 			return result.Stdout, nil
 		},
-	})
+	}
+}
 
-	// git_log - Show git commit history
-	registry.Register(&ToolDef{
+func newGitLogTool(sb *sandbox.Sandbox) *ToolDef {
+	return &ToolDef{
 		Name:        "git_log",
 		Description: "Show git commit history. Useful for understanding recent changes.",
 		Parameters: llm.Parameters{
@@ -344,10 +351,11 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 			}
 			return result.Stdout, nil
 		},
-	})
+	}
+}
 
-	// git_blame - Show who changed each line
-	registry.Register(&ToolDef{
+func newGitBlameTool(sb *sandbox.Sandbox) *ToolDef {
+	return &ToolDef{
 		Name:        "git_blame",
 		Description: "Show who last modified each line of a file. Useful for understanding code history.",
 		Parameters: llm.Parameters{
@@ -388,7 +396,67 @@ func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 			}
 			return result.Stdout, nil
 		},
-	})
+	}
+}
 
+// toolBuilders maps canonical tool names to their constructors.
+// All built-in tools must be registered here so that AssembleToolRegistry
+// can construct a registry from a pack definition.
+var toolBuilders = map[string]func(*sandbox.Sandbox) *ToolDef{
+	"read_file":    newReadFileTool,
+	"write_file":   newWriteFileTool,
+	"list_files":   newListFilesTool,
+	"search_code":  newSearchCodeTool,
+	"run_command":  newRunCommandTool,
+	"apply_diff":   newApplyDiffTool,
+	"tree":         newTreeTool,
+	"git_log":      newGitLogTool,
+	"git_blame":    newGitBlameTool,
+}
+
+// KnownToolNames returns the sorted list of all built-in tool names.
+// Useful for validation, documentation, and config generation.
+func KnownToolNames() []string {
+	names := make([]string, 0, len(toolBuilders))
+	for n := range toolBuilders {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// AssembleToolRegistry builds a ToolRegistry from an ordered list of tool
+// names. Unknown names return an error so that typos in config are caught
+// early rather than silently dropping tools.
+//
+// The caller (runner) decides which pack to use: e.g.
+//
+//	coder-default    → all tools (read+write)
+//	analyze-readonly → read-only subset
+func AssembleToolRegistry(toolNames []string, sb *sandbox.Sandbox) (*ToolRegistry, error) {
+	registry := NewToolRegistry()
+	var unknown []string
+	for _, name := range toolNames {
+		builder, ok := toolBuilders[name]
+		if !ok {
+			unknown = append(unknown, name)
+			continue
+		}
+		registry.Register(builder(sb))
+	}
+	if len(unknown) > 0 {
+		return nil, fmt.Errorf("unknown tool(s): %s", strings.Join(unknown, ", "))
+	}
+	return registry, nil
+}
+
+// DefaultTools creates the default set of tools for code editing.
+// It is equivalent to AssembleToolRegistry with the "coder-default" pack.
+// Kept for backward compatibility; new code should use AssembleToolRegistry.
+func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
+	registry, _ := AssembleToolRegistry([]string{
+		"read_file", "write_file", "list_files", "search_code",
+		"run_command", "apply_diff", "tree", "git_log", "git_blame",
+	}, sb)
 	return registry
 }

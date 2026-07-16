@@ -19,5 +19,6 @@
 | `20260709-v2-gitea-integration-checklist.md` | v2 联调清单（历史） |
 | `20260714-server-runtime-design*.md` | 运行时设计 v1–v3（现行见 `../server-runtime-design-v4.md`） |
 | `20260714-coding-gateway-multi-vcs.md` | **平台策略：Gitea 优先**（已确认冻结） |
+| `20260714-TASKS.md` | 2026-07-14 前分散 backlog（现行见 `../TASKS.md`） |
 | `20260710-LLMProvider模型选择与Token配置扩展方案.md` | LLM 模型/Token 主方案（已实施）；剩余见 `../todo-20260714-LLMProvider-可选增强.md` |
 | `20260710-opencode-integration.md` | OpenCode 早期 CLI 方案（已废弃）；现行见 `../todo-20260714-opencode-path-a.md` |

@@ -455,3 +455,53 @@ SELECT status, COUNT(*) FROM tasks GROUP BY status;
 # 查看最近的任务
 SELECT id, task_type, status, created_at FROM tasks ORDER BY id DESC LIMIT 10;
 ```
+
+## OpenCode sidecar（可选 Path A）
+
+默认写任务走内置 `AgentLoop`（`agents.backends.default=internal`）。若 coder Agent 配置 `backend: opencode-local`，需在**同一台机器**运行 OpenCode HTTP 服务，且能访问 Gateway 准备的 workspace 绝对路径。
+
+### 启动
+
+```bash
+# 与 config.example.yaml 中 base_url 端口一致
+opencode serve --port 4096
+# 若启用 Basic Auth，设置 OPENCODE_SERVER_PASSWORD 并与 yaml auth.password 对齐
+```
+
+### Gateway 配置要点
+
+```yaml
+agents:
+  backends:
+    default: internal
+    backends:
+      opencode-local:
+        type: opencode_http
+        base_url: "http://127.0.0.1:4096"
+        workspace_mode: gateway_path   # 第一期唯一合法值
+        health_check:
+          path: /health                # 或 /global/health，视 OpenCode 版本
+        allow_fallback_internal: false # true=探活失败时降级内置 Loop（默认勿开）
+```
+
+Agent 侧设置 `backend: opencode-local`（仅 solve / fix_bug 写任务生效；analyze/review 强制 internal）。
+
+### 行为说明
+
+| 场景 | 任务状态 |
+|------|----------|
+| sidecar 探活失败且 `allow_fallback_internal=false` | **failed**（可读错误评论） |
+| 探活失败且 `allow_fallback_internal=true` | 切到 internal 继续 |
+| 探活成功但改码/提 PR 失败 | failed / partial（写回规则见 P0.1） |
+
+工作目录绑定：`POST /session?directory=<workspace>` + `X-Opencode-Directory`（见 [opencode-a0-notes.md](opencode-a0-notes.md)）。
+
+### 自检
+
+```bash
+curl -sS "http://127.0.0.1:4096/health"
+curl -sS -X POST "http://127.0.0.1:4096/session?directory=/path/to/ws" \
+  -H "Content-Type: application/json" \
+  -H "X-Opencode-Directory: /path/to/ws" \
+  -d '{"title":"ping"}'
+```

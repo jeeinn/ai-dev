@@ -12,6 +12,7 @@ import (
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/gitea"
 	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
 	"gitea-agent-gateway/internal/workflow"
@@ -46,6 +47,8 @@ func NewDispatcher(
 	dispatcherCfg *config.DispatcherConfig,
 	llmRegistry *llm.Registry,
 	agentsCfg *config.AgentsConfig,
+	sandboxCfg sandbox.SandboxConfig,
+	mcpCfg config.MCPConfig,
 ) *Dispatcher {
 	queue := NewTaskQueue(db, dispatcherCfg.QueueSize)
 	agentDefaults := config.DefaultAgentDefaults()
@@ -71,6 +74,8 @@ func NewDispatcher(
 		db,
 		agentDefaults,
 		resolveDefaultLoop(agentsCfg),
+		sandboxCfg,
+		mcpCfg,
 	)
 
 	d := &Dispatcher{
@@ -82,7 +87,11 @@ func NewDispatcher(
 	}
 
 	// Wire up Gitea client factory for result writeback
-	executor.SetGiteaClientFactory(d, nil)
+	var backends *config.AgentBackendsConfig
+	if agentsCfg != nil {
+		backends = &agentsCfg.Backends
+	}
+	executor.SetGiteaClientFactory(d, nil, backends)
 
 	return d
 }
@@ -90,7 +99,11 @@ func NewDispatcher(
 // SetDebugConfigGetter supplies live debug settings for conversation logging.
 func (d *Dispatcher) SetDebugConfigGetter(getter func() config.DebugConfig) {
 	if d.executor != nil && d.executor.giteaFactory != nil {
-		d.executor.SetGiteaClientFactory(d.executor.giteaFactory, getter)
+		var backends *config.AgentBackendsConfig
+		if d.agentsCfg != nil {
+			backends = &d.agentsCfg.Backends
+		}
+		d.executor.SetGiteaClientFactory(d.executor.giteaFactory, getter, backends)
 	}
 }
 
@@ -173,6 +186,11 @@ func (d *Dispatcher) SetWorkflowComponents(registry *agents.Registry, resolver *
 		}
 		d.releaseIssueLock(task.Repo, task.IssueID)
 	})
+}
+
+// SetWorkflowPolicy replaces the live L2 policy (e.g. after WebUI config hot-reload).
+func (d *Dispatcher) SetWorkflowPolicy(wfPolicy *workflow.WorkflowPolicy) {
+	d.wfPolicy = wfPolicy
 }
 
 // Shutdown cancels in-flight executor work so agent loops can exit on process stop.

@@ -116,6 +116,22 @@ func GetPreset(name string) *WorkflowPolicy {
 	}
 }
 
+// BuildPolicy returns a WorkflowPolicy from preset, then applies optional gate overrides.
+// Empty override values are ignored. Unknown gate IDs are still stored (forward-compatible).
+func BuildPolicy(preset string, gateOverrides map[string]string) *WorkflowPolicy {
+	p := GetPreset(preset)
+	if len(gateOverrides) == 0 {
+		return p
+	}
+	for k, v := range gateOverrides {
+		if strings.TrimSpace(k) == "" || strings.TrimSpace(v) == "" {
+			continue
+		}
+		p.Gates[k] = v
+	}
+	return p
+}
+
 // GetGateLevel returns the enforcement level for a gate.
 func (p *WorkflowPolicy) GetGateLevel(gateID string) GateLevel {
 	if p == nil || p.Gates == nil {

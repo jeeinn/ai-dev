@@ -6,6 +6,17 @@ import (
 	"time"
 )
 
+// Task status constants.
+const (
+	StatusPending = "pending"
+	StatusRunning  = "running"
+	StatusSuccess  = "success"
+	StatusFailed   = "failed"
+	// StatusPartial indicates the runner succeeded but Gitea writeback failed.
+	// The task is not pure success: the result exists but was not delivered to the issue/PR.
+	StatusPartial = "partial"
+)
+
 // Task represents an agent execution task.
 type Task struct {
 	ID         int64      `json:"id"`
@@ -290,20 +301,21 @@ func (db *DB) HasPendingOrRunningTask(repo string, issueID int) (bool, error) {
 	return count > 0, nil
 }
 
-// ResetTask marks a pending/running task as failed so the issue can accept new work.
+// ResetTask marks a pending/running/partial task as failed so the issue can accept new work.
+// partial (runner succeeded but writeback failed) is also resettable to allow manual retry.
 // Returns the updated task. No-op error if task is already terminal.
 func (db *DB) ResetTask(id int64, reason string) (*Task, error) {
 	task, err := db.GetTask(id)
 	if err != nil {
 		return nil, err
 	}
-	if task.Status != "pending" && task.Status != "running" {
-		return nil, fmt.Errorf("task %d status is %q; only pending/running can be reset", id, task.Status)
+	if task.Status != StatusPending && task.Status != StatusRunning && task.Status != StatusPartial {
+		return nil, fmt.Errorf("task %d status is %q; only pending/running/partial can be reset", id, task.Status)
 	}
 	if reason == "" {
 		reason = "manually reset"
 	}
-	_, err = db.Exec(`UPDATE tasks SET status='failed', error=?, finished_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('pending','running')`,
+	_, err = db.Exec(`UPDATE tasks SET status='failed', error=?, finished_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('pending','running','partial')`,
 		reason, id)
 	if err != nil {
 		return nil, fmt.Errorf("reset task: %w", err)

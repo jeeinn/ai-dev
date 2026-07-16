@@ -220,7 +220,84 @@
           </el-form>
         </el-tab-pane>
 
-        <!-- Tab 5: 调试 -->
+        <!-- Tab 5: 工作流策略 -->
+        <el-tab-pane label="工作流策略" name="workflow">
+          <el-alert title="控制工作流各阶段的约束规则，如是否强制先分析再开发、开发中能否重新分析等" type="info" :closable="false" style="margin-bottom: 16px" />
+          <el-form label-width="140px" class="config-form">
+            <el-form-item label="策略预设">
+              <el-select v-model="form['workflow.preset']" placeholder="选择预设" style="width: 100%" @change="onPresetChange">
+                <el-option
+                  v-for="p in workflowPresets"
+                  :key="p.name"
+                  :label="`${p.label} (${p.name})`"
+                  :value="p.name"
+                >
+                  <div class="preset-option">
+                    <span class="preset-option-label">{{ p.label }}</span>
+                    <span class="preset-option-desc">{{ p.description }}</span>
+                  </div>
+                </el-option>
+              </el-select>
+              <div class="form-tip">
+                选择预设会自动配置各 Gate 的严格程度。也可以在下方手动调整单个 Gate。
+                <el-tag v-if="sourceTag('workflow.preset')" size="small" :type="sourceTag('workflow.preset') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
+                  {{ sourceTag('workflow.preset') }}
+                </el-tag>
+              </div>
+            </el-form-item>
+
+            <el-divider content-position="left">Gate 详细配置</el-divider>
+            <el-form-item label="开发需先分析">
+              <el-select v-model="gatesForm['coder_requires_analyzed']" style="width: 200px">
+                <el-option label="关闭 (off)" value="off" />
+                <el-option label="警告 (soft)" value="soft" />
+                <el-option label="阻止 (hard)" value="hard" />
+              </el-select>
+              <div class="form-tip">关闭：可直接 Assign coder；警告：可继续但会提示；阻止：必须先分析</div>
+            </el-form-item>
+            <el-form-item label="允许跳过分析">
+              <el-select v-model="gatesForm['allow_skip_analyze']" style="width: 200px">
+                <el-option label="是 (true)" value="true" />
+                <el-option label="否 (false)" value="false" />
+              </el-select>
+              <div class="form-tip">是否允许在评论中使用 /skip-analyze 跳过分析阶段</div>
+            </el-form-item>
+            <el-form-item label="开发中重新分析">
+              <el-select v-model="gatesForm['reanalyze_while_developing']" style="width: 200px">
+                <el-option label="关闭 (off)" value="off" />
+                <el-option label="警告 (soft)" value="soft" />
+                <el-option label="阻止 (hard)" value="hard" />
+              </el-select>
+              <div class="form-tip">开发阶段中 Assign analyze 的行为</div>
+            </el-form-item>
+            <el-form-item label="重复执行同一阶段">
+              <el-select v-model="gatesForm['rerun_same_stage']" style="width: 200px">
+                <el-option label="关闭 (off)" value="off" />
+                <el-option label="警告 (soft)" value="soft" />
+                <el-option label="阻止 (hard)" value="hard" />
+              </el-select>
+              <div class="form-tip">同一阶段重复执行（如再次 Assign 同一角色）</div>
+            </el-form-item>
+            <el-form-item label="Draft PR 审查警告">
+              <el-select v-model="gatesForm['review_warn_if_draft']" style="width: 200px">
+                <el-option label="关闭 (off)" value="off" />
+                <el-option label="警告 (soft)" value="soft" />
+                <el-option label="阻止 (hard)" value="hard" />
+              </el-select>
+              <div class="form-tip">对 Draft 状态的 PR 进行审查时的行为</div>
+            </el-form-item>
+            <el-form-item label="切换 Agent">
+              <el-select v-model="gatesForm['coder_switch_agent']" style="width: 200px">
+                <el-option label="关闭 (off)" value="off" />
+                <el-option label="警告 (soft)" value="soft" />
+                <el-option label="阻止 (hard)" value="hard" />
+              </el-select>
+              <div class="form-tip">开发阶段中切换不同 Agent 的行为</div>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+
+        <!-- Tab 6: 调试 -->
         <el-tab-pane label="调试" name="debug">
           <el-alert title="调试功能默认关闭。开启后会将 Agent Loop 的 LLM 对话写入数据库，便于排查问题。" type="warning" :closable="false" style="margin-bottom: 16px" />
           <el-form label-width="180px" class="config-form">
@@ -505,6 +582,23 @@ const showViewTemplate = ref(false)
 const viewingTemplate = ref(null)
 const showAddTemplate = ref(false)
 const newTemplate = ref({ name: '', system_prompt: '', user_template: '' })
+
+// Workflow presets
+const workflowPresets = ref([
+  { name: 'free', label: '自由模式', description: '最小限制，允许跳过分析直接开发' },
+  { name: 'standard', label: '标准模式', description: '平衡配置，开发中重新分析会警告' },
+  { name: 'strict', label: '严格模式', description: '最大限制，强制分析后才能开发' },
+])
+
+// Gates form
+const gatesForm = ref({
+  coder_requires_analyzed: 'off',
+  allow_skip_analyze: 'true',
+  reanalyze_while_developing: 'off',
+  rerun_same_stage: 'off',
+  review_warn_if_draft: 'off',
+  coder_switch_agent: 'off',
+})
 
 // Provider 可视化编辑状态
 const providerEditMode = ref('form') // form | json
@@ -817,6 +911,9 @@ const applyConfigData = (data) => {
   if (next._meta?.sources) {
     sources.value = next._meta.sources
   }
+  if (next._meta?.workflow_presets) {
+    workflowPresets.value = next._meta.workflow_presets
+  }
   if (next._meta) {
     delete next._meta
   }
@@ -830,6 +927,40 @@ const applyConfigData = (data) => {
   if (data['llm.providers']) {
     providersJson.value = formatProvidersJson(data['llm.providers'])
   }
+  if (data['workflow.gates'] && typeof data['workflow.gates'] === 'object') {
+    gatesForm.value = { ...gatesForm.value, ...data['workflow.gates'] }
+  }
+}
+
+const onPresetChange = (preset) => {
+  const presetGates = {
+    free: {
+      coder_requires_analyzed: 'off',
+      allow_skip_analyze: 'true',
+      reanalyze_while_developing: 'off',
+      rerun_same_stage: 'off',
+      review_warn_if_draft: 'off',
+      coder_switch_agent: 'off',
+    },
+    standard: {
+      coder_requires_analyzed: 'off',
+      allow_skip_analyze: 'true',
+      reanalyze_while_developing: 'soft',
+      rerun_same_stage: 'soft',
+      review_warn_if_draft: 'off',
+      coder_switch_agent: 'soft',
+    },
+    strict: {
+      coder_requires_analyzed: 'hard',
+      allow_skip_analyze: 'false',
+      reanalyze_while_developing: 'hard',
+      rerun_same_stage: 'hard',
+      review_warn_if_draft: 'soft',
+      coder_switch_agent: 'hard',
+    },
+  }
+  const gates = presetGates[preset] || presetGates.standard
+  gatesForm.value = { ...gates }
 }
 
 const loadConfig = async () => {
@@ -914,6 +1045,7 @@ const saveAll = async () => {
       entries[key] = String(value)
     }
     entries['llm.providers'] = JSON.stringify(providersData)
+    entries['workflow.gates'] = JSON.stringify(gatesForm.value)
 
     const data = await api.put('/config', entries)
     applyConfigData(data)
@@ -1064,5 +1196,20 @@ onMounted(() => {
 
 .text-muted {
   color: #c0c4cc;
+}
+
+.preset-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preset-option-label {
+  font-weight: 500;
+}
+
+.preset-option-desc {
+  font-size: 12px;
+  color: #909399;
 }
 </style>

@@ -164,10 +164,10 @@ const welcomeStep = computed(() => {
   return 3
 })
 
-const statusLabels = { pending: '待处理', running: '运行中', success: '成功', failed: '失败' }
+const statusLabels = { pending: '待处理', running: '运行中', success: '成功', partial: '部分完成', failed: '失败' }
 
 const getStatusType = (status) => {
-  const types = { pending: 'warning', running: 'info', success: 'success', failed: 'danger' }
+  const types = { pending: 'warning', running: 'info', success: 'success', partial: 'warning', failed: 'danger' }
   return types[status] || 'info'
 }
 

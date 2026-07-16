@@ -208,6 +208,32 @@ func BuildDevPrompt(task TaskContext, codeCtx *CodeContext) string {
 	return sb.String()
 }
 
+// BuildAnalyzePrompt builds the prompt for analyze tasks (read-only).
+func BuildAnalyzePrompt(task TaskContext, codeCtx *CodeContext) string {
+	var sb strings.Builder
+
+	sb.WriteString("You are a senior software engineer performing a read-only analysis.\n\n")
+	sb.WriteString("## Task\n\n")
+	sb.WriteString(task.IssueTitle)
+	sb.WriteString("\n\n")
+	sb.WriteString(task.IssueBody)
+	sb.WriteString("\n\n")
+
+	if codeCtx != nil {
+		sb.WriteString(FormatCodeContext(codeCtx))
+	}
+
+	sb.WriteString("\n## Instructions\n\n")
+	sb.WriteString("1. Analyze the issue carefully using the available read-only tools\n")
+	sb.WriteString("2. Explore the codebase to understand the relevant files and patterns\n")
+	sb.WriteString("3. Identify the root cause or provide a detailed assessment\n")
+	sb.WriteString("4. Reference specific file paths and line numbers in your response\n")
+	sb.WriteString("5. Do NOT write any files or run arbitrary commands — this is analysis only\n")
+	sb.WriteString("6. Keep your response concise but technically precise\n")
+
+	return sb.String()
+}
+
 // BuildBugfixPrompt builds the prompt for bug fix tasks.
 func BuildBugfixPrompt(task TaskContext, codeCtx *CodeContext) string {
 	var sb strings.Builder

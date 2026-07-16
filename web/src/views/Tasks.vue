@@ -17,6 +17,7 @@
           <el-option label="待处理" value="pending" />
           <el-option label="运行中" value="running" />
           <el-option label="成功" value="success" />
+          <el-option label="部分完成" value="partial" />
           <el-option label="失败" value="failed" />
         </el-select>
         <el-select v-model="filterType" placeholder="任务类型" clearable style="width: 160px" @change="onFilterChange">
@@ -56,7 +57,7 @@
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click="viewTask(row)">详情</el-button>
             <el-button
-              v-if="row.status === 'pending' || row.status === 'running'"
+              v-if="row.status === 'pending' || row.status === 'running' || row.status === 'partial'"
               size="small"
               type="warning"
               link
@@ -122,15 +123,22 @@
           </el-descriptions-item>
         </el-descriptions>
       </div>
+
+      <div v-if="selectedTask?.repo && selectedTask?.issue_id" class="task-workflow">
+        <el-button type="primary" link @click="goToWorkflow">查看工作流详情</el-button>
+      </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../api'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+
+const router = useRouter()
 
 const tasks = ref([])
 const agents = ref([])
@@ -147,7 +155,7 @@ const filterStatus = ref('')
 const filterType = ref('')
 const filterAgent = ref('')
 
-const statusLabels = { pending: '待处理', running: '运行中', success: '成功', failed: '失败' }
+const statusLabels = { pending: '待处理', running: '运行中', success: '成功', partial: '部分完成', failed: '失败' }
 
 const agentMap = computed(() => {
   const map = {}
@@ -177,7 +185,7 @@ const loadTasks = async () => {
 }
 
 const getStatusType = (status) => {
-  const types = { pending: 'warning', running: 'info', success: 'success', failed: 'danger' }
+  const types = { pending: 'warning', running: 'info', success: 'success', partial: 'warning', failed: 'danger' }
   return types[status] || 'info'
 }
 
@@ -242,6 +250,14 @@ const resetTask = async (task) => {
   } finally {
     resettingId.value = null
   }
+}
+
+const goToWorkflow = () => {
+  showDetail.value = false
+  router.push({
+    path: '/workflows',
+    query: { repo: selectedTask.value.repo, issue: selectedTask.value.issue_id }
+  })
 }
 
 onMounted(() => {

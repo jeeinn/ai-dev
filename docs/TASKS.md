@@ -38,7 +38,7 @@ P0–P2 核心能力（已交付）
 - [x] Dockerfile：**文档澄清：示例暂未提供**（短期不做 compose/K8s；见 [DEPLOYMENT.md](DEPLOYMENT.md)）
 - [ ] Linux E2E 脚本，或 TESTING.md 说明当前以 Windows 为主
 - [ ] 文档同步：`sandbox-roadmap.md`、`todo-20260714-opencode-path-a.md`、内部能力验收状态
-- [ ] `CONTRIBUTING.md` + `SECURITY.md`
+- [x] `CONTRIBUTING.md` + `SECURITY.md`
 - [ ] 首版 Release：`v0.1.0` tag + 预编译二进制
 
 ---

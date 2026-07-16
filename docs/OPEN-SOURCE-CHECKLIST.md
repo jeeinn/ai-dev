@@ -51,7 +51,7 @@
 - [x] S4 Dockerfile：**文档澄清：示例暂未提供**（短期不做；见 [DEPLOYMENT.md](DEPLOYMENT.md)#容器部署暂未提供）
 - [ ] S5 Linux E2E 或说明
 - [ ] S6 子文档状态同步
-- [ ] S7 CONTRIBUTING + SECURITY
+- [x] S7 CONTRIBUTING + SECURITY
 - [ ] S8 v0.1.0 Release
 
 ---

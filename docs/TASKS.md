@@ -85,7 +85,7 @@
 > `WorkflowDetail.vue` + `/workflows` 导航；Tasks 详情入口跳转；调用 `GET /api/workflow-context` 与 `POST /api/sessions/reset`。
 
 - [x] Web UI / 任务详情消费已有 `GET /api/workflow-context`
-- [ ] （可选）preset `free|standard|strict` 配置入口（现仅 yaml）
+- [x] （可选）preset `free|standard|strict` 配置入口（SystemConfig「工作流策略」+ `workflow.preset`/`gates`；启动合并 gates，配置热更新刷新 `wfPolicy`）
 
 ---
 
@@ -98,8 +98,9 @@
 
 ### 9. 文件型 Skills
 
-- [ ] 扫描 Gateway 目录 + 仓库内 `SKILL.md`（agentskills.io 形态）
-- [ ] 渐进披露 + `load_skill`；Analyze 默认禁任意脚本
+- [x] 扫描 Gateway 目录 + 仓库内 `SKILL.md`（骨架：`list_skills` / `load_skill`；**尚未**严格对齐 agentskills.io YAML frontmatter / 专用 `skills/` 扫描根）
+- [x] 渐进披露 + `load_skill`；Analyze `allowScripts=false`（禁脚本工具注册，仅披露元数据）
+- [ ] （后续）agentskills.io frontmatter 解析；扫描根收敛到 `skills/` / `.agents/skills/`；注入 SKILL 正文指令
 
 ### 10. 产品打磨（旧 backlog 摘录）
 

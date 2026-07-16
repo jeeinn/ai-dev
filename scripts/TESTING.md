@@ -1,8 +1,152 @@
 # 测试指南
 
+> 本文是仓库**统一测试说明**：单元 / Mock 集成 / **本机真实 Gitea E2E** 前置条件与复现步骤。  
+> 脚本目录索引见 [README.md](README.md)。最近一次全量 E2E 报告：[docs/20260716-e2e-test-report.md](../docs/20260716-e2e-test-report.md)。
+
 ## 脚本目录
 
-见 [README.md](README.md)：`windows/`（E2E PowerShell）、`linux/`（bash）、`common/`（Go 辅助）。
+| 路径 | 内容 |
+|------|------|
+| [`windows/`](windows/) | 本机 Gitea E2E PowerShell（setup / agents / scenarios） |
+| [`linux/`](linux/) | bash 辅助（`run-tests.sh`、`test-webhook.sh`）；Linux E2E 待补 |
+| [`common/`](common/) | 跨平台 Go 辅助（`e2e-mock-mcp.go`、`setup-test.go`） |
+
+---
+
+## 本机真实 Gitea E2E（前置与复现）
+
+与 `tests/integration`（Mock Gitea + Mock LLM）不同：本节依赖**本机 Gitea、Gateway、可选 OpenCode / Mock MCP、真实 LLM**。
+
+### 与自动化测试的关系
+
+| 类型 | 依赖 | 入口 |
+|------|------|------|
+| 单元 / 包内组合 | 无外部服务 | `go test ./internal/...` |
+| 集成（Mock） | TestEnv | `go test ./tests/integration/` |
+| **真实 E2E** | 本机服务 + 凭据 | 下文 + `scripts/windows/*.ps1` |
+
+### 需要的本机服务
+
+| 服务 | 默认地址 | 说明 |
+|------|----------|------|
+| Gitea | `http://localhost:3000` | 示例安装目录 `x:\gitea`；`gitea.exe`，`app.ini` 中 `ROOT_URL` 指向本机 |
+| Gateway | `http://127.0.0.1:8080` | `go build -o gateway.exe .` 后 `.\gateway.exe -config config.yaml` |
+| OpenCode（Path A / A0） | `http://127.0.0.1:4096` | `opencode serve --port 4096`；健康检查 `/global/health` |
+| Mock MCP（P2.8） | `http://127.0.0.1:18080` | `go run scripts/common/e2e-mock-mcp.go` |
+
+启动顺序建议：Gitea → OpenCode → Mock MCP → 加载凭据 → Gateway。
+
+### 凭据（勿提交 git）
+
+写入 `data/e2e-env.local`（`data/` 已在 `.gitignore`）：
+
+```text
+GITEA_ADMIN_TOKEN=<admin 全权限 token>
+SENSENOVA_API_KEY=<OpenAI-compatible LLM key>
+API_AUTH_TOKEN=dev-api-token
+```
+
+生成 Gitea admin token（本机已有 admin 用户时）：
+
+```powershell
+cd x:\gitea
+.\gitea.exe admin user generate-access-token --username admin --token-name "e2e-$(Get-Date -Format 'yyyyMMddHHmmss')" --scopes "all"
+```
+
+启动 Gateway 前在同一 shell 加载环境变量：
+
+```powershell
+Get-Content data\e2e-env.local | ForEach-Object {
+  if ($_ -match '^\s*([^=]+)=(.*)$') {
+    Set-Item -Path "env:$($Matches[1].Trim())" -Value $Matches[2].Trim()
+  }
+}
+```
+
+### Gateway 配置要点（E2E）
+
+相对远程联调，本机 E2E 常用独立库与 workspace，避免污染远程数据：
+
+| 配置项 | 建议值 |
+|--------|--------|
+| `gitea.url` | `http://localhost:3000` |
+| `gitea.admin_token` | `${GITEA_ADMIN_TOKEN}` |
+| `gitea.webhook_secret` | 与仓库 Webhook 一致（如 `local-e2e-webhook-2026`） |
+| `database.path` | `./data/gateway-e2e.db` |
+| `workspace.base_dir` / sandbox | `./data/work-e2e` |
+| `logging.path` | `./data/logs-e2e` |
+| `llm.providers.*` | OpenAI-compatible（曾用 SenseNova：`https://token.sensenova.cn/v1`） |
+| `agents.defaults.provider` / `model` | 与上面对齐（如 `sensenova` / `deepseek-v4-flash`） |
+| `agents.backends.opencode-local` | `base_url: http://127.0.0.1:4096`，`health_check.path: /global/health`，`allow_fallback_internal: false` |
+| `mcp.servers.e2e-mock` | `base_url: http://127.0.0.1:18080/mcp` |
+
+远程配置可备份为 `config.remote.yaml`（勿把真实密钥写进仓库）。
+
+### 夹具（脚本会幂等创建）
+
+| 项 | 说明 |
+|----|------|
+| 组织/仓库 | `e2e/gateway-poc`（含 README、`.agents/skills/hello/SKILL.md`） |
+| Webhook | `http://127.0.0.1:8080/webhook/gitea`，Secret 与 config 一致；事件含 Issues / Issue Comment / PR / PR Comment |
+| 全局 Skill | 仓库根 `skills/e2e-note/SKILL.md`（Gateway `Getwd()` 扫描） |
+| Agents | `e2e-analyze`、`e2e-coder-internal`、`e2e-coder-opencode`、`e2e-review`、`e2e-bugfix`（经 Gateway API 创建并加 Collaborator） |
+
+### Windows 复现命令
+
+在**仓库根目录**执行（先保证上表服务与凭据就绪）：
+
+```powershell
+# 可选：Mock MCP（测 MCP / E4）
+go run scripts/common/e2e-mock-mcp.go
+
+# OpenCode（测 A0 / Path A / E6 / E7 / E10）
+opencode serve --port 4096
+
+# Gateway（另开终端，已 load e2e-env.local）
+.\gateway.exe -config config.yaml
+
+powershell -NoProfile -File scripts/windows/e2e-setup-gitea.ps1
+powershell -NoProfile -File scripts/windows/e2e-create-agents.ps1
+powershell -NoProfile -File scripts/windows/e2e-run-scenarios.ps1
+# 只跑部分场景：
+# powershell -NoProfile -File scripts/windows/e2e-run-scenarios.ps1 -Only E0,E1,E6
+```
+
+产物：
+
+- `data/e2e-results.json` — 场景 PASS/FAIL（gitignore）
+- Gateway 日志 — `data/logs-e2e/`
+- 报告模板参考 — `docs/20260716-e2e-test-report.md`
+
+### 场景矩阵（摘要）
+
+| ID | 覆盖 | 通过标准（摘要） |
+|----|------|------------------|
+| E0 | 冒烟 | Gitea / Gateway / OpenCode / MCP 健康 |
+| E1 | P0.3 A0 | OpenCode session `directory` 绑定绝对路径 |
+| E2 | P1.5 | Analyze 短 Loop；评论；无 PR |
+| E3 | P2.9 | Skills `list_skills` / 仓内或全局 skill |
+| E4 | P2.8 | MCP `e2e_echo` 出现在日志/工具结果 |
+| E5 | P0.2 | internal coder → 分支 + PR |
+| E6 | Path A | OpenCode coder → workspace 改码 + PR |
+| E7 | fix_bug | `bug` label → `fix_bug` + PR |
+| E8 | Review | `review_pr` 走 internal |
+| E9 | P0.1 | 写回失败 → `partial` / `failed`，非纯 `success` |
+| E10 | OpenCode health | sidecar 停 → 任务 `failed` |
+| E11 | P1.7 | `GET /api/workflow-context` |
+| E12 | 回归 | `go test ./... -count=1` |
+
+### 已知坑
+
+1. **OpenCode WorkDir 必须绝对路径** — Gateway 侧已对 `WorkDir` 做 `filepath.Abs`；相对路径会被 sidecar 解析到错误 cwd。
+2. **OpenCode Zen 计费** — 部分模型（如 `deepseek-v4-flash`）可能 `CreditsError`；E2E 曾改用 `big-pickle`。
+3. **PR 创建者显示为 admin** — 分支由 agent token push，**PR 由 `gitea.admin_token` 创建**（预期设计）；评论一般由 agent 用户发出。
+4. **Webhook 必须本机可达** — URL 用 `127.0.0.1:8080`，勿用 Docker 专用主机名。
+5. **勿提交** `data/e2e-env.local`、DB、日志、含明文密钥的配置。
+
+### Linux
+
+`scripts/linux/` 目前仅有通用 bash 辅助；完整 Gitea E2E PowerShell 流程尚未移植。移植时应对齐本节前置条件，脚本可放在 `scripts/linux/e2e-*.sh`。
 
 ---
 

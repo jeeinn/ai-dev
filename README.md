@@ -285,6 +285,8 @@ go vet ./...
 - [Assign 工作流 v2 设计（已归档）](docs/archived/20260615-trigger-rules-and-workflow-improvement.md)
 - [测试指南](scripts/TESTING.md) · [脚本目录](scripts/README.md)
 - 更多历史文档见 [docs/archived/](docs/archived/)
+- [贡献指南](CONTRIBUTING.md)
+- [安全策略](SECURITY.md)
 
 ## License
 

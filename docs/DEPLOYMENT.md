@@ -8,11 +8,17 @@
 - [快速部署](#快速部署)
 - [配置说明](#配置说明)
 - [Systemd 服务](#systemd-服务)
-- [Docker 部署](#docker-部署)
+- [容器部署（暂未提供）](#容器部署暂未提供)
 - [反向代理](#反向代理)
 - [Gitea 配置](#gitea-配置)
 - [运维管理](#运维管理)
 - [故障排查](#故障排查)
+
+> **安全警示（必读）**
+>
+> - Web UI 默认账号为 `admin` / `admin123`：**首次登录后务必立即修改密码**。
+> - 生产环境必须更换 `auth.jwt_secret`（或环境变量 `JWT_SECRET`），勿使用示例默认值。
+> - Token、API Key、Webhook 密钥请用环境变量或本地 `config.yaml` / `.env` 管理，**不要提交到 git**。
 
 ## 环境要求
 
@@ -30,8 +36,8 @@
 
 ```bash
 # 克隆代码
-git clone https://github.com/your-org/gitea-agent-gateway.git
-cd gitea-agent-gateway
+git clone https://github.com/jeeinn/ai-dev.git
+cd ai-dev
 
 # 构建前端
 cd web && npm install && npm run build && cd ..
@@ -39,8 +45,9 @@ cd web && npm install && npm run build && cd ..
 # 构建后端（前端资源通过 go:embed 打包进二进制）
 go build -o gateway .
 
-# 准备配置
+# 准备配置（config.yaml / .env 含敏感信息，勿提交）
 cp config.example.yaml config.yaml
+# 可选：cp .env.example .env 后填入 Token / 密钥
 # 编辑 config.yaml
 
 # 运行
@@ -111,8 +118,10 @@ llm:
   rate_limit_retries: 1       # 单次 ChatCompletion 遇 429 后的重试次数
 
 auth:
+  # 生产环境必须设置强随机 JWT_SECRET；勿使用下方默认值
   jwt_secret: "${JWT_SECRET:-change-me-in-production}"
   jwt_expiration: "24h"
+  # 仅首次创建 admin 用户时生效；登录后请立即在 Web UI 修改密码
   default_admin_password: "${ADMIN_PASSWORD:-admin123}"
 
 api:
@@ -212,66 +221,26 @@ sudo systemctl status gateway
 sudo journalctl -u gateway -f
 ```
 
-## Docker 部署
+## 容器部署（暂未提供）
 
-### Dockerfile
+> **短期不做 Docker / Compose / K8s。** 仓库**暂未提供** `Dockerfile`、`docker-compose.yml` 或 Helm chart。  
+> 生产与本机部署请以 **预编译/源码二进制 + Systemd（或等价进程管理）** 为主，见上文 [快速部署](#快速部署) 与 [Systemd 服务](#systemd-服务)。
 
-```dockerfile
-# 构建阶段
-FROM golang:1.26-alpine AS builder
-RUN apk add --no-cache git nodejs npm
-WORKDIR /src
-COPY . .
+### 未来参考（示例，暂未提供）
 
-# 构建前端
-RUN cd web && npm install && npm run build
+以下片段仅作将来容器化时的思路参考，**不能直接构建**；请勿期望仓库根目录存在对应文件。
 
-# 构建后端
-RUN go build -o gateway .
+<details>
+<summary>示意：多阶段构建思路（非可交付 Dockerfile）</summary>
 
-# 运行阶段
-FROM alpine:3.19
-RUN apk add --no-cache ca-certificates git
-WORKDIR /app
-COPY --from=builder /src/gateway .
-COPY --from=builder /src/config.example.yaml config.yaml
-
-RUN mkdir -p /app/data
-VOLUME /app/data
-
-EXPOSE 8080
-ENTRYPOINT ["./gateway"]
-CMD ["-config", "config.yaml"]
+```text
+# 思路概要（非完整、未维护的 Dockerfile）：
+# 1) builder：Go + Node，先 npm run build，再 go build -o gateway .
+# 2) runtime：精简基础镜像，仅拷贝 gateway 与配置，暴露 8080，挂载 /app/data
+# Compose：映射端口、挂载 config.yaml、用环境变量注入 Token / JWT_SECRET
 ```
 
-### Docker Compose
-
-```yaml
-version: '3.8'
-
-services:
-  gateway:
-    build: .
-    ports:
-      - "8080:8080"
-    volumes:
-      - gateway-data:/app/data
-      - ./config.yaml:/app/config.yaml:ro
-    environment:
-      - GITEA_ADMIN_TOKEN=${GITEA_ADMIN_TOKEN}
-      - GITEA_WEBHOOK_SECRET=${GITEA_WEBHOOK_SECRET}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-    restart: unless-stopped
-
-volumes:
-  gateway-data:
-```
-
-```bash
-docker compose up -d
-```
+</details>
 
 ## 反向代理
 

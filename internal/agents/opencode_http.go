@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"time"
 
 	"gitea-agent-gateway/internal/config"
@@ -84,6 +85,14 @@ func (b *OpenCodeHTTPBackend) Name() string { return b.name }
 // whether to commit, regardless of what the summary says.
 func (b *OpenCodeHTTPBackend) Run(ctx context.Context, req CodingRequest) (*CodingResult, error) {
 	task := req.Task
+
+	// OpenCode serve resolves relative directory against its own process cwd,
+	// not Gateway's. Always pass an absolute path (A0 / opencode-a0-notes).
+	if req.WorkDir != "" {
+		if abs, err := filepath.Abs(req.WorkDir); err == nil {
+			req.WorkDir = abs
+		}
+	}
 
 	// 1. Create session
 	sessionID, err := b.createSession(ctx, req)
@@ -260,9 +269,15 @@ func (b *OpenCodeHTTPBackend) sendMessage(ctx context.Context, sessionID string,
 	}
 
 	url := fmt.Sprintf("%s/session/%s/message", b.cfg.BaseURL, sessionID)
+	if req.WorkDir != "" {
+		url = url + "?directory=" + urlQueryEscape(req.WorkDir)
+	}
 	httpReq, err := b.newJSONRequest(ctx, http.MethodPost, url, msgReq)
 	if err != nil {
 		return "", err
+	}
+	if req.WorkDir != "" {
+		httpReq.Header.Set("X-Opencode-Directory", req.WorkDir)
 	}
 
 	// The POST /message endpoint is synchronous and returns when the run completes.

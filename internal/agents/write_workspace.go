@@ -187,6 +187,19 @@ func finalizeWriteChanges(ctx context.Context, wwc *WriteWorkspaceContext, task 
 
 	// Check if there are changes to commit
 	if !git.HasChanges() {
+		// OpenCode (or a prior turn) may already have committed+pushed on the
+		// working branch. Still ensure a PR exists when we are on a non-base branch.
+		if wwc.BranchName != "" && wwc.RepoInfo != nil &&
+			wwc.BranchName != wwc.RepoInfo.DefaultBranch &&
+			factory != nil && factory.giteaFactory != nil {
+			if adminClient := factory.giteaFactory.GetAdminGiteaClient(); adminClient != nil {
+				res, err := finalizeWriteTaskPR(adminClient, wwc.Owner, wwc.Repo, wwc.BranchName, wwc.RepoInfo.DefaultBranch, task, taskSubType, agentResult)
+				if err == nil {
+					return res, nil
+				}
+				log.Printf("[WARN] Task %d PR finalize on clean tree failed: %v", task.ID, err)
+			}
+		}
 		return &Result{
 			Content: agentResult,
 			Action:  "comment",

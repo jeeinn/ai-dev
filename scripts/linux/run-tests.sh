@@ -1,6 +1,6 @@
 #!/bin/bash
 # Run integration tests with CGO enabled for SQLite
-# Usage: ./scripts/run-tests.sh
+# Usage: ./scripts/linux/run-tests.sh
 
 set -e
 

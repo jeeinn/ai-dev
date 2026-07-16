@@ -1,5 +1,11 @@
 # 测试指南
 
+## 脚本目录
+
+见 [README.md](README.md)：`windows/`（E2E PowerShell）、`linux/`（bash）、`common/`（Go 辅助）。
+
+---
+
 ## 测试架构
 
 ```

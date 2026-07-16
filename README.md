@@ -43,17 +43,41 @@ Gitea Webhook → Handler (签名验证 + 去重)
 
 ## 快速开始
 
+### 5 分钟 Mock 测试（无需 Gitea）
+
+不连真实 Gitea / LLM，用仓库自带 Mock 验证编译与核心逻辑：
+
+```bash
+# 单元 + 集成（Mock Gitea / Mock LLM）
+go test ./... -count=1
+
+# 或仅集成测试
+go test ./tests/integration/ -v -count=1
+```
+
+说明与决策规则见 [scripts/TESTING.md](scripts/TESTING.md)（「与自动化测试的关系」一节）。
+
+### 完整 Gitea 联调
+
+接真实 Gitea + Webhook + Agent 工作流时：
+
+1. 按下方「构建并启动」与 Web UI 配置完成首次部署  
+2. 本机 E2E 前置与复现：[scripts/TESTING.md](scripts/TESTING.md)#本机真实-gitea-e2e前置与复现  
+3. v2 Assign 联调清单：[docs/archived/20260709-v2-gitea-integration-checklist.md](docs/archived/20260709-v2-gitea-integration-checklist.md)  
+4. 最近一次本机 E2E 报告：[docs/20260716-e2e-test-report.md](docs/20260716-e2e-test-report.md)
+
 ### 前置条件
 
 - Go 1.26+
 - Node.js 18+（仅开发/构建前端时需要）
-- Gitea 实例
-- LLM API Key（DeepSeek / OpenAI / Claude 等）
+- Gitea 实例（完整联调时需要）
+- LLM API Key（DeepSeek / OpenAI / Claude 等；完整联调时需要）
 
 ### 1. 构建并启动
 
 ```bash
 cp config.example.yaml config.yaml
+# 可选：cp .env.example .env 后填入 Token / 密钥（勿提交 config.yaml / .env）
 # 可选：在 config.yaml 中预填 gitea / llm，也可全部通过 Web UI 配置
 
 cd web && npm install && npm run build && cd ..
@@ -64,6 +88,8 @@ go build -o gateway .
 启动后访问 **Web UI**：http://localhost:8080  
 默认账号：`admin` / `admin123`
 
+> **安全警示**：首次登录后**务必修改默认密码**；生产环境必须更换 `auth.jwt_secret`（或环境变量 `JWT_SECRET`）。Token / API Key 勿写入 git。
+
 > `config.yaml` 可作为初始默认值；Web UI **系统配置**会优先显示数据库中的值，数据库未设置的项自动回退到 `config.yaml`。
 
 ### 2. Web UI 配置（推荐顺序）
@@ -72,7 +98,7 @@ go build -o gateway .
 
 | 步骤 | 页面 | 操作 |
 |------|------|------|
-| ① | 登录 | 使用 `admin` / `admin123` 登录 |
+| ① | 登录 | 使用 `admin` / `admin123` 登录，**登录后立即改密** |
 | ② | **系统配置 → Gitea 连接** | 填写 Gitea 地址、管理员 Token（需 `write:admin`）、Webhook 密钥 → 点击 **测试 Gitea 连接** → **保存全部** |
 | ③ | **系统配置 → LLM 配置** | 填写 Provider JSON 与默认模型 → 点击 **测试 LLM 连接** → **保存全部** |
 | ④ | **Agent 管理** | 新建 analyze / coder / review 三个 Agent，勾选目标仓库 |
@@ -98,7 +124,7 @@ go build -o gateway .
 2. Assign `coder-agent` → 等待 PR 创建  
 3. 在 PR 上 Request `review-agent` → 等待审查评论  
 
-详细联调清单见 [docs/archived/20260709-v2-gitea-integration-checklist.md](docs/archived/20260709-v2-gitea-integration-checklist.md)。
+详细联调清单见 [docs/archived/20260709-v2-gitea-integration-checklist.md](docs/archived/20260709-v2-gitea-integration-checklist.md)；部署与生产注意见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
 
 ---
 
@@ -252,6 +278,7 @@ go vet ./...
 
 - [技术架构](docs/ARCHITECTURE.md)
 - [任务清单](docs/TASKS.md)
+- [开源准备清单](docs/OPEN-SOURCE-CHECKLIST.md)
 - [部署指南](docs/DEPLOYMENT.md)
 - [服务器运行时设计 v4](docs/server-runtime-design-v4.md)
 - [平台策略：Gitea 优先（已归档）](docs/archived/20260714-coding-gateway-multi-vcs.md)
@@ -261,4 +288,4 @@ go vet ./...
 
 ## License
 
-MIT
+MIT —— 见根目录 [LICENSE](LICENSE)。

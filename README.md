@@ -256,7 +256,7 @@ go vet ./...
 - [服务器运行时设计 v4](docs/server-runtime-design-v4.md)
 - [平台策略：Gitea 优先（已归档）](docs/archived/20260714-coding-gateway-multi-vcs.md)
 - [Assign 工作流 v2 设计（已归档）](docs/archived/20260615-trigger-rules-and-workflow-improvement.md)
-- [测试指南](scripts/TESTING.md)
+- [测试指南](scripts/TESTING.md) · [脚本目录](scripts/README.md)
 - 更多历史文档见 [docs/archived/](docs/archived/)
 
 ## License

@@ -1,6 +1,6 @@
 # 任务清单（核心演进）
 
-> 更新：2026-07-15  
+> 更新：2026-07-16  
 > 产品边界：**Gitea 优先** · 内置 Agent 默认可用 · OpenCode 可选 · 不做多托管平台抽象  
 > 决策：[archived/20260714-coding-gateway-multi-vcs.md](archived/20260714-coding-gateway-multi-vcs.md)  
 > 旧版分散 backlog 已归档：[archived/20260714-TASKS.md](archived/20260714-TASKS.md)
@@ -39,7 +39,7 @@
 
 设计：[todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md) · [server-runtime-design-v4.md](server-runtime-design-v4.md) · [opencode-a0-notes.md](opencode-a0-notes.md)
 
-- [ ] A0 本机 `opencode serve` PoC 端到端验收（字段笔记已写：[opencode-a0-notes.md](opencode-a0-notes.md)；代码已绑定 `?directory=` + `X-Opencode-Directory`）
+- [x] A0 本机 `opencode serve` PoC 端到端验收（字段笔记已写：[opencode-a0-notes.md](opencode-a0-notes.md)；代码已绑定 `?directory=` + `X-Opencode-Directory`；E1+E6 本机验收见 [20260716-e2e-test-report.md](20260716-e2e-test-report.md)）
 - [x] A1 `agents.backends` + Agent `backend` / `backend_options` + migration
 - [x] A3 `CodingBackend` + `OpenCodeHTTPBackend`；非写任务强制 `internal`
 - [x] A3 health：失败 → 任务 **failed**（可读错误评论）；默认不静默降级；可选 `allow_fallback_internal`
@@ -48,7 +48,7 @@
 - [x] A4 WebUI backend 下拉（可后置）
 
 **约束**：默认 `internal`；Analyze / Review 永不走 OpenCode。
-**已知缺口**：Sandbox / Session `workspace` 双轨 base_dir 属 P1.6；A0 本机端到端 PoC 待人工验收。
+**已知缺口**：Sandbox / Session `workspace` 双轨 base_dir 属 P1.6。
 
 ---
 

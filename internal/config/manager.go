@@ -705,8 +705,14 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 			return fmt.Errorf("not a number: %s", value)
 		}
 		cfg.Agents.Loop.MaxIterations = n
+		if err := ValidateAgentLoopConfig(cfg.Agents.Loop); err != nil {
+			return err
+		}
 	case "agents.loop.total_timeout":
 		cfg.Agents.Loop.TotalTimeout = value
+		if err := ValidateAgentLoopConfig(cfg.Agents.Loop); err != nil {
+			return err
+		}
 	case "agents.loop.iteration_interval":
 		n, err := strconv.Atoi(value)
 		if err != nil {

@@ -16,7 +16,7 @@ gitea:
   webhook_secret: "your-webhook-secret-here"
 
 workspace:
-  # Agent 工作目录（clone 仓库的临时目录）
+  # Agent 工作目录根（Session 路径：{base_dir}/sessions/{id}/repo）
   base_dir: "./data/work"
   # 失败任务保留时间
   cleanup_after: "24h"
@@ -224,13 +224,15 @@ agents:
 #   max_disk_per_repo: "5GB"      # 超限 LRU
 
 # ===== 沙箱配置 (P1.6) =====
+# 约定：task 级 workspace 为 {sandbox.base_dir}/task_{id}；Session 为 {workspace.base_dir}/sessions/...
+# 若 sandbox.base_dir 留空或仍为历史默认 "./workspace"，启动时自动对齐为 workspace.base_dir。
 sandbox:
   # 工作目录模式: "fixed" | "temp"
   # fixed: 使用固定 base_dir + task_{id} 子目录
-  # temp: 使用临时目录 (os.MkdirTemp)，任务完成后自动清理
+  # temp: 使用临时目录 (os.MkdirTemp)，任务完成后自动清理（无 Session 时）
   mode: "fixed"
-  # fixed 模式下的基础目录
-  base_dir: "./data/workspace"
+  # 与 workspace.base_dir 同根，避免 Session / Sandbox 双轨分裂
+  base_dir: "./data/work"
   # 单命令超时
   command_timeout: "5m"
   # 任务总超时

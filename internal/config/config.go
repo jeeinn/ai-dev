@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -25,7 +26,29 @@ func Load(path string) (*Config, error) {
 	}
 
 	applyDefaults(&cfg)
+	if err := ValidateAgentLoopConfig(cfg.Agents.Loop); err != nil {
+		return nil, err
+	}
 	return &cfg, nil
+}
+
+// ValidateAgentLoopConfig checks agents.loop ranges after defaults are applied.
+// max_iterations: 1–100; total_timeout: parseable duration in [1m, 1h].
+func ValidateAgentLoopConfig(loop AgentLoopConfig) error {
+	if loop.MaxIterations < 1 || loop.MaxIterations > 100 {
+		return fmt.Errorf("agents.loop.max_iterations must be 1-100, got %d", loop.MaxIterations)
+	}
+	if loop.TotalTimeout == "" {
+		return fmt.Errorf("agents.loop.total_timeout is required")
+	}
+	d, err := time.ParseDuration(loop.TotalTimeout)
+	if err != nil {
+		return fmt.Errorf("agents.loop.total_timeout: %w", err)
+	}
+	if d < time.Minute || d > time.Hour {
+		return fmt.Errorf("agents.loop.total_timeout must be between 1m and 1h, got %s", loop.TotalTimeout)
+	}
+	return nil
 }
 
 // expandEnvVars replaces ${VAR} or ${VAR:-default} patterns with env values.
@@ -127,6 +150,18 @@ func applyDefaults(cfg *Config) {
 	ApplyToolPackDefaults(&cfg.Agents.ToolPacks)
 	ApplyBackendDefaults(&cfg.Agents.Backends)
 	applySandboxDefaults(&cfg.Sandbox)
+	alignWorkspacePaths(cfg)
+}
+
+// alignWorkspacePaths makes sandbox.base_dir inherit workspace.base_dir when
+// unset or still at the historical default ("./workspace"). Session workspaces
+// use workspace.base_dir/sessions/...; task sandboxes use sandbox.base_dir/task_*.
+// Sharing one root avoids the dual-base_dir split noted in Path A / P1.6.
+func alignWorkspacePaths(cfg *Config) {
+	legacyDefault := DefaultSandboxConfig().BaseDir // "./workspace"
+	if cfg.Sandbox.BaseDir == "" || cfg.Sandbox.BaseDir == legacyDefault {
+		cfg.Sandbox.BaseDir = cfg.Workspace.BaseDir
+	}
 }
 
 // DefaultToolPacks returns the built-in tool pack definitions.

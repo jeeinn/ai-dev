@@ -744,6 +744,15 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	if err != nil {
 		return nil, fmt.Errorf("coding backend %s: %w", backend.Name(), err)
 	}
+	if !codingResult.Success {
+		return nil, fmt.Errorf("coding backend %s reported failure: %s", backend.Name(), codingResult.Summary)
+	}
+
+	// Harness verify gate: opt-in shell checks before commit/PR (internal + OpenCode).
+	mergedLoop := MergeLoopConfig(agentCfg.LoopConfig, factory.defaultLoop)
+	if err := runHarnessVerify(sb, mergedLoop.VerifyCommands); err != nil {
+		return nil, err
+	}
 
 	// Phase 3: finalize (commit / push / PR)
 	//

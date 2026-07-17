@@ -1,12 +1,11 @@
 # TODO: OpenCode Path A 接入
 
-> 状态：进行中（P0.1/P0.2/A1/A3/A4-mock 已落地；A0 本机验收与 WebUI backend 未完）  
+> 状态：**Path A 主路径已交付**（A0–A4）；A+ 为可选后续  
 > 创建日期：2026-07-14  
-> 更新：2026-07-15  
-> 优先级：高  
+> 更新：2026-07-17  
 > 设计依据：[server-runtime-design-v4.md](server-runtime-design-v4.md)  
 > 字段笔记：[opencode-a0-notes.md](opencode-a0-notes.md)  
-> 早期 CLI 方案（已废弃作主路径）：[archived/20260710-opencode-integration.md](archived/20260710-opencode-integration.md)
+> E2E：[20260716-e2e-test-report.md](20260716-e2e-test-report.md)（E1/E6/E10 PASS）
 
 ---
 
@@ -19,63 +18,59 @@
 
 ---
 
-## 实施清单（摘自 v4 §7 / §12）
+## 实施清单
 
-### A0 — PoC
+### A0 — PoC ✅
 
-- [x] 记录实际请求字段（directory query/header / system / model）→ [opencode-a0-notes.md](opencode-a0-notes.md)
-- [ ] 本机启动 `opencode serve --port 4096` 并端到端确认改码落在 Gateway workspace
+- [x] 记录实际请求字段 → [opencode-a0-notes.md](opencode-a0-notes.md)
+- [x] 本机 `opencode serve` 端到端改码落在 Gateway workspace（E1+E6）
 
-### A1 — 配置与存储
+### A1 — 配置与存储 ✅
 
-- [x] `AgentBackendsConfig` / `BackendConfig`（`opencode_http` / `builtin`）
-- [x] 默认加载为 `internal`；`config.example.yaml` 示例 `opencode-local`
-- [x] Agent：`Backend`、`BackendOptions` + SQLite migration
-- [x] API CRUD 暴露字段
+- [x] `AgentBackendsConfig` / `BackendConfig`
+- [x] 默认 `internal`；`config.example.yaml` 示例 `opencode-local`
+- [x] Agent：`Backend`、`BackendOptions` + migration + API
 
-### A2 — 抽取 write helpers（零行为变更）
+### A2 — 抽取 write helpers ✅
 
 - [x] `prepareWriteWorkspace` / `finalizeWriteChanges`
-- [x] `runWriteTask` 改为 helpers + `InternalCodingBackend`
-- [x] 独立 PR，全量测试绿
+- [x] `runWriteTask` + `InternalCodingBackend`
 
-### A3 — OpenCode HTTP Backend
+### A3 — OpenCode HTTP Backend ✅
 
-- [x] `CodingBackend` 接口 + `ResolveCodingBackend`
-- [x] `opencode_http.go`：session / message / abort / health
-- [x] 写任务按 backend 选择；非写任务强制 internal
-- [x] health 失败 → 任务 **failed** + 可读错误（勿静默降级，除非显式 `allow_fallback_internal`）
-- [x] createSession 绑定 `?directory=` + `X-Opencode-Directory`
+- [x] `CodingBackend` + `OpenCodeHTTPBackend`
+- [x] 写任务按 backend；非写强制 internal
+- [x] health 失败 → `failed`；可选 `allow_fallback_internal`
+- [x] `?directory=` + `X-Opencode-Directory`
 
-### A4 — 测试与运维
+### A4 — 测试与运维 ✅（主路径）
 
 - [x] httptest mock OpenCode
-- [ ] 集成：mock server + 假仓库
-- [x] ARCHITECTURE + sidecar 运维说明（DEPLOYMENT / ARCHITECTURE）
-- [ ] WebUI：Agent backend 下拉（可 API-only 首发）
+- [x] ARCHITECTURE + sidecar 运维说明
+- [x] WebUI：Agent backend 下拉
+- [ ] 集成：mock server + 假仓库（可选加强，非阻塞）
 
 ### A+ — 可选后续
 
 - [ ] SSE 进度 → Issue 评论或 task progress
 - [ ] 持久化 `opencode_session_id`
-- [x] `allow_fallback_internal`（已接线：health 失败时可切 internal）
+- [x] `allow_fallback_internal`
 - [ ] Claude PrintBackend（契约型 CLI，非盲扫）
 
 ---
 
 ## 验收（Path A Done）
 
-1. 默认配置下 Analyze / Review / Dev（internal）与接入前一致  
-2. coder `backend=opencode-local` + 本机 sidecar → Issue→改码→PR  
-3. sidecar 宕机时失败原因可读（任务 status=`failed`，非 success）  
-4. 误配 backend 的 Analyze/Review 不走 OpenCode  
-5. Session Continue 复用 `WorkspacePath`；尽量续 OpenCode session  
-6. 文档说明如何启动 sidecar
+1. ✅ 默认 internal 行为  
+2. ✅ coder + sidecar → Issue→改码→PR（E6）  
+3. ✅ sidecar 宕机可读失败（E10）  
+4. ✅ Analyze/Review 不走 OpenCode（E8）  
+5. ⏳ Session 续 OpenCode session（A+）  
+6. ✅ 文档说明 sidecar 启动  
 
 ---
 
-## 明确不做（本 TODO 范围外）
+## 明确不做
 
 - 远程 `opencode serve` / 跨机 workspace  
 - Path B bare mirror + worktree 基础设施  
-- 早期稿中的 ExternalCLIRunner 作为默认交付主路径

@@ -7,10 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-07-17
+## [0.10.0] - 2026-07-17
 
-首个开源发布候选。以**预编译二进制 + systemd**部署为主；容器示例暂未提供。
-发布步骤：[docs/RELEASE-v0.1.0.md](docs/RELEASE-v0.1.0.md) · 仓库：https://github.com/jeeinn/ai-dev
+首个**公开开源**发布候选（仓库已有 `v0.2`–`v0.7.0` 历史 tag，故从 **0.10.0** 起跳）。  
+以**预编译二进制 + systemd**部署为主；容器示例暂未提供。  
+发布步骤：[docs/RELEASE-v0.10.0.md](docs/RELEASE-v0.10.0.md) · 仓库：https://github.com/jeeinn/ai-dev
 
 ### Added (开源质量加固)
 - **E13 E2E**：Merge open PR → workflow `stage=done`（S1；见 docs/20260717-v2-merge-signoff.md）
@@ -310,7 +311,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SQLite 存储 (WAL 模式)
 - YAML 配置 (环境变量展开)
 
-[Unreleased]: https://github.com/jeeinn/ai-dev/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/jeeinn/ai-dev/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/jeeinn/ai-dev/compare/v0.7.0...v0.10.0
 [0.7.0]: https://github.com/jeeinn/ai-dev/compare/v0.3.1...v0.7.0
 [0.3.1]: https://github.com/jeeinn/ai-dev/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/jeeinn/ai-dev/compare/v0.2.0...v0.3.0

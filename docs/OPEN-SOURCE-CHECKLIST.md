@@ -41,7 +41,7 @@
 | S5 | **Linux E2E 脚本** | `scripts/TESTING.md` 写明 Linux E2E 待补 | 提供 bash 版 setup/scenarios，或 README 说明当前以 Windows PS1 为主 |
 | S6 | **文档同步** | 子文档落后于代码 | 更新 `sandbox-roadmap.md`、`todo-20260714-opencode-path-a.md`、内部能力验收状态 |
 | S7 | **CONTRIBUTING + SECURITY** | 开源惯例 | `CONTRIBUTING.md`（贡献流程）、`SECURITY.md`（漏洞报告） |
-| S8 | **首版 Release** | CHANGELOG 有 Unreleased | 打 `v0.1.0` tag；附预编译二进制（与 DEPLOYMENT 一致） |
+| S8 | **首版 Release** | CHANGELOG 有 Unreleased | 打 `v0.10.0` tag（跳过已有 `v0.2`–`v0.7.0`）；附预编译二进制 |
 
 ### 勾选清单
 
@@ -52,7 +52,7 @@
 - [x] S5 Linux E2E 或说明（`e2e-smoke.sh` + TESTING：完整 E2E 以 Windows/pwsh 为主）
 - [x] S6 子文档状态同步
 - [x] S7 CONTRIBUTING + SECURITY
-- [x] S8 v0.1.0 Release **准备就绪**（CHANGELOG + [RELEASE-v0.1.0.md](RELEASE-v0.1.0.md)；**打 tag / 上传二进制需维护者执行**）
+- [x] S8 v0.10.0 Release **准备就绪**（CHANGELOG + [RELEASE-v0.10.0.md](RELEASE-v0.10.0.md)；**打 tag / 上传二进制需维护者执行**）
 
 ---
 
@@ -76,4 +76,4 @@
 | [DEPLOYMENT.md](DEPLOYMENT.md) | 部署说明（短期以二进制 + systemd 为主；容器示例暂未提供） |
 | [scripts/TESTING.md](../scripts/TESTING.md) | 测试与 E2E 复现 |
 | [20260717-v2-merge-signoff.md](20260717-v2-merge-signoff.md) | S1 Merge→done |
-| [RELEASE-v0.1.0.md](RELEASE-v0.1.0.md) | v0.1.0 tag / 二进制步骤 |
+| [RELEASE-v0.10.0.md](RELEASE-v0.10.0.md) | v0.10.0 tag / 二进制步骤 |

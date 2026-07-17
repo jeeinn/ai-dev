@@ -407,7 +407,7 @@ journalctl -u gateway --since "2024-01-01" --until "2024-01-02"
 
 ```bash
 curl http://localhost:8080/health
-# {"status":"ok","version":"0.1.0"}
+# {"status":"ok","version":"0.10.0"}
 ```
 
 ### 数据库检查

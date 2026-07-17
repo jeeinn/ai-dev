@@ -163,7 +163,7 @@ func main() {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status":"ok","version":"0.1.0"}`)
+		fmt.Fprintf(w, `{"status":"ok","version":"0.10.0"}`)
 	})
 
 	// Webhook handler - wired to dispatcher

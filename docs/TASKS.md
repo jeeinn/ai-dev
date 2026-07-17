@@ -39,7 +39,7 @@ P0–P2 核心能力（已交付）
 - [x] Linux E2E：`scripts/linux/e2e-smoke.sh`；TESTING 说明完整 Assign E2E 以 Windows/pwsh 为主
 - [x] 文档同步：`sandbox-roadmap.md`、`todo-20260714-opencode-path-a.md`、内部能力验收状态
 - [x] `CONTRIBUTING.md` + `SECURITY.md`
-- [x] 首版 Release **准备**：CHANGELOG `[0.1.0]` + [RELEASE-v0.1.0.md](RELEASE-v0.1.0.md)（tag/二进制待维护者推送）
+- [x] 首版 Release **准备**：CHANGELOG `[0.10.0]` + [RELEASE-v0.10.0.md](RELEASE-v0.10.0.md)（tag/二进制待维护者推送；跳过已有 v0.2–v0.7.0）
 
 ---
 
@@ -108,7 +108,7 @@ P0–P2 核心能力（已交付）
 | 阶段 | 焦点 |
 |------|------|
 | 第 1 周 | P3.11 开源阻塞 + CONTRIBUTING/SECURITY |
-| 第 2 周 | P3.12 质量加固 + v0.1.0 Release |
+| 第 2 周 | P3.12 质量加固 + v0.10.0 Release |
 | 之后 | P1.6 沙箱 / P2 OpenCode A+ / 产品打磨 / Harness |
 
 ---
@@ -119,7 +119,7 @@ P0–P2 核心能力（已交付）
 |------|------|
 | [OPEN-SOURCE-CHECKLIST.md](OPEN-SOURCE-CHECKLIST.md) | 开源阻塞 + 强烈建议详单 |
 | [20260717-v2-merge-signoff.md](20260717-v2-merge-signoff.md) | S1 Merge→done Sign-off |
-| [RELEASE-v0.1.0.md](RELEASE-v0.1.0.md) | v0.1.0 发布步骤 |
+| [RELEASE-v0.10.0.md](RELEASE-v0.10.0.md) | v0.10.0 发布步骤 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 现行架构 |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | 部署 |
 | [20260716-e2e-test-report.md](20260716-e2e-test-report.md) | 本机 E2E 报告 |

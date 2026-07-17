@@ -39,7 +39,7 @@ P0–P2 核心能力（已交付）
 - [x] Linux E2E：`scripts/linux/e2e-smoke.sh`；TESTING 说明完整 Assign E2E 以 Windows/pwsh 为主
 - [x] 文档同步：`sandbox-roadmap.md`、`todo-20260714-opencode-path-a.md`、内部能力验收状态
 - [x] `CONTRIBUTING.md` + `SECURITY.md`
-- [x] 首版 Release **准备**：CHANGELOG `[0.10.0]` + [RELEASE-v0.10.0.md](RELEASE-v0.10.0.md)（tag/二进制待维护者推送；跳过已有 v0.2–v0.7.0）
+- [x] 首版 Release **已发布**：CHANGELOG `[0.10.0]` + [RELEASE-v0.10.0.md](RELEASE-v0.10.0.md)；tag `v0.10.0` + 5 平台二进制已上传（https://github.com/jeeinn/ai-dev/releases/tag/v0.10.0；跳过已有 v0.2–v0.7.0）
 
 ---
 

@@ -52,7 +52,7 @@
 - [x] S5 Linux E2E 或说明（`e2e-smoke.sh` + TESTING：完整 E2E 以 Windows/pwsh 为主）
 - [x] S6 子文档状态同步
 - [x] S7 CONTRIBUTING + SECURITY
-- [x] S8 v0.10.0 Release **准备就绪**（CHANGELOG + [RELEASE-v0.10.0.md](RELEASE-v0.10.0.md)；**打 tag / 上传二进制需维护者执行**）
+- [x] S8 v0.10.0 Release **已发布**（tag `v0.10.0` 已推送；5 平台二进制已上传：https://github.com/jeeinn/ai-dev/releases/tag/v0.10.0）
 
 ---
 

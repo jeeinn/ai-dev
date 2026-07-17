@@ -1,6 +1,7 @@
 # Binary
 gateway
 gateway.exe*
+dist/
 
 # Local config (contains tokens)
 config.yaml

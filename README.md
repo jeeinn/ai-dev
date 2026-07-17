@@ -1,5 +1,6 @@
 # Gitea Agent Gateway
 
+[![CI](https://github.com/jeeinn/ai-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/jeeinn/ai-dev/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license)
 [![Tests](https://img.shields.io/badge/Tests-55+-brightgreen)](#测试)

@@ -84,11 +84,13 @@ P0–P2 核心能力（已交付）
 - [ ] 阶段切换 Gitea unassign（设计曾标可选跳过）
 - [ ] 组织级 Webhook 注册指引（DEPLOYMENT 扩展）
 
-### 16. Harness 验证（建议 backlog）
+### 16. Harness 验证
 
-- [ ] Dev/Bugfix：测试/构建通过作为程序化完成条件
+> 落地：`agents.loop.no_progress_limit` + `verify_commands`（见 `config.example.yaml`）
+
+- [x] Dev/BugFix：测试/构建通过作为程序化完成条件（`verify_commands`，opt-in；失败 → 任务 failed，不 commit/PR）
 - [ ] Review 与 Coder 独立 Checker 上下文（防自评）
-- [ ] Loop 无进展退出（连续 N 轮无 diff / 测试不过则停）
+- [x] Loop 无进展退出（连续 N 轮 workspace 指纹不变则停；示例默认 `no_progress_limit: 3`）
 
 ---
 
@@ -109,11 +111,11 @@ P0–P2 核心能力（已交付）
 |------|------|
 | 第 1 周 | P3.11 开源阻塞 + CONTRIBUTING/SECURITY |
 | 第 2 周 | P3.12 质量加固 + v0.10.0 Release |
-| 之后 | P1.6 沙箱 / P2 OpenCode A+ / 产品打磨 / Harness |
+| 之后 | Harness 验证门禁 → 产品打磨 / rg → OpenCode A+（按需） |
 
 ---
 
-## 关键文档
+## 相关文档
 
 | 文档 | 用途 |
 |------|------|

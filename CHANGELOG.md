@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Harness 验证门禁**：`agents.loop.no_progress_limit`（无进展退出）与 `verify_commands`（编码后、commit/PR 前 shell 校验）
+
 ## [0.10.0] - 2026-07-17
 
 首个**公开开源**发布候选（仓库已有 `v0.2`–`v0.7.0` 历史 tag，故从 **0.10.0** 起跳）。  

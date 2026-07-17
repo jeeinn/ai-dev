@@ -1,6 +1,6 @@
 # 开源准备清单
 
-> 更新：2026-07-16  
+> 更新：2026-07-17  
 > 对应任务：[TASKS.md](TASKS.md) §P3  
 > 背景：P0–P2 核心演进已交付（见 [archived/20260716-TASKS.md](archived/20260716-TASKS.md)、[20260716-e2e-test-report.md](20260716-e2e-test-report.md)）
 
@@ -45,14 +45,14 @@
 
 ### 勾选清单
 
-- [ ] S1 Merge→done 联调 Sign-off
-- [ ] S2 Session/Sandbox base_dir 对齐
-- [ ] S3 loop_config 参数校验
+- [x] S1 Merge→done 联调 Sign-off（Mock + E13 脚本；见 [20260717-v2-merge-signoff.md](20260717-v2-merge-signoff.md)）
+- [x] S2 Session/Sandbox base_dir 对齐
+- [x] S3 loop_config 参数校验
 - [x] S4 Dockerfile：**文档澄清：示例暂未提供**（短期不做；见 [DEPLOYMENT.md](DEPLOYMENT.md)#容器部署暂未提供）
-- [ ] S5 Linux E2E 或说明
-- [ ] S6 子文档状态同步
+- [x] S5 Linux E2E 或说明（`e2e-smoke.sh` + TESTING：完整 E2E 以 Windows/pwsh 为主）
+- [x] S6 子文档状态同步
 - [x] S7 CONTRIBUTING + SECURITY
-- [ ] S8 v0.1.0 Release
+- [x] S8 v0.1.0 Release **准备就绪**（CHANGELOG + [RELEASE-v0.1.0.md](RELEASE-v0.1.0.md)；**打 tag / 上传二进制需维护者执行**）
 
 ---
 
@@ -75,3 +75,5 @@
 | [20260716-e2e-test-report.md](20260716-e2e-test-report.md) | 本机 E2E 13/13 PASS |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | 部署说明（短期以二进制 + systemd 为主；容器示例暂未提供） |
 | [scripts/TESTING.md](../scripts/TESTING.md) | 测试与 E2E 复现 |
+| [20260717-v2-merge-signoff.md](20260717-v2-merge-signoff.md) | S1 Merge→done |
+| [RELEASE-v0.1.0.md](RELEASE-v0.1.0.md) | v0.1.0 tag / 二进制步骤 |

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-17
+
+首个开源发布候选。以**预编译二进制 + systemd**部署为主；容器示例暂未提供。
+发布步骤：[docs/RELEASE-v0.1.0.md](docs/RELEASE-v0.1.0.md) · 仓库：https://github.com/jeeinn/ai-dev
+
+### Added (开源质量加固)
+- **E13 E2E**：Merge open PR → workflow `stage=done`（S1；见 docs/20260717-v2-merge-signoff.md）
+- **loop_config 校验**：`max_iterations` 1–100、`total_timeout` 1m–1h
+- **Workspace / Sandbox base_dir 对齐**：历史默认 `./workspace` 继承 `workspace.base_dir`
+- **Linux**：`scripts/linux/e2e-smoke.sh`（Mock 冒烟；完整 E2E 以 Windows PS1 / pwsh 为主）
+
 ### Added
 - **Agent 对话持久化（调试）**: 新增 `task_conversation_logs` 表；系统配置「调试」页可开启 `debug.conversation_log.enabled`，将 Agent Loop 每轮 LLM 消息与 tool call 写入 SQLite（默认关闭）
 - **Dev/Bugfix 工具使用指引**: `BuildSolveToolPrompt()` 明确要求使用 `write_file`/`apply_diff` 实现变更、`run_command` 跑测试，并说明 Gateway 会自动 commit/push/PR

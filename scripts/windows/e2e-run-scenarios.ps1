@@ -417,8 +417,52 @@ function Run-E12 {
   }
 }
 
+# S1 / checklist §2.4: merge open PR → workflow stage=done
+function Run-E13 {
+  try {
+    $open = @(Get-PRs)
+    $pr = $open | Select-Object -First 1
+    if (-not $pr) {
+      Set-Result "E13" "SKIP" "no open PR to merge (run E5/E6/E7 first)"
+      return
+    }
+    $prNum = Normalize-Int $pr.number
+    $issueNum = 0
+    if ($pr.body -match '#(\d+)') { $issueNum = [int]$Matches[1] }
+    if ($issueNum -le 0 -and $pr.head.ref -match 'issue-(\d+)') { $issueNum = [int]$Matches[1] }
+    if ($issueNum -le 0) {
+      Set-Result "E13" "SKIP" "pr=$prNum has no linked issue number"
+      return
+    }
+
+    Write-Host "E13 merging PR #$prNum (issue #$issueNum) ..."
+    $mergeBody = @{
+      Do = "merge"
+      merge_message_style = "Default"
+    } | ConvertTo-Json -Compress
+    Invoke-RestMethod -Method POST -Uri "$GiteaURL/api/v1/repos/$Owner/$Repo/pulls/$prNum/merge" `
+      -Headers $gHeaders -Body $mergeBody | Out-Null
+
+    $deadline = (Get-Date).AddMinutes(3)
+    $wf = $null
+    while ((Get-Date) -lt $deadline) {
+      Start-Sleep 5
+      try { $wf = Get-Workflow $issueNum } catch { $wf = $null }
+      if ($wf -and "$($wf.stage)" -eq "done") { break }
+      Write-Host "  polling workflow stage for issue=$issueNum (got=$($wf.stage)) ..."
+    }
+    if ($wf -and "$($wf.stage)" -eq "done") {
+      Set-Result "E13" "PASS" "issue=$issueNum pr=$prNum stage=done (Merge→done Sign-off)"
+    } else {
+      Set-Result "E13" "FAIL" "issue=$issueNum pr=$prNum stage=$($wf.stage) expected done"
+    }
+  } catch {
+    Set-Result "E13" "FAIL" $_.Exception.Message
+  }
+}
+
 # Runner — default matrix order per plan
-$all = @("E0","E1","E2","E3","E4","E5","E6","E7","E8","E9","E10","E11","E12")
+$all = @("E0","E1","E2","E3","E4","E5","E6","E7","E8","E9","E10","E11","E12","E13")
 $flatOnly = @()
 foreach ($o in @($Only)) {
   if (-not $o) { continue }
@@ -543,6 +587,7 @@ foreach ($id in $toRun) {
       }
     }
     "E12" { Run-E12 }
+    "E13" { Run-E13 }
     default { Write-Host "unknown scenario $id" }
   }
 }

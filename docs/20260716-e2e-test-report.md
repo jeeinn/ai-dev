@@ -38,8 +38,9 @@
 | E10 | OpenCode health fail | **PASS** | 停 sidecar 后 task=`failed`，可读 health 错误；无静默降级 |
 | E11 | P1.7 workflow-context | **PASS** | `GET /api/workflow-context` 返回 stage / active_role / pr_id |
 | E12 | 回归 | **PASS** | `go test ./... -count=1` 全绿 |
+| E13 | S1 Merge→done | **PASS** | PR #29（fix_bug issue #28）merge → `GET /api/workflow-context` `stage=done` |
 
-**统计：13/13 PASS，0 FAIL，0 SKIP**
+**统计：14/14 PASS，0 FAIL，0 SKIP**
 
 ## 关键修复（本轮为跑通 E2E）
 
@@ -86,4 +87,16 @@ powershell -NoProfile -File scripts/windows/e2e-run-scenarios.ps1
 
 ## 结论
 
-本地 Gitea E2E 矩阵 **E0–E12 全部通过**。SenseNova 已替代原 DeepSeek 密钥路径完成 internal Analyze/Coder/Review；OpenCode Path A 在绝对 WorkDir + 可用 Zen 模型下验收通过；写回可靠性（partial）与 OpenCode health fail（failed）符合设计。TASKS A0 已按本报告勾选。
+本地 Gitea E2E 矩阵 **E0–E13 全部通过**。SenseNova 已替代原 DeepSeek 密钥路径完成 internal Analyze/Coder/Review；OpenCode Path A 在绝对 WorkDir + 可用 Zen 模型下验收通过；写回可靠性（partial）与 OpenCode health fail（failed）符合设计；E13 验证 Merge→done 状态机正确。TASKS A0 与 S1 均已按本报告勾选。
+
+## E13 补充说明（2026-07-17）
+
+> E13 在 v0.10.0 发布后补测。测试时 Gitea 队列 LevelDB 文件损坏，清理 `x:\gitea\data\queues\common\*` 后重启恢复。
+
+| 项 | 值 |
+|----|-----|
+| 测试时间 | 2026-07-17 14:41 |
+| 合并 PR | [#29](http://localhost:3000/e2e/gateway-poc/pulls/29)（fix_bug，关联 issue #28） |
+| 验证方式 | `GET /api/workflow-context?repo=e2e/gateway-poc&issue=28` → `stage=done` |
+| 轮询耗时 | 1 轮（≤5 秒） |
+| 关联文档 | [20260717-v2-merge-signoff.md](20260717-v2-merge-signoff.md)（S1 Sign-off）

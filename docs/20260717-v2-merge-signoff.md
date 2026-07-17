@@ -10,7 +10,7 @@
 |------|------|------|
 | Mock 集成 | `TestWebhookPRClosedMerged`：`merged=true` → `stage=done` | **PASS**（`go test ./tests/integration/ -run TestWebhookPRClosedMerged`） |
 | Mock 集成 | `TestWebhookPRClosedNotMerged`：未合并关闭不转 `done` | **PASS** |
-| 真实 Gitea E2E | 场景 **E13**：merge 开放 PR → `GET /api/workflow-context` `stage=done` | 脚本已加；需本机 Gitea 跑 `-Only E13`（建议先跑 E5/E6/E7 留 open PR） |
+| 真实 Gitea E2E | 场景 **E13**：merge 开放 PR → `GET /api/workflow-context` `stage=done` | **PASS**（PR #29 → issue #28，轮询 1 轮即 `stage=done`） |
 
 §2.4「Merge → done + session archived」在 **Mock 路径已签收**；真实环境通过 **E13** 复验。Session archive 由 `SessionLifecycle.OnPRClosed(merged=true)` 触发，与 lifecycle 单测 / 集成测试一致。
 
@@ -30,4 +30,4 @@ go test ./tests/integration/ -count=1 -run 'TestWebhookPRClosed'
 
 - [x] Mock：merged PR → `done`
 - [x] E2E 脚本：E13 已纳入默认矩阵
-- [ ] （可选）本机跑通 E13 并更新 [20260716-e2e-test-report.md](20260716-e2e-test-report.md) 附录
+- [x] 本机跑通 E13 并更新 [20260716-e2e-test-report.md](20260716-e2e-test-report.md) 附录（PR #29 → issue #28，stage=done）

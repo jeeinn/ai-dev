@@ -7,8 +7,8 @@
 
 | 路径 | 内容 |
 |------|------|
-| [`windows/`](windows/) | 本机 Gitea E2E PowerShell（setup / agents / scenarios） |
-| [`linux/`](linux/) | bash 辅助（`run-tests.sh`、`test-webhook.sh`）；Linux E2E 待补 |
+| [`windows/`](windows/) | 本机 Gitea E2E PowerShell（setup / agents / scenarios；**主路径**，含 E13 Merge→done） |
+| [`linux/`](linux/) | bash：`run-tests.sh`、`test-webhook.sh`、`e2e-smoke.sh`（Mock 冒烟）；完整 Assign E2E 用 Windows PS1 或 Linux `pwsh` |
 | [`common/`](common/) | 跨平台 Go 辅助（`e2e-mock-mcp.go`、`setup-test.go`） |
 
 ---

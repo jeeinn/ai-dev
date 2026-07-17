@@ -286,9 +286,11 @@ type AgentTemplateConfig struct {
 
 // AgentLoopConfig contains agent loop configuration (multi-turn tasks only).
 type AgentLoopConfig struct {
-	MaxIterations     int    `yaml:"max_iterations"`     // Max iteration rounds (default 20)
-	TotalTimeout      string `yaml:"total_timeout"`      // Total loop task timeout (default "30m")
-	IterationInterval int    `yaml:"iteration_interval"` // Seconds between loop rounds (default 0)
+	MaxIterations     int      `yaml:"max_iterations"`     // Max iteration rounds (default 20)
+	TotalTimeout      string   `yaml:"total_timeout"`      // Total loop task timeout (default "30m")
+	IterationInterval int      `yaml:"iteration_interval"` // Seconds between loop rounds (default 0)
+	NoProgressLimit   int      `yaml:"no_progress_limit"`  // Consecutive tool rounds with unchanged workspace → stop; 0 = disabled
+	VerifyCommands    []string `yaml:"verify_commands"`    // Shell commands run after coding, before commit/PR; empty = skip
 }
 
 // DefaultAgentLoopConfig returns default agent loop configuration.
@@ -297,6 +299,8 @@ func DefaultAgentLoopConfig() AgentLoopConfig {
 		MaxIterations:     20,
 		TotalTimeout:      "30m",
 		IterationInterval: 0,
+		NoProgressLimit:   3, // harness: stall detection on by default for write loops
+		VerifyCommands:    nil,
 	}
 }
 

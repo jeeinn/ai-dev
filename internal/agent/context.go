@@ -164,8 +164,10 @@ You MUST implement changes using tools — do not stop at analysis-only response
 - Use write_file or apply_diff to modify source code
 - Use read_file, list_files, and search_code to explore the codebase
 - Run tests with run_command when applicable (e.g. go test, npm test)
+- The gateway may run configured verify_commands after you finish; ensure tests pass before ending
 - The gateway automatically commits, pushes, and opens a PR when git detects changes
-- Prioritize delivering working code changes within your iteration budget; avoid lengthy analysis-only final messages`
+- Prioritize delivering working code changes within your iteration budget; avoid lengthy analysis-only final messages
+- If a change attempt fails, try a different approach — repeating the same failing edit wastes iterations`
 }
 
 // MergeAgentSystemPrompt appends WebUI agent instructions to a base task prompt.

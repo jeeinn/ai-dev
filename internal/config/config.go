@@ -34,6 +34,7 @@ func Load(path string) (*Config, error) {
 
 // ValidateAgentLoopConfig checks agents.loop ranges after defaults are applied.
 // max_iterations: 1–100; total_timeout: parseable duration in [1m, 1h].
+// no_progress_limit: 0 (off) or 1–100.
 func ValidateAgentLoopConfig(loop AgentLoopConfig) error {
 	if loop.MaxIterations < 1 || loop.MaxIterations > 100 {
 		return fmt.Errorf("agents.loop.max_iterations must be 1-100, got %d", loop.MaxIterations)
@@ -47,6 +48,9 @@ func ValidateAgentLoopConfig(loop AgentLoopConfig) error {
 	}
 	if d < time.Minute || d > time.Hour {
 		return fmt.Errorf("agents.loop.total_timeout must be between 1m and 1h, got %s", loop.TotalTimeout)
+	}
+	if loop.NoProgressLimit < 0 || loop.NoProgressLimit > 100 {
+		return fmt.Errorf("agents.loop.no_progress_limit must be 0-100, got %d", loop.NoProgressLimit)
 	}
 	return nil
 }

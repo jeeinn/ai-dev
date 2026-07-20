@@ -120,6 +120,27 @@
                 <el-input-number v-model="form.loop_config.iteration_interval" :min="0" :max="300" :step="1" />
                 <div class="form-tip">每轮 Loop 之间的等待秒数，0 表示不等待</div>
               </el-form-item>
+
+              <el-divider content-position="left">Harness 验证门禁</el-divider>
+              <el-form-item label="无进展退出上限">
+                <el-input-number v-model="form.loop_config.no_progress_limit" :min="0" :max="100" />
+                <div class="form-tip">覆盖系统默认值；0 = 关闭检测</div>
+              </el-form-item>
+              <el-form-item label="覆盖系统校验命令">
+                <el-switch v-model="form.loop_config.verify_commands_override" />
+                <div class="form-tip">关闭时继承系统默认校验命令；开启后可自定义（留空 = 禁用校验）</div>
+              </el-form-item>
+              <el-form-item v-if="form.loop_config.verify_commands_override" label="校验命令">
+                <el-input
+                  v-model="form.loop_config.verify_commands_text"
+                  type="textarea"
+                  :rows="4"
+                  placeholder='每行一条命令，例如：
+go test ./...
+npm test'
+                />
+                <div class="form-tip">每行一条 shell 命令；编码后、commit/PR 前执行；留空 = 禁用校验</div>
+              </el-form-item>
             </template>
 
             <el-divider content-position="left">Prompt</el-divider>
@@ -298,10 +319,20 @@ const loadAgent = async () => {
   try {
     const data = await api.get(`/agents/${agentId.value}`)
     agent.value = data
+    const loopConfig = { ...loopDefaults.value, ...defaultLoopConfig, ...(data.loop_config || {}) }
+    if (loopConfig.verify_commands !== null && loopConfig.verify_commands !== undefined) {
+      loopConfig.verify_commands_override = true
+      loopConfig.verify_commands_text = Array.isArray(loopConfig.verify_commands)
+        ? loopConfig.verify_commands.join('\n')
+        : ''
+    } else {
+      loopConfig.verify_commands_override = false
+      loopConfig.verify_commands_text = ''
+    }
     form.value = {
       ...defaultForm,
       ...data,
-      loop_config: { ...loopDefaults.value, ...defaultLoopConfig, ...(data.loop_config || {}) }
+      loop_config: loopConfig
     }
   } catch (error) {
     ElMessage.error('加载 Agent 信息失败')
@@ -321,7 +352,23 @@ const loadPrompts = async () => {
 const saveAgent = async () => {
   saving.value = true
   try {
-    const res = await api.put(`/agents/${agentId.value}`, form.value)
+    const payload = { ...form.value }
+    payload.loop_config = { ...payload.loop_config }
+    if (payload.loop_config.verify_commands_override) {
+      // Override mode: parse text → array (empty text → [] = disable)
+      payload.loop_config.verify_commands = payload.loop_config.verify_commands_text
+        ? payload.loop_config.verify_commands_text
+            .split('\n')
+            .map(s => s.trim())
+            .filter(Boolean)
+        : []
+    } else {
+      // Inherit mode: omit verify_commands so backend uses system default
+      delete payload.loop_config.verify_commands
+    }
+    delete payload.loop_config.verify_commands_override
+    delete payload.loop_config.verify_commands_text
+    const res = await api.put(`/agents/${agentId.value}`, payload)
     if (res?.repo_warnings?.length > 0) {
       ElMessage.warning(`保存成功，但部分仓库关联失败：${res.repo_warnings.join('; ')}`)
     } else {

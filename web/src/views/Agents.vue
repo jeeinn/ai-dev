@@ -245,6 +245,27 @@
               <el-input-number v-model="form.loop_config.iteration_interval" :min="0" :max="300" :step="1" />
               <span class="form-tip" style="margin-left: 12px">秒；每轮 Loop 之间的等待时间，0 表示不等待</span>
             </el-form-item>
+
+            <el-divider content-position="left">Harness 验证门禁</el-divider>
+            <el-form-item label="无进展退出上限">
+              <el-input-number v-model="form.loop_config.no_progress_limit" :min="0" :max="100" />
+              <span class="form-tip" style="margin-left: 12px">0 = 关闭检测（继承系统默认）</span>
+            </el-form-item>
+            <el-form-item label="覆盖系统校验命令">
+              <el-switch v-model="form.loop_config.verify_commands_override" />
+              <div class="form-tip">关闭时继承系统默认校验命令；开启后可自定义（留空 = 禁用校验）</div>
+            </el-form-item>
+            <el-form-item v-if="form.loop_config.verify_commands_override" label="校验命令">
+              <el-input
+                v-model="form.loop_config.verify_commands_text"
+                type="textarea"
+                :rows="4"
+                placeholder='每行一条命令，例如：
+go test ./...
+npm test'
+              />
+              <div class="form-tip">每行一条 shell 命令；编码后、commit/PR 前执行；留空 = 禁用校验</div>
+            </el-form-item>
           </el-collapse-item>
         </el-collapse>
       </el-form>
@@ -476,9 +497,19 @@ const editAgent = async (agent) => {
   await loadAgentConfig()
   await loadModelCatalog()
   editingAgent.value = agent
+  const loopConfig = { ...loopDefaults.value, ...defaultLoopConfig, ...(agent.loop_config || {}) }
+  if (loopConfig.verify_commands !== null && loopConfig.verify_commands !== undefined) {
+    loopConfig.verify_commands_override = true
+    loopConfig.verify_commands_text = Array.isArray(loopConfig.verify_commands)
+      ? loopConfig.verify_commands.join('\n')
+      : ''
+  } else {
+    loopConfig.verify_commands_override = false
+    loopConfig.verify_commands_text = ''
+  }
   form.value = {
     ...agent,
-    loop_config: { ...loopDefaults.value, ...defaultLoopConfig, ...(agent.loop_config || {}) }
+    loop_config: loopConfig
   }
   selectedTemplate.value = ''
   showCreateDialog.value = true
@@ -493,11 +524,23 @@ const closeDialog = () => {
 
 const saveAgent = async () => {
   try {
+    const payload = { ...form.value }
+    payload.loop_config = { ...payload.loop_config }
+    if (payload.loop_config.verify_commands_override) {
+      payload.loop_config.verify_commands = payload.loop_config.verify_commands_text
+        ? payload.loop_config.verify_commands_text.split('\n').map(s => s.trim()).filter(Boolean)
+        : []
+    } else {
+      delete payload.loop_config.verify_commands
+    }
+    delete payload.loop_config.verify_commands_override
+    delete payload.loop_config.verify_commands_text
+
     if (editingAgent.value) {
-      await api.put(`/agents/${editingAgent.value.id}`, form.value)
+      await api.put(`/agents/${editingAgent.value.id}`, payload)
       ElMessage.success('更新成功')
     } else {
-      const res = await api.post('/agents', form.value)
+      const res = await api.post('/agents', payload)
       if (res?.repo_warnings?.length > 0) {
         ElMessage.warning(`创建成功，但部分仓库关联失败：${res.repo_warnings.join('; ')}`)
       } else {

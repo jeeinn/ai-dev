@@ -204,6 +204,15 @@ func (db *DB) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_task_conv_logs_task_id ON task_conversation_logs(task_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_task_conv_logs_task_iter ON task_conversation_logs(task_id, iteration)`,
+		`CREATE TABLE IF NOT EXISTS workflow_policies (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			repo        TEXT NOT NULL UNIQUE,
+			preset      TEXT DEFAULT 'standard',
+			gates       TEXT DEFAULT '{}',
+			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_workflow_policies_repo ON workflow_policies(repo)`,
 	}
 
 	for _, m := range migrations {

@@ -1,6 +1,8 @@
 package store
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -112,4 +114,68 @@ func (db *DB) TransitionStage(ctx *WorkflowContext, stage string, agentID int64,
 	ctx.ActiveRole = role
 	ctx.SessionID = sessionID
 	return db.UpdateWorkflowContext(ctx)
+}
+
+// WorkflowPolicyDB represents a per-repo workflow policy stored in DB.
+type WorkflowPolicyDB struct {
+	ID        int64     `json:"id"`
+	Repo      string    `json:"repo"`
+	Preset    string    `json:"preset"`
+	GatesJSON string    `json:"gates"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// GetWorkflowPolicy returns the per-repo workflow policy, or (nil, nil) if not configured.
+func (db *DB) GetWorkflowPolicy(repo string) (*WorkflowPolicyDB, error) {
+	var wp WorkflowPolicyDB
+	err := db.QueryRow(`SELECT id, repo, preset, gates, created_at, updated_at
+		FROM workflow_policies WHERE repo = ?`, repo).Scan(
+		&wp.ID, &wp.Repo, &wp.Preset, &wp.GatesJSON, &wp.CreatedAt, &wp.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get workflow policy: %w", err)
+	}
+	return &wp, nil
+}
+
+// UpsertWorkflowPolicy inserts or updates a per-repo workflow policy.
+func (db *DB) UpsertWorkflowPolicy(repo, preset string, gatesJSON string) error {
+	_, err := db.Exec(`INSERT OR REPLACE INTO workflow_policies (repo, preset, gates, updated_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP)`, repo, preset, gatesJSON)
+	if err != nil {
+		return fmt.Errorf("upsert workflow policy: %w", err)
+	}
+	return nil
+}
+
+// DeleteWorkflowPolicy removes a per-repo workflow policy (falls back to system default).
+func (db *DB) DeleteWorkflowPolicy(repo string) error {
+	_, err := db.Exec(`DELETE FROM workflow_policies WHERE repo = ?`, repo)
+	if err != nil {
+		return fmt.Errorf("delete workflow policy: %w", err)
+	}
+	return nil
+}
+
+// ListWorkflowPolicies returns all per-repo workflow policies.
+func (db *DB) ListWorkflowPolicies() ([]*WorkflowPolicyDB, error) {
+	rows, err := db.Query(`SELECT id, repo, preset, gates, created_at, updated_at
+		FROM workflow_policies ORDER BY repo`)
+	if err != nil {
+		return nil, fmt.Errorf("list workflow policies: %w", err)
+	}
+	defer rows.Close()
+
+	var policies []*WorkflowPolicyDB
+	for rows.Next() {
+		var wp WorkflowPolicyDB
+		if err := rows.Scan(&wp.ID, &wp.Repo, &wp.Preset, &wp.GatesJSON, &wp.CreatedAt, &wp.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan workflow policy: %w", err)
+		}
+		policies = append(policies, &wp)
+	}
+	return policies, nil
 }

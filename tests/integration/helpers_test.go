@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,8 +20,8 @@ import (
 	"gitea-agent-gateway/internal/api"
 	"gitea-agent-gateway/internal/config"
 	"gitea-agent-gateway/internal/dispatcher"
-	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/sandbox"
 	"gitea-agent-gateway/internal/store"
 	"gitea-agent-gateway/internal/webhook"
 	"gitea-agent-gateway/internal/workflow"
@@ -245,6 +247,110 @@ func (e *TestEnv) EnableWorkflowV2(t *testing.T) *agents.Registry {
 
 	e.Dispatcher.SetWorkflowComponents(registry, resolver, wfMgr, l1Gate, sessionSvc, nil, lifecycle)
 	return registry
+}
+
+// EnableWorkflowV2WithPolicy wires v2 components and sets an L2 workflow policy.
+func (e *TestEnv) EnableWorkflowV2WithPolicy(t *testing.T, policy *workflow.WorkflowPolicy) *agents.Registry {
+	t.Helper()
+	registry := e.EnableWorkflowV2(t)
+	e.Dispatcher.SetWorkflowPolicy(policy)
+	return registry
+}
+
+// GiteaUnassignCall records a DELETE .../assignees request.
+type GiteaUnassignCall struct {
+	Path      string
+	Assignees []string
+}
+
+// GiteaCommentCall records a POST .../comments request.
+type GiteaCommentCall struct {
+	Path string
+	Body string
+}
+
+// RecordingGiteaMock is a Gitea API mock that records unassign/comment calls.
+type RecordingGiteaMock struct {
+	Server *httptest.Server
+
+	mu           sync.Mutex
+	unassigns    []GiteaUnassignCall
+	comments     []GiteaCommentCall
+	FailUnassign bool
+}
+
+// InstallRecordingGitea replaces the dispatcher Gitea base URL with a recording mock.
+func (e *TestEnv) InstallRecordingGitea(t *testing.T) *RecordingGiteaMock {
+	t.Helper()
+	rec := newRecordingGiteaMock()
+	e.GiteaMock = rec.Server
+	e.Config.Gitea.URL = rec.Server.URL
+	e.CleanupFuncs = append(e.CleanupFuncs, func() { rec.Server.Close() })
+	return rec
+}
+
+func newRecordingGiteaMock() *RecordingGiteaMock {
+	rec := &RecordingGiteaMock{}
+	rec.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/assignees"):
+			var body struct {
+				Assignees []string `json:"assignees"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			rec.mu.Lock()
+			rec.unassigns = append(rec.unassigns, GiteaUnassignCall{
+				Path:      r.URL.Path,
+				Assignees: body.Assignees,
+			})
+			fail := rec.FailUnassign
+			rec.mu.Unlock()
+			if fail {
+				w.WriteHeader(http.StatusInternalServerError)
+				_ = json.NewEncoder(w).Encode(map[string]string{"message": "unassign failed"})
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/comments"):
+			var body struct {
+				Body string `json:"body"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			rec.mu.Lock()
+			rec.comments = append(rec.comments, GiteaCommentCall{Path: r.URL.Path, Body: body.Body})
+			rec.mu.Unlock()
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": 1})
+			return
+
+		case r.URL.Path == "/api/v1/version":
+			_ = json.NewEncoder(w).Encode(map[string]string{"version": "1.26.0"})
+
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		}
+	}))
+	return rec
+}
+
+func (r *RecordingGiteaMock) UnassignCalls() []GiteaUnassignCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]GiteaUnassignCall, len(r.unassigns))
+	copy(out, r.unassigns)
+	return out
+}
+
+func (r *RecordingGiteaMock) CommentCalls() []GiteaCommentCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]GiteaCommentCall, len(r.comments))
+	copy(out, r.comments)
+	return out
 }
 
 // CreateTestAgentWithRole creates a test agent with a specific role.

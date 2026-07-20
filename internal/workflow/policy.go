@@ -33,12 +33,13 @@ type NotifyPolicy struct {
 
 // Gate IDs
 const (
-	GateCoderRequiresAnalyzed = "coder_requires_analyzed"
-	GateAllowSkipAnalyze      = "allow_skip_analyze"
-	GateReanalyzeWhileDev     = "reanalyze_while_developing"
-	GateRerunSameStage        = "rerun_same_stage"
-	GateReviewWarnIfDraft     = "review_warn_if_draft"
-	GateCoderSwitchAgent      = "coder_switch_agent"
+	GateCoderRequiresAnalyzed     = "coder_requires_analyzed"
+	GateAllowSkipAnalyze          = "allow_skip_analyze"
+	GateReanalyzeWhileDev         = "reanalyze_while_developing"
+	GateRerunSameStage            = "rerun_same_stage"
+	GateReviewWarnIfDraft         = "review_warn_if_draft"
+	GateCoderSwitchAgent          = "coder_switch_agent"
+	GateStageTransitionUnassign   = "stage_transition_unassign"
 )
 
 // PresetFree returns the free preset (minimal gates).
@@ -46,12 +47,13 @@ func PresetFree() *WorkflowPolicy {
 	return &WorkflowPolicy{
 		Preset: "free",
 		Gates: map[string]string{
-			GateCoderRequiresAnalyzed: "off",
-			GateAllowSkipAnalyze:      "true",
-			GateReanalyzeWhileDev:     "off",
-			GateRerunSameStage:        "off",
-			GateReviewWarnIfDraft:     "off",
-			GateCoderSwitchAgent:      "off",
+			GateCoderRequiresAnalyzed:     "off",
+			GateAllowSkipAnalyze:          "true",
+			GateReanalyzeWhileDev:         "off",
+			GateRerunSameStage:            "off",
+			GateReviewWarnIfDraft:         "off",
+			GateCoderSwitchAgent:          "off",
+			GateStageTransitionUnassign:   "off",
 		},
 		Notify: NotifyPolicy{
 			OnAnalyzeDone:   true,
@@ -67,12 +69,13 @@ func PresetStandard() *WorkflowPolicy {
 	return &WorkflowPolicy{
 		Preset: "standard",
 		Gates: map[string]string{
-			GateCoderRequiresAnalyzed: "off",
-			GateAllowSkipAnalyze:      "true",
-			GateReanalyzeWhileDev:     "soft",
-			GateRerunSameStage:        "soft",
-			GateReviewWarnIfDraft:     "off",
-			GateCoderSwitchAgent:      "soft",
+			GateCoderRequiresAnalyzed:     "off",
+			GateAllowSkipAnalyze:          "true",
+			GateReanalyzeWhileDev:         "soft",
+			GateRerunSameStage:            "soft",
+			GateReviewWarnIfDraft:         "off",
+			GateCoderSwitchAgent:          "soft",
+			GateStageTransitionUnassign:   "soft",
 		},
 		Notify: NotifyPolicy{
 			OnAnalyzeDone:   true,
@@ -88,12 +91,13 @@ func PresetStrict() *WorkflowPolicy {
 	return &WorkflowPolicy{
 		Preset: "strict",
 		Gates: map[string]string{
-			GateCoderRequiresAnalyzed: "hard",
-			GateAllowSkipAnalyze:      "false",
-			GateReanalyzeWhileDev:     "hard",
-			GateRerunSameStage:        "hard",
-			GateReviewWarnIfDraft:     "soft",
-			GateCoderSwitchAgent:      "hard",
+			GateCoderRequiresAnalyzed:     "hard",
+			GateAllowSkipAnalyze:          "false",
+			GateReanalyzeWhileDev:         "hard",
+			GateRerunSameStage:            "hard",
+			GateReviewWarnIfDraft:         "soft",
+			GateCoderSwitchAgent:          "hard",
+			GateStageTransitionUnassign:   "hard",
 		},
 		Notify: NotifyPolicy{
 			OnAnalyzeDone:   true,

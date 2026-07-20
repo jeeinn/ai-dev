@@ -198,6 +198,43 @@ function Find-PRForIssue($issueNumber) {
   } catch { return $null }
 }
 
+function Get-IssueAssignees($issueNumber) {
+  $issue = Invoke-RestMethod -Uri "$GiteaURL/api/v1/repos/$Owner/$Repo/issues/$issueNumber" -Headers $gHeaders
+  if ($null -eq $issue) { return @() }
+  $assignees = @()
+  if ($issue.PSObject.Properties.Name -contains "assignees") {
+    foreach ($a in $issue.assignees) {
+      $assignees += "$($a.login)"
+    }
+  }
+  return $assignees
+}
+
+function Set-WorkflowPolicy($repo, $preset, $gates) {
+  $payload = @{ preset = $preset }
+  if ($gates -and $gates.Count -gt 0) { $payload.gates = $gates }
+  $json = $payload | ConvertTo-Json -Compress
+  try {
+    Invoke-RestMethod -Method PUT -Uri "$GatewayURL/api/workflow-policies/$repo" -Headers $aHeaders -Body $json | Out-Null
+    Write-Host "workflow policy set: repo=$repo preset=$preset gates=$($gates | ConvertTo-Json -Compress)"
+    return $true
+  } catch {
+    Write-Host "workflow policy set warn: $($_.Exception.Message)"
+    return $false
+  }
+}
+
+function Delete-WorkflowPolicy($repo) {
+  try {
+    Invoke-RestMethod -Method DELETE -Uri "$GatewayURL/api/workflow-policies/$repo" -Headers $aHeaders | Out-Null
+    Write-Host "workflow policy deleted: repo=$repo"
+    return $true
+  } catch {
+    Write-Host "workflow policy delete warn: $($_.Exception.Message)"
+    return $false
+  }
+}
+
 function Run-AssignScenario($id, $agent, $title, $body, $taskType, $labels, $expectPR) {
   if (-not (Require-LLM) -and ($agent -match "analyze|review|internal")) {
     Set-Result $id "SKIP" "waiting SENSENOVA_API_KEY / DEEPSEEK_API_KEY"
@@ -462,7 +499,7 @@ function Run-E13 {
 }
 
 # Runner — default matrix order per plan
-$all = @("E0","E1","E2","E3","E4","E5","E6","E7","E8","E9","E10","E11","E12","E13")
+$all = @("E0","E1","E2","E3","E4","E5","E6","E7","E8","E9","E10","E11","E12","E13","E14")
 $flatOnly = @()
 foreach ($o in @($Only)) {
   if (-not $o) { continue }
@@ -588,7 +625,115 @@ foreach ($id in $toRun) {
     }
     "E12" { Run-E12 }
     "E13" { Run-E13 }
+    "E14" { Run-E14 }
     default { Write-Host "unknown scenario $id" }
+  }
+}
+
+function Run-E14 {
+  if (-not (Require-LLM)) {
+    Set-Result "E14" "SKIP" "waiting SENSENOVA_API_KEY / DEEPSEEK_API_KEY"
+    return
+  }
+  $repo = "$Owner/$Repo"
+  $originalPolicy = $null
+  try {
+    $originalPolicy = Invoke-RestMethod -Uri "$GatewayURL/api/workflow-policies/$repo" -Headers $aHeaders
+  } catch {}
+
+  try {
+    Write-Host "E14: Testing stage transition unassign"
+    Set-WorkflowPolicy $repo "standard" @{}
+
+    $issue = New-Issue "[e2e] E14 stage unassign" "请简短分析 README。不要创建 PR。"
+    $issueNum = Normalize-Int $issue.number
+    Write-Host "E14 created issue #$issueNum"
+
+    Write-Host "E14 Step 1: Assign analyze agent"
+    Assign-Issue $issueNum "e2e-analyze"
+    $task1 = Wait-Task $issueNum "analyze_issue" 15
+    if (-not $task1) {
+      Set-Result "E14" "FAIL" "timeout waiting analyze task issue=$issueNum"
+      return
+    }
+
+    Start-Sleep 5
+    $assigneesAfterAnalyze = Get-IssueAssignees $issueNum
+    Write-Host "E14 assignees after analyze: $($assigneesAfterAnalyze -join ', ')"
+    if (-not ($assigneesAfterAnalyze -contains "e2e-analyze")) {
+      Set-Result "E14" "FAIL" "analyze agent not in assignees after assign, got: $($assigneesAfterAnalyze -join ', ')"
+      return
+    }
+
+    Write-Host "E14 Step 2: Add manual assignee"
+    Invoke-RestMethod -Method PATCH -Uri "$GiteaURL/api/v1/repos/$Owner/$Repo/issues/$issueNum" -Headers $gHeaders -Body (@{
+      assignees = @("e2e-analyze", "admin")
+    } | ConvertTo-Json -Compress) | Out-Null
+    Start-Sleep 3
+    $assigneesBeforeTransition = Get-IssueAssignees $issueNum
+    Write-Host "E14 assignees before coder assign: $($assigneesBeforeTransition -join ', ')"
+
+    Write-Host "E14 Step 3: Assign coder agent (trigger stage transition)"
+    Assign-Issue $issueNum "e2e-coder-internal"
+    Start-Sleep 10
+
+    $assigneesAfterTransition = Get-IssueAssignees $issueNum
+    Write-Host "E14 assignees after coder assign: $($assigneesAfterTransition -join ', ')"
+
+    $logHits = Find-LogHits @("Unassigned agent.*on stage transition")
+    $logHit = $logHits | Where-Object { $_ -match "e2e-analyze" } | Select-Object -First 1
+
+    $analyzeUnassigned = -not ($assigneesAfterTransition -contains "e2e-analyze")
+    $manualStillThere = $assigneesAfterTransition -contains "admin"
+    $coderAssigned = $assigneesAfterTransition -contains "e2e-coder-internal"
+
+    $detail = "issue=$issueNum ; analyze_unassigned=$analyzeUnassigned ; manual_still_there=$manualStillThere ; coder_assigned=$coderAssigned"
+    if ($logHit) { $detail = "$detail ; log_hit=yes" } else { $detail = "$detail ; log_hit=no" }
+
+    if ($analyzeUnassigned -and $manualStillThere -and $coderAssigned) {
+      Set-Result "E14" "PASS" $detail
+    } else {
+      Set-Result "E14" "FAIL" $detail
+    }
+
+    Write-Host "E14 Step 4: Test with policy=off (should NOT unassign)"
+    Set-WorkflowPolicy $repo "free" @{}
+    Start-Sleep 2
+
+    Invoke-RestMethod -Method PATCH -Uri "$GiteaURL/api/v1/repos/$Owner/$Repo/issues/$issueNum" -Headers $gHeaders -Body (@{
+      assignees = @("e2e-coder-internal", "e2e-analyze")
+    } | ConvertTo-Json -Compress) | Out-Null
+    Start-Sleep 3
+    $assigneesBeforeOff = Get-IssueAssignees $issueNum
+    Write-Host "E14 assignees before off-test: $($assigneesBeforeOff -join ', ')"
+
+    Assign-Issue $issueNum "e2e-coder-opencode"
+    Start-Sleep 10
+
+    $assigneesAfterOff = Get-IssueAssignees $issueNum
+    Write-Host "E14 assignees after off-test: $($assigneesAfterOff -join ', ')"
+
+    $analyzeStillThere = $assigneesAfterOff -contains "e2e-analyze"
+    if ($analyzeStillThere) {
+      Set-Result "E14-off" "PASS" "issue=$issueNum analyze_still_there=$analyzeStillThere (expected with policy=off)"
+    } else {
+      Set-Result "E14-off" "FAIL" "issue=$issueNum analyze_still_there=$analyzeStillThere (should be true with policy=off)"
+    }
+
+  } catch {
+    Set-Result "E14" "FAIL" $_.Exception.Message
+  } finally {
+    if ($originalPolicy) {
+      try {
+        $json = $originalPolicy | ConvertTo-Json -Compress
+        Invoke-RestMethod -Method PUT -Uri "$GatewayURL/api/workflow-policies/$repo" -Headers $aHeaders -Body $json | Out-Null
+        Write-Host "E14 restored original workflow policy"
+      } catch {
+        Write-Host "E14 policy restore warn: $($_.Exception.Message)"
+      }
+    } else {
+      Delete-WorkflowPolicy $repo
+    }
   }
 }
 

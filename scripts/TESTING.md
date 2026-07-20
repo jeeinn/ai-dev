@@ -135,6 +135,7 @@ powershell -NoProfile -File scripts/windows/e2e-run-scenarios.ps1
 | E10 | OpenCode health | sidecar 停 → 任务 `failed` |
 | E11 | P1.7 | `GET /api/workflow-context` |
 | E12 | 回归 | `go test ./... -count=1` |
+| E14 | 阶段切换 unassign | Analyze→Coder 切换时前一 Agent 被移除；policy=off 时不自动 unassign；人工 assignee 保留 |
 
 ### 已知坑
 

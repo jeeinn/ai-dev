@@ -88,7 +88,7 @@
             @click="applyRoleWizard(form.role)"
             style="margin-top: 8px"
           >
-            <el-icon><Wand2 /></el-icon>
+            <el-icon><MagicStick /></el-icon>
             一键填充 {{ roleLabel(form.role) }} 向导（命名 + Prompt）
           </el-button>
         </el-form-item>
@@ -293,7 +293,7 @@ npm test'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
-import { Plus, Refresh, Wand2 } from '@element-plus/icons-vue'
+import { Plus, Refresh, MagicStick } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TemplateHelp from '../components/TemplateHelp.vue'
 import { useAgentDefaults, DEFAULT_AGENT_MAX_OUTPUT_TOKENS, DEFAULT_AGENT_MAX_INPUT_TOKENS } from '../composables/useAgentDefaults'

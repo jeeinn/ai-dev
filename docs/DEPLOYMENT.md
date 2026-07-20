@@ -136,7 +136,31 @@ agents:
   loop:
     max_iterations: 20
     total_timeout: "30m"      # 多轮任务总超时
+    no_progress_limit: 3      # 连续 N 轮无进展退出（0=关闭）
+    verify_commands: []       # 编码后、commit/PR 前执行的校验命令
 ```
+
+### Harness 验证门禁
+
+通过以下配置防止 Agent 空转和提交未经测试的代码：
+
+| 配置项 | 说明 |
+|--------|------|
+| `no_progress_limit` | 连续 N 轮工具调用后工作区指纹（`git status --porcelain`）不变则退出；0 = 关闭检测（config.example.yaml 默认 3；省略时为 0 即关闭） |
+| `verify_commands` | 编码完成后、commit/PR 前执行的 shell 命令列表；任一命令失败则任务 failed，不写回 PR；空数组 = 跳过校验 |
+
+**示例**：
+
+```yaml
+agents:
+  loop:
+    no_progress_limit: 3
+    verify_commands:
+      - "go test ./..."
+      - "go vet ./..."
+```
+
+单个 Agent 可通过 `loop_config` 覆盖系统默认值，支持设置为空数组显式禁用校验。
 
 ### 配置 LLM Provider
 

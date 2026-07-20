@@ -316,6 +316,8 @@ gateway.example.com {
 
 ### 配置 Webhook
 
+#### 仓库级 Webhook（推荐，细粒度控制）
+
 在需要 AI Agent 的仓库中：
 
 1. 进入 **仓库设置 → Webhooks → 添加 Webhook → Gitea**
@@ -324,6 +326,28 @@ gateway.example.com {
    - **密钥**: 与 `config.yaml` 中的 `webhook_secret` 一致
    - **触发事件**: 勾选 `Push Events`、`Pull Requests`、`Issue Events`、`Issue Comment Events`
 3. 保存并测试
+
+#### 组织级 Webhook（批量配置）
+
+若需要为组织下所有仓库统一启用 Agent，可配置组织级 Webhook：
+
+1. 进入 **组织设置 → Webhooks → 添加 Webhook → Gitea**
+2. 配置：
+   - **目标 URL**: `https://gateway.example.com/webhook/gitea`
+   - **密钥**: 与 `config.yaml` 中的 `webhook_secret` 一致
+   - **触发事件**: 勾选 `Push Events`、`Pull Requests`、`Issue Events`、`Issue Comment Events`
+   - **Active**: 启用
+3. 保存并测试
+
+**组织级 Webhook 特点**：
+- 自动应用到组织下所有现有仓库和未来新建的仓库
+- 每个仓库仍可在仓库级覆盖或禁用组织级配置（通过 `Disable` 选项）
+- 适合大规模部署，减少逐个仓库配置的工作量
+
+**注意事项**：
+- 组织级 Webhook 需要组织管理员权限
+- 建议在生产环境使用组织级配置前，先在测试组织验证
+- 若某个仓库不需要 AI Agent，可在该仓库的 Webhook 设置中禁用组织级继承
 
 ### 使用 Agent
 

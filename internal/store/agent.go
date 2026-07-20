@@ -8,9 +8,11 @@ import (
 
 // AgentLoopConfig contains agent-specific loop configuration (multi-turn only).
 type AgentLoopConfig struct {
-	MaxIterations     int    `json:"max_iterations,omitempty"`
-	TotalTimeout      string `json:"total_timeout,omitempty"`
-	IterationInterval int    `json:"iteration_interval,omitempty"` // seconds between loop rounds; 0 = no delay
+	MaxIterations     int      `json:"max_iterations,omitempty"`
+	TotalTimeout      string   `json:"total_timeout,omitempty"`
+	IterationInterval int      `json:"iteration_interval,omitempty"` // seconds between loop rounds; 0 = no delay
+	NoProgressLimit   *int     `json:"no_progress_limit,omitempty"`  // nil = inherit; 0 = disable; >0 = limit
+	VerifyCommands    []string `json:"verify_commands,omitempty"`    // nil = inherit; empty slice = disable verify
 }
 
 // Agent represents an AI agent registered in the system.

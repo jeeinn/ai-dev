@@ -217,6 +217,23 @@
               <el-input-number v-model.number="form['agents.loop.iteration_interval']" :min="0" :max="300" :step="1" />
               <div class="form-tip">每轮 Agent Loop 之间的等待秒数；0 表示不等待</div>
             </el-form-item>
+
+            <el-divider content-position="left">Harness 验证门禁</el-divider>
+            <el-form-item label="无进展退出上限">
+              <el-input-number v-model.number="form['agents.loop.no_progress_limit']" :min="0" :max="100" />
+              <div class="form-tip">连续 N 轮工具调用后工作区指纹（git status --porcelain）不变则退出；0 = 关闭检测（config.example.yaml 默认 3）</div>
+            </el-form-item>
+            <el-form-item label="校验命令">
+              <el-input
+                v-model="form['agents.loop.verify_commands']"
+                type="textarea"
+                :rows="4"
+                placeholder='每行一条命令，例如：
+go test ./...
+npm test'
+              />
+              <div class="form-tip">编码完成后、commit/PR 前执行的 shell 命令；任一命令失败则任务 failed，不写回 PR；空则跳过校验</div>
+            </el-form-item>
           </el-form>
         </el-tab-pane>
 
@@ -923,6 +940,21 @@ const applyConfigData = (data) => {
   if (next['debug.conversation_log.max_content_chars'] === undefined) {
     next['debug.conversation_log.max_content_chars'] = 100000
   }
+  if (next['agents.loop.verify_commands'] !== undefined) {
+    const cmds = next['agents.loop.verify_commands']
+    if (Array.isArray(cmds)) {
+      next['agents.loop.verify_commands'] = cmds.join('\n')
+    } else {
+      try {
+        const parsed = JSON.parse(cmds)
+        if (Array.isArray(parsed)) {
+          next['agents.loop.verify_commands'] = parsed.join('\n')
+        }
+      } catch {
+        // keep as-is if not valid JSON
+      }
+    }
+  }
   form.value = next
   if (data['llm.providers']) {
     providersJson.value = formatProvidersJson(data['llm.providers'])
@@ -1042,7 +1074,12 @@ const saveAll = async () => {
       if (key === 'llm.providers') continue // handle separately
       if (value === null || value === undefined) continue
       if (value === '' && typeof value !== 'boolean') continue
-      entries[key] = String(value)
+      if (key === 'agents.loop.verify_commands') {
+        const cmds = value.split('\n').map(s => s.trim()).filter(Boolean)
+        entries[key] = JSON.stringify(cmds)
+      } else {
+        entries[key] = String(value)
+      }
     }
     entries['llm.providers'] = JSON.stringify(providersData)
     entries['workflow.gates'] = JSON.stringify(gatesForm.value)

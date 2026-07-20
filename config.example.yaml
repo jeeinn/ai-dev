@@ -114,6 +114,12 @@ agents:
     max_iterations: 10
     total_timeout: "30m"    # 仅多轮任务（solve/fix_bug）总超时
     iteration_interval: 3
+    # Harness：连续 N 轮工具调用后工作区指纹不变则退出（0=关闭；默认建议 3）
+    no_progress_limit: 3
+    # Harness：编码结束后、commit/PR 前执行的校验命令（空=跳过；失败则任务 failed）
+    # verify_commands:
+    #   - "go test ./..."
+    #   - "npm test"
 
   # 编码后端配置（OpenCode Path A）
   # 默认 internal（内置 AgentLoop）；非写任务（analyze/review/reply）始终 internal

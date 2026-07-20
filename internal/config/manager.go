@@ -508,6 +508,8 @@ func (m *ConfigManager) getActiveMap() map[string]interface{} {
 		"agents.loop.max_iterations":      cfg.Agents.Loop.MaxIterations,
 		"agents.loop.total_timeout":       cfg.Agents.Loop.TotalTimeout,
 		"agents.loop.iteration_interval":  cfg.Agents.Loop.IterationInterval,
+		"agents.loop.no_progress_limit":   cfg.Agents.Loop.NoProgressLimit,
+		"agents.loop.verify_commands":     cfg.Agents.Loop.VerifyCommands,
 		"debug.conversation_log.enabled":          cfg.Debug.ConversationLog.Enabled,
 		"debug.conversation_log.max_content_chars": cfg.Debug.ConversationLog.MaxContentChars,
 	}
@@ -533,6 +535,8 @@ var configKeys = []string{
 	"agents.loop.max_iterations",
 	"agents.loop.total_timeout",
 	"agents.loop.iteration_interval",
+	"agents.loop.no_progress_limit",
+	"agents.loop.verify_commands",
 	"debug.conversation_log.enabled",
 	"debug.conversation_log.max_content_chars",
 	"workflow.preset",
@@ -545,6 +549,7 @@ func parseConfigValue(key, value string) (interface{}, error) {
 		"llm.rate_limit_retries",
 		"agents.defaults.max_output_tokens", "agents.defaults.max_input_tokens",
 		"agents.loop.max_iterations", "agents.loop.iteration_interval",
+		"agents.loop.no_progress_limit",
 		"debug.conversation_log.max_content_chars":
 		n, err := strconv.Atoi(value)
 		if err != nil {
@@ -569,6 +574,12 @@ func parseConfigValue(key, value string) (interface{}, error) {
 			return nil, fmt.Errorf("invalid JSON: %w", err)
 		}
 		return providers, nil
+	case "agents.loop.verify_commands":
+		var cmds []string
+		if err := json.Unmarshal([]byte(value), &cmds); err != nil {
+			return nil, fmt.Errorf("invalid JSON: %w", err)
+		}
+		return cmds, nil
 	default:
 		return value, nil
 	}
@@ -614,6 +625,10 @@ func getConfigValueTyped(cfg *Config, key string) interface{} {
 		return cfg.Agents.Loop.TotalTimeout
 	case "agents.loop.iteration_interval":
 		return cfg.Agents.Loop.IterationInterval
+	case "agents.loop.no_progress_limit":
+		return cfg.Agents.Loop.NoProgressLimit
+	case "agents.loop.verify_commands":
+		return cfg.Agents.Loop.VerifyCommands
 	case "debug.conversation_log.enabled":
 		return cfg.Debug.ConversationLog.Enabled
 	case "debug.conversation_log.max_content_chars":
@@ -719,6 +734,18 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 			return fmt.Errorf("not a number: %s", value)
 		}
 		cfg.Agents.Loop.IterationInterval = n
+	case "agents.loop.no_progress_limit":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("not a number: %s", value)
+		}
+		cfg.Agents.Loop.NoProgressLimit = n
+	case "agents.loop.verify_commands":
+		var cmds []string
+		if err := json.Unmarshal([]byte(value), &cmds); err != nil {
+			return fmt.Errorf("invalid JSON: %w", err)
+		}
+		cfg.Agents.Loop.VerifyCommands = cmds
 	case "debug.conversation_log.enabled":
 		b, err := parseBoolValue(value)
 		if err != nil {
@@ -797,6 +824,11 @@ func getConfigEntry(cfg *Config, key string) string {
 		return cfg.Agents.Loop.TotalTimeout
 	case "agents.loop.iteration_interval":
 		return strconv.Itoa(cfg.Agents.Loop.IterationInterval)
+	case "agents.loop.no_progress_limit":
+		return strconv.Itoa(cfg.Agents.Loop.NoProgressLimit)
+	case "agents.loop.verify_commands":
+		data, _ := json.Marshal(cfg.Agents.Loop.VerifyCommands)
+		return string(data)
 	case "debug.conversation_log.enabled":
 		return strconv.FormatBool(cfg.Debug.ConversationLog.Enabled)
 	case "debug.conversation_log.max_content_chars":
@@ -859,6 +891,12 @@ func isSemanticallyEmptyConfigValue(key, dbVal string) bool {
 		// Also check parsed JSON: a valid map with zero entries is semantically empty
 		var m map[string]interface{}
 		if err := json.Unmarshal([]byte(trimmed), &m); err == nil && len(m) == 0 {
+			return true
+		}
+	case "agents.loop.verify_commands":
+		// "null" means unset → fall back to file config.
+		// "[]" is intentional disable and must NOT fall back.
+		if trimmed == "null" {
 			return true
 		}
 	}

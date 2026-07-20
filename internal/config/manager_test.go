@@ -240,6 +240,9 @@ func TestIsSemanticallyEmptyConfigValue(t *testing.T) {
 		{"llm.providers", "", false}, // empty string is handled by TrimSpace check, not this func
 		{"gitea.url", "{}", false},   // non-JSON key — not semantically empty
 		{"gitea.url", "http://example.com", false},
+		{"agents.loop.verify_commands", "null", true},
+		{"agents.loop.verify_commands", "[]", false}, // empty array = explicit disable
+		{"agents.loop.verify_commands", `["go test ./..."]`, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.key+"="+tt.val, func(t *testing.T) {

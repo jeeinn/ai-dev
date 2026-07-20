@@ -20,5 +20,12 @@ func MergeLoopConfig(agentLoop *store.AgentLoopConfig, defaults config.AgentLoop
 	if agentLoop.IterationInterval > 0 {
 		merged.IterationInterval = agentLoop.IterationInterval
 	}
+	if agentLoop.NoProgressLimit != nil {
+		merged.NoProgressLimit = *agentLoop.NoProgressLimit
+	}
+	// Non-nil slice (including empty) overrides defaults so agents can disable verify.
+	if agentLoop.VerifyCommands != nil {
+		merged.VerifyCommands = append([]string{}, agentLoop.VerifyCommands...)
+	}
 	return merged
 }

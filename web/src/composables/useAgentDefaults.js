@@ -8,7 +8,9 @@ export const DEFAULT_AGENT_TIMEOUT = '5m'
 export const DEFAULT_LOOP_CONFIG = {
   max_iterations: 20,
   total_timeout: '30m',
-  iteration_interval: 0
+  iteration_interval: 0,
+  no_progress_limit: 3,
+  verify_commands: []
 }
 
 export function normalizeProviders(raw) {
@@ -44,7 +46,13 @@ function parseLoopDefaults(data) {
     total_timeout: (data['agents.loop.total_timeout'] || DEFAULT_LOOP_CONFIG.total_timeout).trim(),
     iteration_interval: data['agents.loop.iteration_interval'] !== undefined && data['agents.loop.iteration_interval'] !== ''
       ? Number(data['agents.loop.iteration_interval'])
-      : DEFAULT_LOOP_CONFIG.iteration_interval
+      : DEFAULT_LOOP_CONFIG.iteration_interval,
+    no_progress_limit: data['agents.loop.no_progress_limit'] !== undefined && data['agents.loop.no_progress_limit'] !== ''
+      ? Number(data['agents.loop.no_progress_limit'])
+      : DEFAULT_LOOP_CONFIG.no_progress_limit,
+    verify_commands: data['agents.loop.verify_commands'] !== undefined && data['agents.loop.verify_commands'] !== ''
+      ? data['agents.loop.verify_commands']
+      : DEFAULT_LOOP_CONFIG.verify_commands
   }
 }
 
@@ -104,24 +112,29 @@ export function useAgentDefaults() {
     return names
   }
 
-  const createEmptyAgentForm = () => ({
-    name: '',
-    gitea_username: '',
-    role: 'analyze',
-    provider: agentDefaults.value.provider,
-    model: agentDefaults.value.model,
-    backend: backendDefault.value || 'internal',
-    // 0 = optional override off → resolve from model meta at runtime
-    max_output_tokens: 0,
-    max_input_tokens: 0,
-    temperature: agentDefaults.value.temperature,
-    timeout: agentDefaults.value.timeout,
-    system_prompt: '',
-    user_template: '',
-    status: 'active',
-    repos: [],
-    loop_config: { ...loopDefaults.value }
-  })
+  const createEmptyAgentForm = () => {
+    const lc = { ...loopDefaults.value }
+    // New agents should inherit verify_commands from system config, not override with []
+    delete lc.verify_commands
+    return {
+      name: '',
+      gitea_username: '',
+      role: 'analyze',
+      provider: agentDefaults.value.provider,
+      model: agentDefaults.value.model,
+      backend: backendDefault.value || 'internal',
+      // 0 = optional override off → resolve from model meta at runtime
+      max_output_tokens: 0,
+      max_input_tokens: 0,
+      temperature: agentDefaults.value.temperature,
+      timeout: agentDefaults.value.timeout,
+      system_prompt: '',
+      user_template: '',
+      status: 'active',
+      repos: [],
+      loop_config: lc
+    }
+  }
 
   const isLoopRole = (role) => role === 'coder'
 

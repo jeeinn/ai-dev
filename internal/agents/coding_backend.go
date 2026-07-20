@@ -163,6 +163,11 @@ func (b *InternalCodingBackend) Run(ctx context.Context, req CodingRequest) (*Co
 	loop.SetUsageRecorder(func(p, m string, usage llm.Usage) {
 		factory.recordTaskUsage(task.ID, p, m, usage)
 	})
+	if mergedLoop.NoProgressLimit > 0 {
+		loop.SetNoProgressGuard(mergedLoop.NoProgressLimit, func() string {
+			return workspaceProgressSnapshot(sb)
+		})
+	}
 
 	if factory.getDebugConfig != nil {
 		debugCfg := factory.getDebugConfig()

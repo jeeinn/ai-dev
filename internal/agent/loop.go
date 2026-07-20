@@ -14,7 +14,7 @@ import (
 
 // AgentLoop manages the multi-turn conversation between LLM and tools.
 // Task-level deadline is owned by the Executor context; this loop only
-// enforces maxIterations and optional iterationInterval.
+// enforces maxIterations, optional iterationInterval, and optional no-progress exit.
 type AgentLoop struct {
 	provider          llm.Provider
 	registry          *ToolRegistry
@@ -29,6 +29,12 @@ type AgentLoop struct {
 	recorder          ConversationRecorder
 	usageRecorder     func(provider, model string, usage llm.Usage)
 	taskID            int64
+
+	// Harness: no-progress exit (only when progressSnap is set and noProgressLimit > 0)
+	noProgressLimit  int
+	progressSnap     func() string
+	lastProgressSnap string
+	stallCount       int
 }
 
 // NewAgentLoop creates a new AgentLoop with default iteration settings.
@@ -96,6 +102,16 @@ func (a *AgentLoop) SetProviderName(name string) {
 func (a *AgentLoop) SetConversationRecorder(recorder ConversationRecorder, taskID int64) {
 	a.recorder = recorder
 	a.taskID = taskID
+}
+
+// SetNoProgressGuard enables stall detection: after each tool-call round, progressSnap
+// is compared to the previous snapshot. If unchanged for limit consecutive rounds,
+// Run returns an error. limit <= 0 or nil snap disables the guard.
+func (a *AgentLoop) SetNoProgressGuard(limit int, progressSnap func() string) {
+	a.noProgressLimit = limit
+	a.progressSnap = progressSnap
+	a.lastProgressSnap = ""
+	a.stallCount = 0
 }
 
 // Run executes the agent loop with the given messages.
@@ -186,9 +202,32 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 		}
 
 		a.persistIteration(i+1, messages[msgStart:], nil)
+
+		if err := a.checkNoProgress(); err != nil {
+			return "", err
+		}
 	}
 
 	return "", fmt.Errorf("max iterations (%d) reached", a.maxIterations)
+}
+
+func (a *AgentLoop) checkNoProgress() error {
+	if a.progressSnap == nil || a.noProgressLimit <= 0 {
+		return nil
+	}
+	snap := a.progressSnap()
+	if a.lastProgressSnap != "" && snap == a.lastProgressSnap {
+		a.stallCount++
+		logging.Debugf("Agent loop no progress (%d/%d): workspace fingerprint unchanged",
+			a.stallCount, a.noProgressLimit)
+		if a.stallCount >= a.noProgressLimit {
+			return fmt.Errorf("no progress for %d consecutive iterations (workspace unchanged); stopping to avoid burning tokens", a.noProgressLimit)
+		}
+	} else {
+		a.stallCount = 0
+	}
+	a.lastProgressSnap = snap
+	return nil
 }
 
 func (a *AgentLoop) persistIteration(iteration int, delta []llm.Message, finalAssistant *llm.ChatResponse) {

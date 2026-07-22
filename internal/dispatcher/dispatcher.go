@@ -1,6 +1,7 @@
 package dispatcher
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"regexp"
@@ -193,6 +194,79 @@ func (d *Dispatcher) SetWorkflowPolicy(wfPolicy *workflow.WorkflowPolicy) {
 	d.wfPolicy = wfPolicy
 }
 
+// getEffectivePolicy returns the effective workflow policy for a repo.
+// If a per-repo policy exists in DB, it overrides the global policy.
+func (d *Dispatcher) getEffectivePolicy(repo string) *workflow.WorkflowPolicy {
+	if d.db == nil {
+		return d.wfPolicy
+	}
+
+	dbPolicy, err := d.db.GetWorkflowPolicy(repo)
+	if err != nil || dbPolicy == nil {
+		return d.wfPolicy
+	}
+
+	var gateOverrides map[string]string
+	if dbPolicy.GatesJSON != "" {
+		_ = json.Unmarshal([]byte(dbPolicy.GatesJSON), &gateOverrides)
+	}
+
+	return workflow.BuildPolicy(dbPolicy.Preset, gateOverrides)
+}
+
+// unassignPreviousAgentOnTransition removes the previous agent from the issue's assignee
+// when the stage transitions to a different role. This is controlled by the
+// stage_transition_unassign gate policy.
+func (d *Dispatcher) unassignPreviousAgentOnTransition(repo string, issueID int, prevAgentID int64, newAgentID int64) {
+	if d.wfPolicy == nil || d.giteaCfg == nil {
+		return
+	}
+
+	policy := d.getEffectivePolicy(repo)
+	if policy == nil {
+		policy = d.wfPolicy
+	}
+
+	level := policy.GetGateLevel(workflow.GateStageTransitionUnassign)
+	if level == workflow.GateOff {
+		return
+	}
+
+	if prevAgentID == 0 || prevAgentID == newAgentID {
+		return
+	}
+
+	prevAgent, err := d.db.GetAgent(prevAgentID)
+	if err != nil {
+		log.Printf("[WARN] Failed to get previous agent %d: %v", prevAgentID, err)
+		return
+	}
+
+	parts := strings.SplitN(repo, "/", 2)
+	if len(parts) != 2 {
+		return
+	}
+	owner, repoName := parts[0], parts[1]
+
+	if prevAgent.GiteaUsername == "" {
+		log.Printf("[WARN] Previous agent %d has empty gitea_username, skip unassign", prevAgentID)
+		return
+	}
+
+	giteaClient := gitea.NewClient(d.giteaCfg.URL, d.giteaCfg.AdminToken)
+	if err := giteaClient.IssueUnassign(owner, repoName, issueID, prevAgent.GiteaUsername); err != nil {
+		log.Printf("[WARN] Failed to unassign agent %s from issue %s#%d: %v",
+			prevAgent.GiteaUsername, repo, issueID, err)
+		if level == workflow.GateHard {
+			d.postGateComment(prevAgent, repo, issueID,
+				fmt.Sprintf("⚠️ 未能从 Issue 移除前一 Agent [%s] 的分配，已按配置继续执行", prevAgent.GiteaUsername))
+		}
+	} else {
+		log.Printf("[INFO] Unassigned agent %s from issue %s#%d on stage transition",
+			prevAgent.GiteaUsername, repo, issueID)
+	}
+}
+
 // Shutdown cancels in-flight executor work so agent loops can exit on process stop.
 func (d *Dispatcher) Shutdown() {
 	if d.executor != nil {
@@ -332,12 +406,16 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 
 		// Step 4b: L2 gate evaluation (if policy is configured)
 		if d.wfPolicy != nil {
+			policy := d.getEffectivePolicy(repo)
+			if policy == nil {
+				policy = d.wfPolicy
+			}
 			// Check relevant gates based on the transition
 			gatesToCheck := d.gatesForTransition(ctx, result.Role)
 			// Determine if PR is a draft (for review_warn_if_draft gate)
 			isDraftPR := evt.PR != nil && evt.PR.Draft
 			for _, gateID := range gatesToCheck {
-				gateResult := workflow.EvaluateGate(d.wfPolicy, gateID, ctx, result.Role, result.Agent.ID, isDraftPR)
+				gateResult := workflow.EvaluateGate(policy, gateID, ctx, result.Role, result.Agent.ID, isDraftPR)
 				if !gateResult.Allowed {
 					if result.Force && gateResult.Level == "soft" {
 						// /force bypasses soft gates
@@ -350,7 +428,7 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 					d.postGateComment(result.Agent, repo, issueID, gateResult.Message)
 					return true
 				}
-				if gateResult.Level == "soft" && d.wfPolicy.Notify.OnGateSoft {
+				if gateResult.Level == "soft" && policy.Notify.OnGateSoft {
 					// Soft gate passed — post warning
 					d.postGateComment(result.Agent, repo, issueID, gateResult.Message)
 				}
@@ -393,12 +471,18 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 			}
 		}
 
+		// Save previous agent ID before ApplyTransition overwrites it
+		prevAgentID := ctx.ActiveAgentID
+
 		// Apply transition to DB
 		if err := d.wfMgr.ApplyTransition(ctx, transition, result.Agent.ID, result.Role, sessionID); err != nil {
 			d.inFlight.Delete(lockKey)
 			log.Printf("[ERROR] Failed to apply transition: %v", err)
 			return false
 		}
+
+		// Step 6c: Unassign previous agent on stage transition (if configured)
+		d.unassignPreviousAgentOnTransition(repo, issueID, prevAgentID, result.Agent.ID)
 	}
 
 	// Step 7: Build task context and enqueue

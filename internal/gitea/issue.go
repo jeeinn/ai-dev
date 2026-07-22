@@ -49,3 +49,17 @@ func (c *Client) IssueGet(owner, repo string, issueID int) (map[string]interface
 	}
 	return issue, nil
 }
+
+// IssueUnassign removes the given usernames from an issue's assignees.
+// Uses DELETE /repos/{owner}/{repo}/issues/{index}/assignees.
+func (c *Client) IssueUnassign(owner, repo string, issueID int, usernames ...string) error {
+	if len(usernames) == 0 {
+		return fmt.Errorf("issue unassign: at least one username required")
+	}
+	_, err := c.do("DELETE", fmt.Sprintf("/repos/%s/%s/issues/%d/assignees", owner, repo, issueID),
+		map[string][]string{"assignees": usernames})
+	if err != nil {
+		return fmt.Errorf("issue unassign: %w", err)
+	}
+	return nil
+}

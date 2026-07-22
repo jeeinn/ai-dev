@@ -159,19 +159,7 @@ npm test'
         </el-card>
       </el-tab-pane>
 
-      <!-- Tab 2: 触发规则 (v2 deprecated) -->
-      <el-tab-pane label="触发规则" name="routes">
-        <el-card>
-          <el-empty description="触发规则已弃用 — v2 使用 Assign Agent 模型触发工作流">
-            <template #description>
-              <p>v2 已弃用基于 Label 的触发规则。</p>
-              <p style="margin-top: 8px">请在 Issue/PR 上 <strong>Assign Agent</strong> 来触发工作流。</p>
-            </template>
-          </el-empty>
-        </el-card>
-      </el-tab-pane>
-
-      <!-- Tab 3: Prompt 版本 -->
+      <!-- Tab 2: Prompt 版本 -->
       <el-tab-pane label="Prompt 版本" name="prompts">
         <el-card>
           <el-empty v-if="!prompts.length" description="暂无 Prompt 版本记录" />

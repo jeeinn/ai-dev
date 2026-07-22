@@ -74,12 +74,23 @@
           <div v-if="editingAgent" class="form-tip">创建后不可修改</div>
         </el-form-item>
         <el-form-item label="角色">
-          <el-select v-model="form.role" placeholder="选择角色" style="width: 100%">
+          <el-select v-model="form.role" placeholder="选择角色" style="width: 100%" @change="onRoleChange">
             <el-option label="分析 (analyze)" value="analyze" />
             <el-option label="开发 (coder)" value="coder" />
             <el-option label="审查 (review)" value="review" />
           </el-select>
           <div class="form-tip">角色决定 Assign 后的行为：分析=只读分析，开发=读写代码，审查=只读审查</div>
+          <el-button
+            v-if="!editingAgent"
+            type="primary"
+            link
+            size="small"
+            @click="applyRoleWizard(form.role)"
+            style="margin-top: 8px"
+          >
+            <el-icon><MagicStick /></el-icon>
+            一键填充 {{ roleLabel(form.role) }} 向导（命名 + Prompt）
+          </el-button>
         </el-form-item>
         <el-form-item label="Coding Backend">
           <el-select v-model="form.backend" placeholder="选择后端" style="width: 100%">
@@ -282,7 +293,7 @@ npm test'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh, MagicStick } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TemplateHelp from '../components/TemplateHelp.vue'
 import { useAgentDefaults, DEFAULT_AGENT_MAX_OUTPUT_TOKENS, DEFAULT_AGENT_MAX_INPUT_TOKENS } from '../composables/useAgentDefaults'
@@ -362,6 +373,45 @@ const backendTypeLabel = (type) => {
   if (type === 'builtin') return '内置'
   if (type === 'opencode_http') return 'OpenCode'
   return type
+}
+
+const roleLabel = (role) => {
+  if (role === 'analyze') return '分析'
+  if (role === 'coder') return '开发'
+  if (role === 'review') return '审查'
+  return ''
+}
+
+const onRoleChange = (role) => {
+  if (!editingAgent.value && !form.value.name) {
+    form.value.name = role === 'analyze' ? 'code-analyzer' : role === 'coder' ? 'code-developer' : 'code-reviewer'
+  }
+}
+
+const applyRoleWizard = (role) => {
+  let templateName = ''
+  let name = ''
+  
+  if (role === 'analyze') {
+    templateName = 'analyze_issue'
+    name = 'code-analyzer'
+  } else if (role === 'coder') {
+    templateName = 'solve_issue'
+    name = 'code-developer'
+  } else if (role === 'review') {
+    templateName = 'review_pr'
+    name = 'code-reviewer'
+  }
+  
+  if (templateName) {
+    const tmpl = builtinTemplates.value.find(t => t.name === templateName)
+    if (tmpl) {
+      form.value.system_prompt = tmpl.system_prompt || ''
+      form.value.user_template = tmpl.user_template || ''
+    }
+  }
+  form.value.name = name
+  ElMessage.success(`已应用 ${roleLabel(role)} 向导：命名 + 默认 Prompt`)
 }
 
 const loadModelCatalog = async () => {

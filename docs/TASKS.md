@@ -78,11 +78,11 @@ P0–P2 核心能力（已交付）
 
 完整列表见 [archived/20260714-TASKS.md](archived/20260714-TASKS.md)、[archived/20260716-TASKS.md](archived/20260716-TASKS.md) §10。
 
-- [ ] `AgentDetail.vue` 移除「触发规则」弃用 Tab
-- [ ] Agent 创建向导（按 role 一键填 Prompt）
-- [ ] WorkflowPolicy per-repo DB 覆盖
-- [ ] 阶段切换 Gitea unassign（设计曾标可选跳过）
-- [ ] 组织级 Webhook 注册指引（DEPLOYMENT 扩展）
+- [x] `AgentDetail.vue` 移除「触发规则」弃用 Tab
+- [x] Agent 创建向导（按 role 一键填 Prompt）
+- [x] WorkflowPolicy per-repo DB 覆盖
+- [x] 阶段切换 Gitea unassign（设计曾标可选跳过）
+- [x] 组织级 Webhook 注册指引（DEPLOYMENT 扩展）
 
 ### 16. Harness 验证
 

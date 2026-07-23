@@ -57,6 +57,10 @@ func (d *Dispatcher) gatesForTransition(ctx *store.WorkflowContext, role string)
 	case store.RoleReview:
 		// Draft PR warning for review tasks
 		gates = append(gates, workflow.GateReviewWarnIfDraft)
+		// Maker ≠ Checker: same agent as active coder
+		if ctx.ActiveAgentID != 0 {
+			gates = append(gates, workflow.GateReviewNotSameCoder)
+		}
 	}
 
 	return gates

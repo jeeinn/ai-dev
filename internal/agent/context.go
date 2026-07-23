@@ -263,3 +263,127 @@ func BuildBugfixPrompt(task TaskContext, codeCtx *CodeContext) string {
 
 	return sb.String()
 }
+
+// ReviewPromptInput is the structured input for an independent review/checker prompt.
+type ReviewPromptInput struct {
+	Repo         string
+	PRNumber     int
+	PRTitle      string
+	PRBody       string
+	ChangedFiles string // preformatted bullet list; optional
+	Diff         string
+}
+
+// BuildReviewPrompt builds a skeptical, independent review prompt (Maker ≠ Checker).
+// It must not include coder conversation history — only the PR artifact under review.
+func BuildReviewPrompt(in ReviewPromptInput) string {
+	var sb strings.Builder
+
+	sb.WriteString("You are an independent code reviewer (Checker). You did NOT author these changes.\n")
+	sb.WriteString("Be skeptical. Do not rubber-stamp. Prefer concrete findings over praise.\n\n")
+
+	sb.WriteString("## Pull Request\n\n")
+	if in.Repo != "" {
+		sb.WriteString(fmt.Sprintf("Repository: %s\n", in.Repo))
+	}
+	if in.PRNumber > 0 {
+		sb.WriteString(fmt.Sprintf("PR #%d: %s\n", in.PRNumber, in.PRTitle))
+	} else if in.PRTitle != "" {
+		sb.WriteString(fmt.Sprintf("Title: %s\n", in.PRTitle))
+	}
+	if in.PRBody != "" {
+		sb.WriteString("\n### Description\n\n")
+		sb.WriteString(in.PRBody)
+		sb.WriteString("\n")
+	}
+	if in.ChangedFiles != "" {
+		sb.WriteString("\n## Changed Files\n\n")
+		sb.WriteString(in.ChangedFiles)
+		sb.WriteString("\n")
+	}
+	if in.Diff != "" {
+		sb.WriteString("\n## Diff\n\n")
+		sb.WriteString(in.Diff)
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\n## Review criteria\n\n")
+	sb.WriteString("1. Correctness and edge cases\n")
+	sb.WriteString("2. Security and data handling risks\n")
+	sb.WriteString("3. Regressions and missing tests\n")
+	sb.WriteString("4. Clarity / maintainability only when it affects risk\n")
+	sb.WriteString("5. Explicitly list residual risks or \"none found\"\n\n")
+	sb.WriteString("Output a structured review. If you approve, say so only after addressing the criteria.\n")
+
+	return sb.String()
+}
+
+// CheckerPromptInput is the input for a post-coding independent checker (fresh context).
+type CheckerPromptInput struct {
+	IssueTitle string
+	IssueBody  string
+	Diff       string
+	Summary    string // optional coder summary; treat as untrusted claim
+}
+
+// BuildIndependentCheckerPrompt asks for a PASS/FAIL verdict on a git diff without
+// any coder agent-loop history (anti self-review at the context layer).
+func BuildIndependentCheckerPrompt(in CheckerPromptInput) string {
+	var sb strings.Builder
+
+	sb.WriteString("You are an independent Checker. You did not write the patch below.\n")
+	sb.WriteString("Decide whether the change is acceptable to commit/open a PR.\n\n")
+
+	sb.WriteString("## Requirement\n\n")
+	sb.WriteString(in.IssueTitle)
+	sb.WriteString("\n\n")
+	sb.WriteString(in.IssueBody)
+	sb.WriteString("\n\n")
+
+	if in.Summary != "" {
+		sb.WriteString("## Author summary (untrusted)\n\n")
+		sb.WriteString(in.Summary)
+		sb.WriteString("\n\n")
+	}
+
+	sb.WriteString("## Git diff\n\n")
+	if in.Diff == "" {
+		sb.WriteString("(empty diff)\n\n")
+	} else {
+		sb.WriteString(in.Diff)
+		sb.WriteString("\n\n")
+	}
+
+	sb.WriteString("## Instructions\n\n")
+	sb.WriteString("1. Judge the diff against the requirement only\n")
+	sb.WriteString("2. Fail on clear bugs, security issues, or requirement mismatch\n")
+	sb.WriteString("3. Pass if the change is a reasonable, safe step toward the requirement\n")
+	sb.WriteString("4. End your reply with exactly one line: VERDICT: PASS or VERDICT: FAIL\n")
+	sb.WriteString("5. If FAIL, briefly explain why above the verdict line\n")
+
+	return sb.String()
+}
+
+// ParseCheckerVerdict extracts PASS/FAIL from an independent checker response.
+// Returns ok=false when no verdict line is found.
+func ParseCheckerVerdict(content string) (pass bool, ok bool) {
+	lines := strings.Split(content, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		upper := strings.ToUpper(line)
+		switch {
+		case strings.Contains(upper, "VERDICT:") && strings.Contains(upper, "PASS") && !strings.Contains(upper, "FAIL"):
+			return true, true
+		case strings.Contains(upper, "VERDICT:") && strings.Contains(upper, "FAIL"):
+			return false, true
+		case upper == "PASS" || upper == "VERDICT: PASS":
+			return true, true
+		case upper == "FAIL" || upper == "VERDICT: FAIL":
+			return false, true
+		}
+	}
+	return false, false
+}

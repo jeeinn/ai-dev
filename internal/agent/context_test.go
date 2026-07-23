@@ -81,10 +81,10 @@ func TestEstimateTokensDifferentiatesCJK(t *testing.T) {
 		max   int
 	}{
 		{"empty", "", 0, 0},
-		{"english 16 chars", "hello world test", 3, 5},       // 16/4 = 4
-		{"chinese 6 chars", "你好世界测试", 8, 10},           // 18 bytes -> 18/2 = 9
-		{"mixed", "hello你好", 3, 6},                        // 5 + 6 = 11 bytes -> 5/4 + 6/2 = 1 + 3 = 4
-		{"long english", strings.Repeat("a", 100), 24, 26},  // 100/4 = 25
+		{"english 16 chars", "hello world test", 3, 5},     // 16/4 = 4
+		{"chinese 6 chars", "你好世界测试", 8, 10},               // 18 bytes -> 18/2 = 9
+		{"mixed", "hello你好", 3, 6},                         // 5 + 6 = 11 bytes -> 5/4 + 6/2 = 1 + 3 = 4
+		{"long english", strings.Repeat("a", 100), 24, 26}, // 100/4 = 25
 		{"long chinese", strings.Repeat("中", 50), 70, 80},  // 150 bytes -> 150/2 = 75
 	}
 	for _, tt := range tests {
@@ -138,5 +138,41 @@ func TestBuildAnalyzePromptIsReadOnly(t *testing.T) {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("BuildAnalyzePrompt() missing %q", want)
 		}
+	}
+}
+
+func TestBuildReviewPromptIndependent(t *testing.T) {
+	prompt := BuildReviewPrompt(ReviewPromptInput{
+		Repo:     "o/r",
+		PRNumber: 7,
+		PRTitle:  "Fix login",
+		PRBody:   "details",
+		Diff:     "+func ok()",
+	})
+	for _, want := range []string{
+		"independent code reviewer",
+		"did NOT author",
+		"PR #7",
+		"+func ok()",
+		"Review criteria",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("BuildReviewPrompt() missing %q", want)
+		}
+	}
+}
+
+func TestParseCheckerVerdict(t *testing.T) {
+	pass, ok := ParseCheckerVerdict("looks fine\nVERDICT: PASS\n")
+	if !ok || !pass {
+		t.Fatalf("expected PASS, got pass=%v ok=%v", pass, ok)
+	}
+	pass, ok = ParseCheckerVerdict("broken\nVERDICT: FAIL")
+	if !ok || pass {
+		t.Fatalf("expected FAIL, got pass=%v ok=%v", pass, ok)
+	}
+	_, ok = ParseCheckerVerdict("no verdict here")
+	if ok {
+		t.Fatal("expected ok=false")
 	}
 }

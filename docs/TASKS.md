@@ -15,8 +15,8 @@ P0–P2 核心能力（已交付）
         │
         └─► P3 开源准备（已交付）
                 │
-                ├─► 已做：P1 硬化（竞态/inbox/type）+ 大文件拆分 + 采样参数透传
-                └─► TASKS 主线：Harness Checker → 沙箱 rg/temp → OpenCode A+（按需）
+                ├─► 已做：P1 硬化 + 大文件拆分 + 采样参数透传 + Harness 独立 Checker
+                └─► TASKS 主线：沙箱 rg/temp → OpenCode A+（按需）
 ```
 
 ---
@@ -91,10 +91,10 @@ P0–P2 核心能力（已交付）
 
 ### 16. Harness 验证
 
-> 落地：`agents.loop.no_progress_limit` + `verify_commands`（见 `config.example.yaml`）
+> 落地：`agents.loop.no_progress_limit` + `verify_commands` + `independent_checker`；门禁 `review_not_same_coder`
 
 - [x] Dev/BugFix：测试/构建通过作为程序化完成条件（`verify_commands`，opt-in；失败 → 任务 failed，不 commit/PR）
-- [ ] Review 与 Coder 独立 Checker 上下文（防自评）
+- [x] Review 与 Coder 独立 Checker 上下文（防自评）：Review 独立 Prompt；Coder 可选 `independent_checker`；L2 `review_not_same_coder`
 - [x] Loop 无进展退出（连续 N 轮 workspace 指纹不变则停；示例默认 `no_progress_limit: 3`）
 
 ---
@@ -114,9 +114,8 @@ P0–P2 核心能力（已交付）
 
 | 阶段 | 焦点 |
 |------|------|
-| 已完成 | P3 开源 + v0.10.0；架构 P1 硬化；大文件拆分；**采样参数透传** |
-| 主线下一刀 | **Harness** Review/Coder 独立 Checker（防自评） |
-| 随后 | 沙箱 `rg` / temp 生命周期对齐 |
+| 已完成 | P3 开源 + v0.10.0；架构 P1 硬化；大文件拆分；采样参数透传；**Harness 独立 Checker** |
+| 主线下一刀 | 沙箱 `rg` / temp 生命周期对齐 |
 | 按需 | OpenCode A+（SSE 进度等）→ LLM tiktoken / 摘要 / 成本预算 |
 | 继续延后 | API 中间件链（CORS/限流/访问日志）、`gitea.Client` Transport 显式复用（DefaultTransport 已够用） |
 

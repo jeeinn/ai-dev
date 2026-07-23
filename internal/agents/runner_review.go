@@ -23,65 +23,69 @@ func NewReviewRunner(factory *RunnerFactory) *ReviewRunner {
 	return &ReviewRunner{factory: factory}
 }
 
-// Run executes the review task.
+// Run executes the review task with an independent Checker context (no coder
+// conversation history — only PR metadata + diff).
 func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.Agent) (*Result, error) {
-	// Parse repo owner/name
 	parts := strings.SplitN(task.Repo, "/", 2)
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid repo format: %s", task.Repo)
 	}
 	owner, repo := parts[0], parts[1]
 
-	// Use PRID for PR API calls; fall back to IssueID for backward compatibility
 	prID := task.PRID
 	if prID == 0 {
 		prID = task.IssueID
 		log.Printf("[WARN] Task %d has no PRID, falling back to IssueID=%d for PR API calls", task.ID, prID)
 	}
 
-	// Get Gitea client
 	client := r.factory.giteaFactory.GetGiteaClient(agent.GiteaToken)
 
-	// Get PR diff
 	diff, err := client.PRDiff(owner, repo, prID)
 	if err != nil {
 		return nil, fmt.Errorf("get PR diff: %w", err)
 	}
 
-	// Get PR details
 	pr, err := client.PRGet(owner, repo, prID)
 	if err != nil {
 		return nil, fmt.Errorf("get PR: %w", err)
 	}
 
-	// Get PR files
 	files, err := client.PRFiles(owner, repo, prID)
 	if err != nil {
 		log.Printf("[WARN] Failed to get PR files: %v", err)
 	}
 
-	// Build context with diff
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Repository: %s\n", task.Repo))
-	sb.WriteString(fmt.Sprintf("PR #%d: %v\n", prID, pr["title"]))
-	sb.WriteString(fmt.Sprintf("Description: %v\n\n", pr["body"]))
-	sb.WriteString("## Changed Files\n")
+	var fileList strings.Builder
 	for _, f := range files {
-		sb.WriteString(fmt.Sprintf("- %s (+%d/-%d)\n", f.Filename, f.Additions, f.Deletions))
+		fileList.WriteString(fmt.Sprintf("- %s (+%d/-%d)\n", f.Filename, f.Additions, f.Deletions))
 	}
-	sb.WriteString("\n## Diff\n")
-	sb.WriteString(diff)
 
-	// Get LLM provider
+	prTitle, _ := pr["title"].(string)
+	prBody, _ := pr["body"].(string)
+
+	basePrompt := agentpkg.BuildReviewPrompt(agentpkg.ReviewPromptInput{
+		Repo:         task.Repo,
+		PRNumber:     prID,
+		PRTitle:      prTitle,
+		PRBody:       prBody,
+		ChangedFiles: fileList.String(),
+		Diff:         diff,
+	})
+	systemPrompt := agentpkg.MergeAgentSystemPrompt(basePrompt, agent.SystemPrompt)
+
 	provider, err := r.factory.llmRegistry.Get(agent.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("get provider: %w", err)
 	}
 
-	// Build messages
+	userContent := task.Context
+	if strings.TrimSpace(userContent) == "" {
+		userContent = "Please review this pull request using the criteria in the system prompt."
+	}
+
 	messages := []llm.Message{
-		{Role: "system", Content: agent.SystemPrompt},
-		{Role: "user", Content: sb.String()},
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userContent},
 	}
 
 	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model), r.factory.getModelMeta(agent.Provider, agent.Model))
@@ -89,7 +93,6 @@ func (r *ReviewRunner) Run(ctx context.Context, task *store.Task, agent *store.A
 		return nil, fmt.Errorf("truncate messages: %w", err)
 	}
 
-	// Call LLM
 	req := &llm.ChatRequest{
 		Model:     agent.Model,
 		Messages:  messages,

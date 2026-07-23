@@ -8,11 +8,12 @@ import (
 
 // AgentLoopConfig contains agent-specific loop configuration (multi-turn only).
 type AgentLoopConfig struct {
-	MaxIterations     int      `json:"max_iterations,omitempty"`
-	TotalTimeout      string   `json:"total_timeout,omitempty"`
-	IterationInterval int      `json:"iteration_interval,omitempty"` // seconds between loop rounds; 0 = no delay
-	NoProgressLimit   *int     `json:"no_progress_limit,omitempty"`  // nil = inherit; 0 = disable; >0 = limit
-	VerifyCommands    []string `json:"verify_commands,omitempty"`    // nil = inherit; empty slice = disable verify
+	MaxIterations      int      `json:"max_iterations,omitempty"`
+	TotalTimeout       string   `json:"total_timeout,omitempty"`
+	IterationInterval  int      `json:"iteration_interval,omitempty"`  // seconds between loop rounds; 0 = no delay
+	NoProgressLimit    *int     `json:"no_progress_limit,omitempty"`   // nil = inherit; 0 = disable; >0 = limit
+	VerifyCommands     []string `json:"verify_commands,omitempty"`     // nil = inherit; empty slice = disable verify
+	IndependentChecker *bool    `json:"independent_checker,omitempty"` // nil = inherit; true/false override
 }
 
 // Agent represents an AI agent registered in the system.
@@ -35,7 +36,7 @@ type Agent struct {
 	Role            string           `json:"role"` // analyze | coder | review
 	Status          string           `json:"status"`
 	Backend         string           `json:"backend"`                   // coding backend name; default "internal" (OpenCode Path A)
-	BackendOptions   map[string]any   `json:"backend_options,omitempty"` // backend-specific options (JSON)
+	BackendOptions  map[string]any   `json:"backend_options,omitempty"` // backend-specific options (JSON)
 	ToolPack        string           `json:"tool_pack"`                 // ToolPack name; empty = use role-based default
 	McpServers      []string         `json:"mcp_servers,omitempty"`     // Enabled MCP server names; empty = none
 	CreatedAt       time.Time        `json:"created_at"`

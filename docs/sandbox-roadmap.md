@@ -1,15 +1,25 @@
 # 沙箱增强迭代计划
 
 > 目标版本：v0.4  
-> 状态：核心已落地；剩余按需（`rg`、审计摘要等）  
-> 更新：2026-07-17（与代码对齐）
+> 状态：核心已落地；剩余按需（`cat` 行号、`find` glob、审计摘要）  
+> 更新：2026-07-23（`rg` + temp/Session 对齐）
 
 ## 14.1 临时目录模式 ✅（核心）
 
 - [x] 14.1.1 sandbox/sandbox.go — 支持临时目录模式（`os.MkdirTemp`）
 - [x] 14.1.2 sandbox/sandbox.go — 配置化选择固定目录或临时目录（`mode: fixed|temp`）
 - [x] 14.1.3 / 14.1.4 — Cleanup；Session 级 workspace 不走 temp 自动删（见 SessionLifecycle）
-- [ ] （按需）temp 与 Session 生命周期进一步统一文档化运维 runbook
+- [x] temp 与 Session 生命周期对齐：`NewWithPath` → `Persistent=true`；`Setup` 不覆盖预置 `WorkDir`；`Cleanup`/`CleanupWithDelay` 对 Persistent 为 no-op
+
+### 运维要点（temp / Session）
+
+| 场景 | 路径谁创建 | 任务结束 | 谁回收 |
+|------|----------|----------|--------|
+| 无 Session + `mode=fixed` | `sandbox.base_dir/task_{id}` | `Cleanup` 删除 | 任务 defer / 失败延迟清理 |
+| 无 Session + `mode=temp` | `os.MkdirTemp` | `Cleanup` 删除 | 同上 |
+| 有 Session | `{workspace.base_dir}/sessions/...` | **不删**（Persistent） | `SessionLifecycle`：Issue closed / PR merged / idle TTL / 磁盘上限 |
+
+配置 `sandbox.mode=temp` **不会**把已绑定 Session 的工作区改成临时目录；误调 `Cleanup` 也不会删 Session 目录。
 
 ## 14.2 更丰富的上下文工具
 
@@ -17,7 +27,7 @@
 - [x] 14.2.2 agent/tools.go — `tree` 工具
 - [x] 14.2.3 agent/tools.go — `git_log` 工具
 - [x] 14.2.4 agent/tools.go — `git_blame` 工具
-- [ ] 14.2.5 agent/tools.go — `rg` 工具（ripgrep）
+- [x] 14.2.5 agent/tools.go — `rg` 工具（ripgrep；未安装时回退 `search_code`；已入 `analyze-readonly` / `coder-default`）
 - [ ] 14.2.6 agent/tools.go — `find` 工具增强（glob）
 
 ## 14.3 配置化的超时和限制 ✅

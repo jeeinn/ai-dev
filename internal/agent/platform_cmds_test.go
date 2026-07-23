@@ -11,6 +11,20 @@ import (
 	"gitea-agent-gateway/internal/sandbox"
 )
 
+func TestRgCmd(t *testing.T) {
+	args := rgCmd("foo", "pkg", "*.go")
+	assert.Equal(t, []string{
+		"-n", "--no-heading", "-S",
+		"--hidden", "--glob", "!.git",
+		"--glob", "*.go",
+		"--", "foo", "pkg",
+	}, args)
+
+	args = rgCmd("bar", "", "")
+	assert.Contains(t, args, ".")
+	assert.NotContains(t, args, "*.go")
+}
+
 func TestPlatformCmdsSelectByOS(t *testing.T) {
 	cmd, args := listFilesCmd(".")
 	require.NotEmpty(t, cmd)
@@ -68,6 +82,12 @@ func TestListFilesAndSearchCrossPlatform(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Contains(t, searchOut, "hello.go")
+
+	rgOut, err := reg.ExecuteTool(llm.ToolCall{
+		Function: llm.FuncCall{Name: "rg", Arguments: `{"pattern":"package","path":".","glob":"*.go"}`},
+	})
+	require.NoError(t, err)
+	assert.Contains(t, rgOut, "hello.go")
 
 	treeOut, err := reg.ExecuteTool(llm.ToolCall{
 		Function: llm.FuncCall{Name: "tree", Arguments: `{"path":".","depth":2}`},

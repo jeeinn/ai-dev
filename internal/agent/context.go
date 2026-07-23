@@ -162,7 +162,7 @@ func BuildSolveToolPrompt() string {
 You MUST implement changes using tools — do not stop at analysis-only responses.
 
 - Use write_file or apply_diff to modify source code
-- Use read_file, list_files, and search_code to explore the codebase
+- Use read_file, list_files, rg (preferred), and search_code to explore the codebase
 - Run tests with run_command when applicable (e.g. go test, npm test)
 - The gateway may run configured verify_commands after you finish; ensure tests pass before ending
 - The gateway automatically commits, pushes, and opens a PR when git detects changes
@@ -253,7 +253,7 @@ func BuildBugfixPrompt(task TaskContext, codeCtx *CodeContext) string {
 
 	sb.WriteString("\n## Instructions\n\n")
 	sb.WriteString("1. Understand the bug report carefully\n")
-	sb.WriteString("2. Locate the relevant code using search_code and read_file\n")
+	sb.WriteString("2. Locate the relevant code using rg (or search_code) and read_file\n")
 	sb.WriteString("3. Identify the root cause\n")
 	sb.WriteString("4. Implement a minimal fix\n")
 	sb.WriteString("5. Run tests to verify the fix works\n")

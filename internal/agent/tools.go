@@ -212,6 +212,54 @@ func newSearchCodeTool(sb *sandbox.Sandbox) *ToolDef {
 	}
 }
 
+func newRgTool(sb *sandbox.Sandbox) *ToolDef {
+	return &ToolDef{
+		Name: "rg",
+		Description: "Fast codebase search via ripgrep (preferred over search_code when available). " +
+			"Returns matching lines with file paths and line numbers. Falls back to search_code if rg is not installed.",
+		Parameters: llm.Parameters{
+			Type: "object",
+			Properties: map[string]llm.Property{
+				"pattern": {
+					Type:        "string",
+					Description: "The search pattern (supports regex).",
+				},
+				"path": {
+					Type:        "string",
+					Description: "Directory or file to search. Defaults to current directory if empty.",
+				},
+				"glob": {
+					Type:        "string",
+					Description: "Optional file glob filter (e.g. '*.go', '*.{ts,tsx}').",
+				},
+			},
+			Required: []string{"pattern"},
+		},
+		Fn: func(params map[string]interface{}) (string, error) {
+			pattern, _ := params["pattern"].(string)
+			path, _ := params["path"].(string)
+			glob, _ := params["glob"].(string)
+			if pattern == "" {
+				return "", fmt.Errorf("pattern is required")
+			}
+
+			result := sb.Execute("rg", rgCmd(pattern, path, glob)...)
+			if isCommandMissing(result) {
+				cmd, args := searchCodeCmd(pattern, path)
+				result = sb.Execute(cmd, args...)
+			}
+			// rg/grep exit 1 = no matches
+			if result.Error != nil && result.ExitCode != 1 && result.Stdout == "" {
+				return fmt.Sprintf("Error: %v\n%s", result.Error, result.Stderr), nil
+			}
+			if result.Stdout == "" {
+				return "No matches found.", nil
+			}
+			return result.Stdout, nil
+		},
+	}
+}
+
 func newRunCommandTool(sb *sandbox.Sandbox) *ToolDef {
 	return &ToolDef{
 		Name:        "run_command",
@@ -403,15 +451,16 @@ func newGitBlameTool(sb *sandbox.Sandbox) *ToolDef {
 // All built-in tools must be registered here so that AssembleToolRegistry
 // can construct a registry from a pack definition.
 var toolBuilders = map[string]func(*sandbox.Sandbox) *ToolDef{
-	"read_file":    newReadFileTool,
-	"write_file":   newWriteFileTool,
-	"list_files":   newListFilesTool,
-	"search_code":  newSearchCodeTool,
-	"run_command":  newRunCommandTool,
-	"apply_diff":   newApplyDiffTool,
-	"tree":         newTreeTool,
-	"git_log":      newGitLogTool,
-	"git_blame":    newGitBlameTool,
+	"read_file":   newReadFileTool,
+	"write_file":  newWriteFileTool,
+	"list_files":  newListFilesTool,
+	"search_code": newSearchCodeTool,
+	"rg":          newRgTool,
+	"run_command": newRunCommandTool,
+	"apply_diff":  newApplyDiffTool,
+	"tree":        newTreeTool,
+	"git_log":     newGitLogTool,
+	"git_blame":   newGitBlameTool,
 }
 
 // KnownToolNames returns the sorted list of all built-in tool names.
@@ -455,7 +504,7 @@ func AssembleToolRegistry(toolNames []string, sb *sandbox.Sandbox) (*ToolRegistr
 // Kept for backward compatibility; new code should use AssembleToolRegistry.
 func DefaultTools(sb *sandbox.Sandbox) *ToolRegistry {
 	registry, _ := AssembleToolRegistry([]string{
-		"read_file", "write_file", "list_files", "search_code",
+		"read_file", "write_file", "list_files", "search_code", "rg",
 		"run_command", "apply_diff", "tree", "git_log", "git_blame",
 	}, sb)
 	return registry

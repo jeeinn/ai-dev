@@ -36,6 +36,8 @@ type WriteWorkspaceContext struct {
 // in runWriteTask; behavior is unchanged. On error the non-session sandbox is
 // cleaned up here (mirroring the original defer). On success the caller owns the
 // sandbox lifecycle: if !wwc.UseSession, the caller must `defer wwc.Sandbox.Cleanup()`.
+// Session workspaces use NewWithPath (Persistent=true): Cleanup is a no-op even if
+// sandbox.mode is temp; reclaim is owned by SessionLifecycle.
 func prepareWriteWorkspace(ctx context.Context, task *store.Task, agent *store.Agent, factory *RunnerFactory, taskSubType string) (*WriteWorkspaceContext, error) {
 	_ = ctx // reserved for future use (e.g. cancellable clone)
 

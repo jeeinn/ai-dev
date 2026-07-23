@@ -64,12 +64,18 @@ type Sandbox struct {
 	TaskID      int64
 	WorkDir     string
 	AllowedCmds map[string]bool
+	// Persistent marks session-scoped workspaces. Cleanup is a no-op; reclaim
+	// via SessionLifecycle (issue closed / PR merged / idle TTL / disk limit).
+	Persistent bool
 }
 
 // NewWithPath creates a Sandbox with a custom working directory (for session-level workspaces).
+// The workspace is Persistent: Setup never replaces WorkDir with ModeTemp MkdirTemp,
+// and Cleanup / CleanupWithDelay are no-ops.
 func NewWithPath(cfg SandboxConfig, taskID int64, workDir string) *Sandbox {
 	s := New(cfg, taskID)
 	s.WorkDir = workDir
+	s.Persistent = true
 	return s
 }
 
@@ -99,7 +105,7 @@ func New(cfg SandboxConfig, taskID int64) *Sandbox {
 			// Runtimes
 			"python": true, "python3": true, "node": true, "npm": true, "npx": true,
 			// Utilities (Unix)
-			"cat": true, "ls": true, "pwd": true, "echo": true, "grep": true,
+			"cat": true, "ls": true, "pwd": true, "echo": true, "grep": true, "rg": true,
 			"find": true, "head": true, "tail": true, "wc": true, "sort": true,
 			"mkdir": true, "cp": true, "mv": true, "touch": true, "rm": true,
 			// Utilities (Windows)
@@ -113,27 +119,44 @@ func New(cfg SandboxConfig, taskID int64) *Sandbox {
 }
 
 // Setup creates the workspace directory.
+// If WorkDir is already set (ModeFixed from New, or session path from NewWithPath),
+// it only ensures the directory exists — ModeTemp must never overwrite a preset path.
 func (s *Sandbox) Setup() error {
+	if s.WorkDir != "" {
+		if err := os.MkdirAll(s.WorkDir, 0755); err != nil {
+			return fmt.Errorf("create workspace: %w", err)
+		}
+		log.Printf("[INFO] Sandbox workspace ready: %s (persistent=%v)", s.WorkDir, s.Persistent)
+		return nil
+	}
+
 	switch s.Config.Mode {
 	case ModeTemp:
-		// Create temporary directory
 		tempDir, err := os.MkdirTemp("", fmt.Sprintf("agent-task-%d-*", s.TaskID))
 		if err != nil {
 			return fmt.Errorf("create temp directory: %w", err)
 		}
 		s.WorkDir = tempDir
 		log.Printf("[INFO] Sandbox temp workspace created: %s", s.WorkDir)
-	default: // ModeFixed
+		return nil
+	default:
+		// ModeFixed always presets WorkDir in New; defensive fallback.
+		s.WorkDir = filepath.Join(s.Config.BaseDir, fmt.Sprintf("task_%d", s.TaskID))
 		if err := os.MkdirAll(s.WorkDir, 0755); err != nil {
 			return fmt.Errorf("create workspace: %w", err)
 		}
 		log.Printf("[INFO] Sandbox fixed workspace created: %s", s.WorkDir)
+		return nil
 	}
-	return nil
 }
 
 // Cleanup removes the workspace directory.
+// Persistent (session) workspaces are never deleted here — SessionLifecycle owns reclaim.
 func (s *Sandbox) Cleanup() error {
+	if s.Persistent {
+		log.Printf("[INFO] Sandbox skip cleanup (persistent/session): %s", s.WorkDir)
+		return nil
+	}
 	if s.WorkDir == "" {
 		return nil
 	}
@@ -146,8 +169,9 @@ func (s *Sandbox) Cleanup() error {
 }
 
 // CleanupWithDelay removes the workspace directory after a delay (for failed tasks).
+// Persistent workspaces are never scheduled for deletion.
 func (s *Sandbox) CleanupWithDelay(delay time.Duration) {
-	if s.WorkDir == "" {
+	if s.Persistent || s.WorkDir == "" {
 		return
 	}
 

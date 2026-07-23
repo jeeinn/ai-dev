@@ -138,7 +138,7 @@ func TestDefaultTools(t *testing.T) {
 	registry := DefaultTools(sb)
 
 	// Verify all tools are registered
-	expectedTools := []string{"read_file", "write_file", "list_files", "search_code", "run_command", "apply_diff", "tree", "git_log", "git_blame"}
+	expectedTools := []string{"read_file", "write_file", "list_files", "search_code", "rg", "run_command", "apply_diff", "tree", "git_log", "git_blame"}
 	for _, name := range expectedTools {
 		_, ok := registry.Get(name)
 		assert.True(t, ok, "Tool %s should be registered", name)

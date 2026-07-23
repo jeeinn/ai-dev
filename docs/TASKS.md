@@ -15,8 +15,8 @@ P0–P2 核心能力（已交付）
         │
         └─► P3 开源准备（已交付）
                 │
-                ├─► 已做：P1 硬化 + 大文件拆分 + 采样参数透传 + Harness 独立 Checker
-                └─► TASKS 主线：沙箱 rg/temp → OpenCode A+（按需）
+                ├─► 已做：P1 硬化 + 大文件拆分 + 采样参数透传 + Harness 独立 Checker + 沙箱 rg/temp
+                └─► TASKS 主线：OpenCode A+ / LLM 可选增强（按需）
 ```
 
 ---
@@ -53,8 +53,8 @@ P0–P2 核心能力（已交付）
 
 ### 6. 沙箱补强
 
-- [ ] `rg` 工具（Analyze 读仓效率）
-- [ ] temp 模式清理与 Session workspace 生命周期对齐
+- [x] `rg` 工具（Analyze 读仓效率；未安装回退 `search_code`）
+- [x] temp 模式清理与 Session workspace 生命周期对齐（`Persistent` + Setup 不覆盖预置路径）
 - [ ] （可选）`cat` 行号范围、`find` glob、审计日志内容摘要
 
 ---
@@ -114,12 +114,12 @@ P0–P2 核心能力（已交付）
 
 | 阶段 | 焦点 |
 |------|------|
-| 已完成 | P3 开源 + v0.10.0；架构 P1 硬化；大文件拆分；采样参数透传；**Harness 独立 Checker** |
-| 主线下一刀 | 沙箱 `rg` / temp 生命周期对齐 |
-| 按需 | OpenCode A+（SSE 进度等）→ LLM tiktoken / 摘要 / 成本预算 |
+| 已完成 | P3 开源 + v0.10.0；架构 P1 硬化；大文件拆分；采样参数透传；Harness 独立 Checker；**沙箱 rg / temp·Session 对齐** |
+| 主线下一刀 | OpenCode A+（SSE 进度等）或 LLM 可选增强（tiktoken / 摘要 / 预算）按需 |
+| 按需 | OpenCode A+；LLM tiktoken/摘要/预算；沙箱可选增强（`cat` 行号 / `find` glob / 审计摘要） |
 | 继续延后 | API 中间件链（CORS/限流/访问日志）、`gitea.Client` Transport 显式复用（DefaultTransport 已够用） |
 
-评估延后项相对主线（历史取舍）：**TopP 透传（已做）> 中间件链 > Transport**；后两项有运维痛点再立项，不单开抢主线。
+评估延后项相对主线（历史取舍）：中间件链 / Transport 有运维痛点再立项，不单开抢主线。
 
 ---
 

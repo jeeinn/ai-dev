@@ -82,7 +82,7 @@ Windows 下载 `matea-windows-amd64.exe` 后双击或在终端运行即可。
 ```bash
 # 克隆代码
 git clone https://github.com/jeeinn/matea.git
-cd ai-dev
+cd matea
 
 # 构建前端
 cd web && npm install && npm run build && cd ..

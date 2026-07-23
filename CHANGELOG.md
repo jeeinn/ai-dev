@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-23
+
+Matea 品牌首发：项目更名、Bootstrap 自配置、Release 恢复单二进制。  
+推送本 tag 后由 [`.github/workflows/release.yml`](.github/workflows/release.yml) 生成 **draft** Release；维护者在 GitHub 上核对后 Publish。
+
 ### Added
 - **Bootstrap 自生成配置**：无 `config.yaml` 时首次启动自动写入最小 bootstrap（随机 `jwt_secret`），可直接打开 Web UI
 - **Setup 引导**：`GET /api/setup/status` + `/health.setup_required`；Web 顶栏在 Gitea/LLM 未配齐时引导至系统配置
@@ -14,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Release 主推单二进制**：恢复上传平台裸二进制 + `checksums.txt`（不再依赖 zip 预置 yaml）
-- 部署文档改为 goploy 式：下载 → 运行 → 浏览器配置
+- 部署 / README 快速开始改为：下载二进制 → 直接运行 → 浏览器配置（自动 bootstrap）
 - **项目更名 `gitea-agent-gateway` → Matea**：模块路径 `github.com/jeeinn/matea`、二进制 `matea`/`matea.exe`、展示名 `Matea`、仓库 `github.com/jeeinn/matea`
   - **硬切（不兼容旧版本）**：评论命令仅识别 `/matea reset`（旧 `/gateway reset` 失效）；Agent 评论标记仅识别 `<!-- matea-agent -->`（旧 `<!-- gateway-agent -->` 失效）
   - 默认数据库 `./data/gateway.db` → `./data/matea.db`、默认日志 `gateway.log` → `matea.log`；升级时请手动复制旧库（见 `docs/DEPLOYMENT.md` 迁移段）
@@ -347,12 +352,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SQLite 存储 (WAL 模式)
 - YAML 配置 (环境变量展开)
 
-[Unreleased]: https://github.com/jeeinn/ai-dev/compare/v0.10.2...HEAD
-[0.10.2]: https://github.com/jeeinn/ai-dev/compare/v0.10.1...v0.10.2
-[0.10.1]: https://github.com/jeeinn/ai-dev/compare/v0.10.0...v0.10.1
-[0.10.0]: https://github.com/jeeinn/ai-dev/compare/v0.7.0...v0.10.0
-[0.7.0]: https://github.com/jeeinn/ai-dev/compare/v0.3.1...v0.7.0
-[0.3.1]: https://github.com/jeeinn/ai-dev/compare/v0.3.0...v0.3.1
-[0.3.0]: https://github.com/jeeinn/ai-dev/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/jeeinn/ai-dev/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/jeeinn/ai-dev/releases/tag/v0.1.0
+[Unreleased]: https://github.com/jeeinn/matea/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/jeeinn/matea/compare/v0.10.2...v0.11.0
+[0.10.2]: https://github.com/jeeinn/matea/compare/v0.10.1...v0.10.2
+[0.10.1]: https://github.com/jeeinn/matea/compare/v0.10.0...v0.10.1
+[0.10.0]: https://github.com/jeeinn/matea/compare/v0.7.0...v0.10.0
+[0.7.0]: https://github.com/jeeinn/matea/compare/v0.3.1...v0.7.0
+[0.3.1]: https://github.com/jeeinn/matea/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/jeeinn/matea/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/jeeinn/matea/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/jeeinn/matea/releases/tag/v0.1.0

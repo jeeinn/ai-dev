@@ -47,67 +47,35 @@ Gitea Webhook → Handler (签名验证 + 去重)
 
 ## 快速开始
 
-### 5 分钟 Mock 测试（无需 Gitea）
+### 1. 下载并运行（推荐）
 
-不连真实 Gitea / LLM，用仓库自带 Mock 验证编译与核心逻辑：
-
-```bash
-# 单元 + 集成（Mock Gitea / Mock LLM）
-go test ./... -count=1
-
-# 或仅集成测试
-go test ./tests/integration/ -v -count=1
-```
-
-说明与决策规则见 [scripts/TESTING.md](scripts/TESTING.md)（「与自动化测试的关系」一节）。
-
-### 完整 Gitea 联调
-
-接真实 Gitea + Webhook + Agent 工作流时：
-
-1. 按下方「构建并启动」与 Web UI 配置完成首次部署  
-2. 本机 E2E 前置与复现：[scripts/TESTING.md](scripts/TESTING.md)#本机真实-gitea-e2e前置与复现  
-3. v2 Assign 联调清单：[docs/archived/20260709-v2-gitea-integration-checklist.md](docs/archived/20260709-v2-gitea-integration-checklist.md)  
-4. 最近一次本机 E2E 报告：[docs/archived/20260716-e2e-test-report.md](docs/archived/20260716-e2e-test-report.md)
-
-### 前置条件
-
-- Go 1.26+
-- Node.js 18+（仅开发/构建前端时需要）
-- Gitea 实例（完整联调时需要）
-- LLM API Key（DeepSeek / OpenAI / Claude 等；完整联调时需要）
-
-### 1. 构建并启动
+从 [Releases](https://github.com/jeeinn/matea/releases) 下载对应平台**单二进制**（如 `matea-linux-amd64` / `matea-windows-amd64.exe`），无需预置 `config.yaml`：
 
 ```bash
-# 可选：预先准备配置；若省略，首次运行会自动生成最小 config.yaml
-# cp config.example.yaml config.yaml
-# 完整选项见 config.full-example.yaml
-# 可选：cp .env.example .env 后填入 Token / 密钥（勿提交 config.yaml / .env）
-
-cd web && npm install && npm run build && cd ..
-go build -o matea .
-./matea
+chmod +x matea-linux-amd64   # Linux / macOS
+./matea-linux-amd64
+# Windows: matea-windows-amd64.exe
 ```
 
-或从 [Releases](https://github.com/jeeinn/matea/releases) 下载对应平台**单二进制**后直接运行（无需 zip / 预置 yaml）。
+首次启动若本地没有 `config.yaml`，会**自动写入最小 bootstrap**（监听 `8080`、数据目录 `./data/...`、随机 `auth.jwt_secret`），并打印 Web 访问地址。
 
-启动后访问 **Web UI**：http://localhost:8080  
-默认账号：`admin` / `admin123`（首次登录**强制改密**）
+然后：
 
-> **安全警示**：首次登录必须修改默认密码；bootstrap 会随机生成 `auth.jwt_secret`。Token / API Key 勿写入 git。
+1. 打开 http://127.0.0.1:8080  
+2. 使用 `admin` / `admin123` 登录，**立即修改密码**（强制）  
+3. 在 **系统配置** 填写 Gitea / LLM（见下一步）  
 
-> `config.yaml` 可作为 bootstrap / 运维覆盖；Web UI **系统配置**写入数据库后优先于文件。未完成 Gitea/LLM 配置时，顶栏会显示 Setup 引导。
+> **安全警示**：bootstrap 会随机生成 `jwt_secret`；Token / API Key 勿写入 git。未完成 Gitea/LLM 配置时，顶栏会显示 Setup 引导。Web UI **系统配置**写入数据库后优先于文件。
+
+生产部署、systemd 等见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
 
 ### 2. Web UI 配置（推荐顺序）
 
-按以下顺序在 Web UI 中完成首次配置：
-
 | 步骤 | 页面 | 操作 |
 |------|------|------|
-| ① | 登录 | 使用 `admin` / `admin123` 登录，**登录后立即改密** |
-| ② | **系统配置 → Gitea 连接** | 填写 Gitea 地址、管理员 Token（需 `write:admin`）、Webhook 密钥 → 点击 **测试 Gitea 连接** → **保存全部** |
-| ③ | **系统配置 → LLM 配置** | 填写 Provider JSON 与默认模型 → 点击 **测试 LLM 连接** → **保存全部** |
+| ① | 登录 | `admin` / `admin123` → **立即改密** |
+| ② | **系统配置 → Gitea 连接** | 填写 Gitea 地址、管理员 Token（需 `write:admin`）、Webhook 密钥 → **测试 Gitea 连接** → **保存全部** |
+| ③ | **系统配置 → LLM 配置** | 填写 Provider JSON 与默认模型 → **测试 LLM 连接** → **保存全部** |
 | ④ | **Agent 管理** | 新建 analyze / coder / review 三个 Agent，勾选目标仓库 |
 | ⑤ | Gitea 仓库 | 将 Agent 用户加为协作者；配置 Webhook（见下文） |
 
@@ -119,11 +87,11 @@ go build -o matea .
 
 | 项 | 值 |
 |----|-----|
-| URL | `http://<gateway-host>:8080/webhook/gitea` |
+| URL | `http://<matea-host>:8080/webhook/gitea` |
 | Secret | 与系统配置中的 Webhook 密钥一致 |
 | 事件 | Issues、Issue Comment、Pull Request、Pull Request Comment |
 
-> 远程 Gitea 无法访问你本机的 `localhost`，需使用公网 IP、内网穿透，或将 Gateway 部署到 Gitea 同机。
+> 远程 Gitea 无法访问你本机的 `localhost`，需使用公网 IP、内网穿透，或将 Matea 部署到 Gitea 同机。
 
 ### 4. 验证工作流
 
@@ -131,13 +99,27 @@ go build -o matea .
 2. Assign `coder-agent` → 等待 PR 创建  
 3. 在 PR 上 Request `review-agent` → 等待审查评论  
 
-详细联调清单见 [docs/archived/20260709-v2-gitea-integration-checklist.md](docs/archived/20260709-v2-gitea-integration-checklist.md)；部署与生产注意见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+详细联调清单见 [docs/archived/20260709-v2-gitea-integration-checklist.md](docs/archived/20260709-v2-gitea-integration-checklist.md)。
 
----
+### 从源码构建（可选）
+
+需要：Go 1.26+、Node.js 18+（构建前端；产物经 `go:embed` 打进二进制）。
+
+```bash
+git clone https://github.com/jeeinn/matea.git
+cd matea
+
+cd web && npm install && npm run build && cd ..
+go build -o matea .
+./matea          # 同样：无 config.yaml 时自动生成
+```
+
+也可预先 `cp config.example.yaml config.yaml` 再编辑；完整选项见 `config.full-example.yaml`。  
+健康检查：http://127.0.0.1:8080/health
 
 ### 备选：纯配置文件方式
 
-若不使用 Web UI，可直接编辑 `config.yaml`：
+若不使用 Web UI，可直接编辑 `config.yaml`（支持 `${VAR}` / `${VAR:-default}` 展开）：
 
 ```yaml
 gitea:
@@ -152,26 +134,11 @@ llm:
       api_key: "${DEEPSEEK_API_KEY}"
 ```
 
-配置支持环境变量展开：`${VAR_NAME}` 或 `${VAR_NAME:-default_value}`。
-
-### 构建（仅后端）
-
-```bash
-go build -o matea .
-```
-
-### 运行
-
-```bash
-./matea -config config.yaml
-```
-
-- **健康检查**: http://localhost:8080/health
-
 ## 配置说明
 
-精简可运行示例：[config.example.yaml](config.example.yaml)（复制为 `config.yaml` 即可起步）。  
-完整选项与注释：[config.full-example.yaml](config.full-example.yaml)。主要配置段：
+**推荐路径**：直接运行二进制 → Web 登录改密 → **系统配置** 写入 Gitea / LLM（存库，优先于文件）。
+
+参考文件：[config.example.yaml](config.example.yaml)（精简示例）、[config.full-example.yaml](config.full-example.yaml)（完整注释）。主要配置段：
 
 | 配置段 | 说明 |
 |--------|------|
@@ -228,8 +195,8 @@ agents:
 ### 前后端分离开发
 
 ```bash
-# 终端 1: 后端
-go build -o matea . && ./matea -config config.yaml
+# 终端 1: 后端（无 config.yaml 时自动生成）
+go build -o matea . && ./matea
 
 # 终端 2: 前端（热更新）
 cd web && npm run dev
@@ -239,6 +206,8 @@ cd web && npm run dev
 
 ### 测试
 
+不连真实 Gitea / LLM，用仓库自带 Mock 即可验证核心逻辑：
+
 ```bash
 # 全部测试
 go test ./... -count=1
@@ -246,7 +215,7 @@ go test ./... -count=1
 # 单元测试
 go test ./internal/... -v -count=1
 
-# 集成测试
+# 集成测试（Mock Gitea / Mock LLM）
 go test ./tests/integration/ -v -count=1
 
 # 单个包
@@ -256,7 +225,8 @@ go test ./internal/sandbox/ -v -count=1
 go test ./... -coverprofile=coverage.out && go tool cover -html=coverage.out
 ```
 
-测试框架：`testify`（assert + require）。集成测试使用 `TestEnv` 提供内存 SQLite、Mock Gitea 和 Mock LLM。
+测试框架：`testify`（assert + require）。集成测试使用 `TestEnv` 提供内存 SQLite、Mock Gitea 和 Mock LLM。  
+本机真实 Gitea E2E 见 [scripts/TESTING.md](scripts/TESTING.md)。
 
 ### 代码质量
 
@@ -269,7 +239,7 @@ go vet ./...
 
 ```
 ├── main.go                 # 入口：HTTP 服务器 + graceful shutdown
-├── config.example.yaml     # 精简可运行示例（复制为 config.yaml）
+├── config.example.yaml     # 精简配置示例（可选；无文件时自动 bootstrap）
 ├── config.full-example.yaml # 完整配置参考
 ├── internal/
 │   ├── agent/              # Tool-Use Agent Loop + 工具定义
@@ -292,7 +262,7 @@ go vet ./...
 
 ## Agent 角色（v2 Assign 模型）
 
-在 Gateway 中注册多个功能性 Agent，每个 Agent 设置 `role` 并在 Gitea 上作为协作者：
+在 Matea 中注册多个功能性 Agent，每个 Agent 设置 `role` 并在 Gitea 上作为协作者：
 
 | role | 触发方式 | 说明 |
 |------|----------|------|

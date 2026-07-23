@@ -7,8 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-07-23
+
+补丁发布：自动化 Release、配置示例分层，以及开源后若干能力加固。  
+推送本 tag 后由 [`.github/workflows/release.yml`](.github/workflows/release.yml) 生成 **draft** Release；维护者在 GitHub 上核对后 Publish。
+
 ### Added
-- **Harness 验证门禁**：`agents.loop.no_progress_limit`（无进展退出）与 `verify_commands`（编码后、commit/PR 前 shell 校验）
+- **Release workflow**：推送 `v*` tag 时自动交叉编译五平台二进制 + `checksums.txt`，并创建 GitHub Release **draft**
+- **配置双示例**：`config.example.yaml`（精简可跑）+ `config.full-example.yaml`（完整参考）；`workspace.base_dir` 默认 `./data/work`
+- **Harness**：`no_progress_limit` / `verify_commands`；独立 Checker（Review 独立 Prompt、Coder `independent_checker`、L2 `review_not_same_coder`）
+- **LLM 采样参数透传**：`top_p` / `frequency_penalty` / `presence_penalty`（`default_params` → ChatRequest）
+- **沙箱**：`rg` 工具（未安装回退 `search_code`）；temp 与 Session workspace `Persistent` 生命周期对齐
+- **架构 P1 硬化**：Registry 锁、Config 深拷贝、Webhook inbox 先落库再 200、Provider 按 `type` 选适配器等
+- **工程拆分**：api / agents / dispatcher / config 大文件按职责拆分
+
+### Changed
+- 文档：已完成 TASKS / 开源清单 / E2E 签核等迁入 `docs/archived/`；现行 `docs/` 仅保留架构、部署、TASKS backlog、v4 设计与 LLM 可选增强
 
 ## [0.10.0] - 2026-07-17
 
@@ -314,7 +328,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SQLite 存储 (WAL 模式)
 - YAML 配置 (环境变量展开)
 
-[Unreleased]: https://github.com/jeeinn/ai-dev/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/jeeinn/ai-dev/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/jeeinn/ai-dev/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/jeeinn/ai-dev/compare/v0.7.0...v0.10.0
 [0.7.0]: https://github.com/jeeinn/ai-dev/compare/v0.3.1...v0.7.0
 [0.3.1]: https://github.com/jeeinn/ai-dev/compare/v0.3.0...v0.3.1

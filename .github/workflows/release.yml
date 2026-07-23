@@ -1,0 +1,80 @@
+# Build multi-platform gateway binaries and open a draft GitHub Release on tag push.
+# Maintainer flow: update CHANGELOG → git tag -a vX.Y.Z → git push origin vX.Y.Z
+# Then review the draft Release on GitHub and publish when ready.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & draft release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build frontend (go:embed requires web/dist)
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Cross-compile binaries
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # modernc.org/sqlite is pure Go; CGO_ENABLED=0 yields static-ish binaries.
+          ldflags="-s -w"
+
+          build() {
+            local goos="$1" goarch="$2" out="$3"
+            echo "==> ${out}"
+            GOOS="${goos}" GOARCH="${goarch}" go build -trimpath -ldflags="${ldflags}" -o "dist/${out}" .
+          }
+
+          build linux   amd64 gateway-linux-amd64
+          build linux   arm64 gateway-linux-arm64
+          build windows amd64 gateway-windows-amd64.exe
+          build darwin  amd64 gateway-darwin-amd64
+          build darwin  arm64 gateway-darwin-arm64
+
+          (
+            cd dist
+            sha256sum gateway-* > checksums.txt
+          )
+          ls -la dist
+
+      - name: Create draft GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/gateway-linux-amd64
+            dist/gateway-linux-arm64
+            dist/gateway-windows-amd64.exe
+            dist/gateway-darwin-amd64
+            dist/gateway-darwin-arm64
+            dist/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

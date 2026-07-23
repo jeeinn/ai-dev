@@ -5,6 +5,7 @@
 ## 目录
 
 - [环境要求](#环境要求)
+- [维护者：打 tag 自动出 Release Draft](#维护者打-tag-自动出-release-draft)
 - [快速部署](#快速部署)
 - [配置说明](#配置说明)
 - [Systemd 服务](#systemd-服务)
@@ -29,6 +30,29 @@
 | 内存 | ≥ 512MB |
 | 磁盘 | ≥ 1GB（含工作空间） |
 | 网络 | 能访问 Gitea 和 LLM API |
+
+## 维护者：打 tag 自动出 Release Draft
+
+推送匹配 `v*` 的 tag 后，GitHub Actions（[`.github/workflows/release.yml`](../.github/workflows/release.yml)）会：
+
+1. 构建前端并交叉编译 5 个平台二进制（linux/windows/darwin × amd64/arm64）
+2. 生成 `checksums.txt`
+3. 创建 **draft** Release 并上传产物
+
+维护者流程：
+
+```bash
+# 1. CHANGELOG [Unreleased] 整理进新版本段，CI 绿
+git checkout master && git pull
+
+# 2. 打 annotated tag 并推送
+git tag -a v0.11.0 -m "v0.11.0"
+git push origin v0.11.0
+
+# 3. 在 GitHub Releases 打开 Draft，核对说明与附件后 Publish
+```
+
+历史手工步骤见 [archived/20260717-RELEASE-v0.10.0.md](archived/20260717-RELEASE-v0.10.0.md)。
 
 ## 快速部署
 
@@ -57,7 +81,7 @@ cp config.example.yaml config.yaml
 
 ### 方式二：使用预编译二进制
 
-从 Releases 页面下载对应平台的二进制文件，直接运行：
+从 [Releases](https://github.com/jeeinn/ai-dev/releases) 页面下载对应平台的二进制文件（含 `checksums.txt`），直接运行：
 
 ```bash
 chmod +x gateway

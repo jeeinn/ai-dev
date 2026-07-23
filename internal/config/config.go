@@ -175,13 +175,13 @@ func DefaultToolPacks() ToolPacksConfig {
 		Packs: map[string]ToolPackConfig{
 			"coder-default": {
 				Tools: []string{
-					"read_file", "write_file", "list_files", "search_code",
+					"read_file", "write_file", "list_files", "search_code", "rg",
 					"run_command", "apply_diff", "tree", "git_log", "git_blame",
 				},
 			},
 			"analyze-readonly": {
 				Tools: []string{
-					"list_files", "search_code", "read_file", "tree", "git_log",
+					"list_files", "rg", "search_code", "read_file", "tree", "git_log",
 				},
 			},
 		},

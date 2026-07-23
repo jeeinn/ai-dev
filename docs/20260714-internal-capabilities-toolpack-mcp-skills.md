@@ -82,7 +82,7 @@ flowchart TB
 
 | Pack ID | 工具（建议） | 用于 |
 |---------|--------------|------|
-| `analyze-readonly` | `list_files`, `search_code`, `read_file`, `tree`, `git_log`（可选 `git_blame`） | Analyze 短 Loop；**禁止** `write_file` / `apply_diff` / `run_command` |
+| `analyze-readonly` | `list_files`, `rg`, `search_code`, `read_file`, `tree`, `git_log`（可选 `git_blame`） | Analyze 短 Loop；**禁止** `write_file` / `apply_diff` / `run_command` |
 | `coder-default` | 现行 DefaultTools 全集 | Dev / Bugfix |
 | `review-readonly` | 同 analyze 或 + 读单文件 | Review 深挖（可选） |
 
@@ -94,9 +94,9 @@ flowchart TB
 agents:
   tool_packs:
     analyze-readonly:
-      tools: [list_files, search_code, read_file, tree, git_log]
+      tools: [list_files, rg, search_code, read_file, tree, git_log]
     coder-default:
-      tools: [read_file, write_file, list_files, search_code, run_command, apply_diff, tree, git_log, git_blame]
+      tools: [read_file, write_file, list_files, search_code, rg, run_command, apply_diff, tree, git_log, git_blame]
 ```
 
 ```text

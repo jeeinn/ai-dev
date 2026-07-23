@@ -299,7 +299,8 @@ flowchart TD
 | `read_file` | 读取工作区文件 |
 | `write_file` | 写入/创建文件 |
 | `list_files` | 列出目录结构（`find -maxdepth 3`） |
-| `search_code` | grep 搜索代码 |
+| `search_code` | grep / PowerShell 搜索代码 |
+| `rg` | ripgrep 快速搜索（未安装时回退 `search_code`） |
 | `run_command` | 执行 shell 命令（构建/测试） |
 | `apply_diff` | 应用 unified diff patch |
 | `tree` | 显示目录树（可配置深度） |
@@ -314,16 +315,16 @@ flowchart TD
 
 非 Docker 的轻量沙箱：
 
-- **命令白名单**: git, go, python, node, cat, ls, grep 等安全命令
+- **命令白名单**: git, go, python, node, cat, ls, grep, rg 等安全命令
 - **路径隔离**: 所有文件操作验证在 `WorkDir` 内，防止 `../../etc/passwd`
 - **超时控制**: 单命令 `CommandTimeout`（默认 5m），总任务 `TaskTimeout`（默认 30m）
 - **输出限制**: stdout/stderr 各 `MaxOutput`（默认 1MB）
 - **文件大小限制**: `MaxFileSize`（默认 1MB）
 
-两种工作区模式：
-- **Session 级**（v2 coder 主路径）：`{baseDir}/sessions/{session_id}/repo/`，Task 结束不 Cleanup，生命周期或 reset 时回收
+工作区模式：
+- **Session 级**（v2 coder 主路径）：`NewWithPath` + `Persistent=true`，`{baseDir}/sessions/...`；`mode=temp` 不会改写路径，任务结束 Cleanup 为 no-op；由 `SessionLifecycle` 回收
 - `fixed`: 固定目录 `baseDir/task_{id}`（无 Session 时的 fallback）
-- `temp`: `os.MkdirTemp` 自动创建临时目录
+- `temp`: 仅无预置 `WorkDir` 时用 `os.MkdirTemp`；任务完成后 Cleanup
 
 #### Git 操作封装
 

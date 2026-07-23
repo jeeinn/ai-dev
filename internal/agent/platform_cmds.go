@@ -1,10 +1,29 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
+	"os/exec"
 	"runtime"
 	"strconv"
+	"strings"
+
+	"gitea-agent-gateway/internal/sandbox"
 )
+
+// isCommandMissing reports whether Execute failed because the binary is not on PATH.
+func isCommandMissing(result *sandbox.Result) bool {
+	if result == nil || result.Error == nil {
+		return false
+	}
+	if errors.Is(result.Error, exec.ErrNotFound) {
+		return true
+	}
+	msg := strings.ToLower(result.Error.Error() + " " + result.Stderr)
+	return strings.Contains(msg, "executable file not found") ||
+		strings.Contains(msg, "not found in %path%") ||
+		strings.Contains(msg, "no such file or directory")
+}
 
 // Platform returns the sandbox host OS ("windows", "linux", "darwin", ...).
 func Platform() string {
@@ -63,6 +82,23 @@ func searchCodeCmd(pattern, path string) (cmd string, args []string) {
 		"--include=*.md", "--include=*.yaml", "--include=*.yml", "--include=*.json",
 		pattern, path,
 	}
+}
+
+// rgCmd returns ripgrep args for pattern under path with optional glob filter.
+// Caller prepends command name "rg". Exit 1 means no matches (not an error).
+func rgCmd(pattern, path, glob string) []string {
+	if path == "" {
+		path = "."
+	}
+	args := []string{
+		"-n", "--no-heading", "-S",
+		"--hidden", "--glob", "!.git",
+	}
+	if glob != "" {
+		args = append(args, "--glob", glob)
+	}
+	args = append(args, "--", pattern, path)
+	return args
 }
 
 // removeFileCmd returns platform-specific delete for a workspace-relative file.

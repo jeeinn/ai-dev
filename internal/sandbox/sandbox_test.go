@@ -80,6 +80,28 @@ func TestSandboxTempMode(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "Temp directory should not exist after Cleanup")
 }
 
+func TestNewWithPathIgnoresTempMode(t *testing.T) {
+	sessionDir := filepath.Join(t.TempDir(), "sessions", "s1", "repo")
+	cfg := SandboxConfig{
+		Mode:           ModeTemp,
+		CommandTimeout: 1 * time.Minute,
+		MaxOutput:      1024,
+	}
+
+	s := NewWithPath(cfg, 42, sessionDir)
+	require.True(t, s.Persistent)
+	require.Equal(t, sessionDir, s.WorkDir)
+
+	require.NoError(t, s.Setup())
+	assert.Equal(t, sessionDir, s.WorkDir, "Setup must not replace session WorkDir with MkdirTemp")
+	_, err := os.Stat(sessionDir)
+	require.NoError(t, err)
+
+	require.NoError(t, s.Cleanup())
+	_, err = os.Stat(sessionDir)
+	assert.False(t, os.IsNotExist(err), "Persistent Cleanup must leave session workspace intact")
+}
+
 func TestSandboxWriteReadFile(t *testing.T) {
 	cfg := SandboxConfig{
 		Mode:           ModeFixed,

@@ -235,10 +235,12 @@ agents:
 # ===== 沙箱配置 (P1.6) =====
 # 约定：task 级 workspace 为 {sandbox.base_dir}/task_{id}；Session 为 {workspace.base_dir}/sessions/...
 # 若 sandbox.base_dir 留空或仍为历史默认 "./workspace"，启动时自动对齐为 workspace.base_dir。
+# Session 工作区走 NewWithPath（Persistent）：不受 mode=temp 的 MkdirTemp/任务结束 Cleanup 影响，
+# 回收由 SessionLifecycle（Issue closed / PR merged / idle TTL / 磁盘上限）负责。
 sandbox:
-  # 工作目录模式: "fixed" | "temp"
+  # 工作目录模式: "fixed" | "temp"（仅影响无 Session 的 task 级 workspace）
   # fixed: 使用固定 base_dir + task_{id} 子目录
-  # temp: 使用临时目录 (os.MkdirTemp)，任务完成后自动清理（无 Session 时）
+  # temp: 使用临时目录 (os.MkdirTemp)，任务完成后 Cleanup（Session 路径永不走此路径）
   mode: "fixed"
   # 与 workspace.base_dir 同根，避免 Session / Sandbox 双轨分裂
   base_dir: "./data/work"

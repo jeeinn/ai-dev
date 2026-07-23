@@ -36,8 +36,9 @@
 推送匹配 `v*` 的 tag 后，GitHub Actions（[`.github/workflows/release.yml`](../.github/workflows/release.yml)）会：
 
 1. 构建前端并交叉编译 5 个平台二进制（linux/windows/darwin × amd64/arm64）
-2. 生成 `checksums.txt`
-3. 创建 **draft** Release 并上传产物
+2. 每个平台打成 **zip 部署包**（`gateway`/`gateway.exe` + `config.example.yaml` + `.env.example` + `README.txt`）
+3. 生成 `checksums.txt`（对 zip 做 SHA256）
+4. 创建 **draft** Release 并上传产物
 
 维护者流程：
 
@@ -79,14 +80,20 @@ cp config.example.yaml config.yaml
 ./gateway -config config.yaml
 ```
 
-### 方式二：使用预编译二进制
+### 方式二：使用预编译 zip 包
 
-从 [Releases](https://github.com/jeeinn/ai-dev/releases) 页面下载对应平台的二进制文件（含 `checksums.txt`），直接运行：
+从 [Releases](https://github.com/jeeinn/ai-dev/releases) 下载对应平台的 zip（如 `gateway-linux-amd64.zip`），解压后配置并运行：
 
 ```bash
+unzip gateway-linux-amd64.zip -d gateway && cd gateway
+cp config.example.yaml config.yaml
+cp .env.example .env
+# 编辑 config.yaml / .env（填入 Token、密钥）
 chmod +x gateway
 ./gateway -config config.yaml
 ```
+
+Windows 解压 `gateway-windows-amd64.zip` 后运行 `gateway.exe -config config.yaml`。
 
 ## 配置说明
 

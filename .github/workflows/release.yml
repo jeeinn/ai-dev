@@ -1,6 +1,8 @@
-# Build multi-platform gateway binaries and open a draft GitHub Release on tag push.
+# Build multi-platform gateway zip packages and open a draft GitHub Release on tag push.
 # Maintainer flow: update CHANGELOG → git tag -a vX.Y.Z → git push origin vX.Y.Z
 # Then review the draft Release on GitHub and publish when ready.
+#
+# Each zip contains: gateway binary + config.example.yaml + .env.example
 
 name: Release
 
@@ -35,7 +37,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Cross-compile binaries
+      - name: Cross-compile and package zip releases
         env:
           CGO_ENABLED: "0"
         run: |
@@ -44,21 +46,50 @@ jobs:
           # modernc.org/sqlite is pure Go; CGO_ENABLED=0 yields static-ish binaries.
           ldflags="-s -w"
 
-          build() {
-            local goos="$1" goarch="$2" out="$3"
-            echo "==> ${out}"
-            GOOS="${goos}" GOARCH="${goarch}" go build -trimpath -ldflags="${ldflags}" -o "dist/${out}" .
+          write_readme() {
+            local dest="$1" pkg="$2" bin="$3"
+            {
+              echo "Gitea Agent Gateway — ${pkg}"
+              echo
+              echo "Contents: ${bin}, config.example.yaml, .env.example"
+              echo
+              echo "Quick start:"
+              echo "  1. cp config.example.yaml config.yaml"
+              echo "  2. cp .env.example .env"
+              echo "  3. Edit config.yaml / .env (tokens, secrets)"
+              echo "  4. ./${bin} -config config.yaml"
+              echo
+              echo "Full config: https://github.com/jeeinn/ai-dev/blob/master/config.full-example.yaml"
+              echo "Deploy guide: https://github.com/jeeinn/ai-dev/blob/master/docs/DEPLOYMENT.md"
+            } > "${dest}"
           }
 
-          build linux   amd64 gateway-linux-amd64
-          build linux   arm64 gateway-linux-arm64
-          build windows amd64 gateway-windows-amd64.exe
-          build darwin  amd64 gateway-darwin-amd64
-          build darwin  arm64 gateway-darwin-arm64
+          package() {
+            local goos="$1" goarch="$2" pkg="$3" bin="$4"
+            echo "==> ${pkg}.zip"
+            GOOS="${goos}" GOARCH="${goarch}" go build -trimpath -ldflags="${ldflags}" -o "dist/${bin}" .
+
+            local stage="dist/stage-${pkg}"
+            rm -rf "${stage}"
+            mkdir -p "${stage}"
+            cp "dist/${bin}" "${stage}/${bin}"
+            cp config.example.yaml "${stage}/config.example.yaml"
+            cp .env.example "${stage}/.env.example"
+            write_readme "${stage}/README.txt" "${pkg}" "${bin}"
+
+            (cd "${stage}" && zip -q -r "../${pkg}.zip" .)
+            rm -rf "${stage}" "dist/${bin}"
+          }
+
+          package linux   amd64 gateway-linux-amd64   gateway
+          package linux   arm64 gateway-linux-arm64   gateway
+          package windows amd64 gateway-windows-amd64 gateway.exe
+          package darwin  amd64 gateway-darwin-amd64  gateway
+          package darwin  arm64 gateway-darwin-arm64  gateway
 
           (
             cd dist
-            sha256sum gateway-* > checksums.txt
+            sha256sum gateway-*.zip > checksums.txt
           )
           ls -la dist
 
@@ -70,11 +101,11 @@ jobs:
           name: ${{ github.ref_name }}
           generate_release_notes: true
           files: |
-            dist/gateway-linux-amd64
-            dist/gateway-linux-arm64
-            dist/gateway-windows-amd64.exe
-            dist/gateway-darwin-amd64
-            dist/gateway-darwin-arm64
+            dist/gateway-linux-amd64.zip
+            dist/gateway-linux-arm64.zip
+            dist/gateway-windows-amd64.zip
+            dist/gateway-darwin-amd64.zip
+            dist/gateway-darwin-arm64.zip
             dist/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

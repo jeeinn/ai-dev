@@ -62,7 +62,7 @@ go test ./tests/integration/ -v -count=1
 - `go vet ./...` 通过
 - `go test ./... -count=1` 通过
 
-CI 会在指向 `main` / `master` 的 PR 上自动跑上述检查。推送 `v*` tag 时会触发 [Release](.github/workflows/release.yml) workflow，自动构建多平台二进制并创建 **draft** Release（见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#维护者打-tag-自动出-release-draft)）。
+CI 会在指向 `main` / `master` 的 PR 上自动跑上述检查。推送 `v*` tag 时会触发 [Release](.github/workflows/release.yml) workflow，自动构建多平台 **zip 部署包**并创建 **draft** Release（见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#维护者打-tag-自动出-release-draft)）。
 
 ## 分支与 Pull Request
 

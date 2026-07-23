@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Release 产物**：由裸二进制改为按平台 **zip 部署包**（含 `gateway`/`gateway.exe`、`config.example.yaml`、`.env.example`、`README.txt`）
+
 ## [0.10.1] - 2026-07-23
 
 补丁发布：自动化 Release、配置示例分层，以及开源后若干能力加固。  

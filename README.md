@@ -78,6 +78,7 @@ go test ./tests/integration/ -v -count=1
 
 ```bash
 cp config.example.yaml config.yaml
+# 精简可运行示例；完整选项见 config.full-example.yaml
 # 可选：cp .env.example .env 后填入 Token / 密钥（勿提交 config.yaml / .env）
 # 可选：在 config.yaml 中预填 gitea / llm，也可全部通过 Web UI 配置
 
@@ -164,7 +165,8 @@ go build -o gateway .
 
 ## 配置说明
 
-完整配置参见 [config.example.yaml](config.example.yaml)，主要配置段：
+精简可运行示例：[config.example.yaml](config.example.yaml)（复制为 `config.yaml` 即可起步）。  
+完整选项与注释：[config.full-example.yaml](config.full-example.yaml)。主要配置段：
 
 | 配置段 | 说明 |
 |--------|------|
@@ -200,7 +202,7 @@ agents:
 
 | 配置项 | 说明 |
 |--------|------|
-| `no_progress_limit` | 连续 N 轮工具调用后工作区指纹（`git status --porcelain`）不变则退出；0 = 关闭检测（config.example.yaml 默认 3；省略时为 0 即关闭） |
+| `no_progress_limit` | 连续 N 轮工具调用后工作区指纹（`git status --porcelain`）不变则退出；0 = 关闭检测（config.full-example.yaml 示例为 3；YAML 省略时为 0 即关闭） |
 | `verify_commands` | 编码完成后、commit/PR 前执行的 shell 命令列表；任一命令失败则任务 failed，不写回 PR；空数组 = 跳过校验 |
 
 **示例**：
@@ -262,7 +264,8 @@ go vet ./...
 
 ```
 ├── main.go                 # 入口：HTTP 服务器 + graceful shutdown
-├── config.example.yaml     # 示例配置
+├── config.example.yaml     # 精简可运行示例（复制为 config.yaml）
+├── config.full-example.yaml # 完整配置参考
 ├── internal/
 │   ├── agent/              # Tool-Use Agent Loop + 工具定义
 │   ├── agents/             # Runner 实现 + Manager + Registry

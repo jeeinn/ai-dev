@@ -47,6 +47,7 @@ go build -o gateway .
 
 # 准备配置（config.yaml / .env 含敏感信息，勿提交）
 cp config.example.yaml config.yaml
+# 精简可运行示例；完整选项与注释见 config.full-example.yaml
 # 可选：cp .env.example .env 后填入 Token / 密钥
 # 编辑 config.yaml
 
@@ -64,6 +65,9 @@ chmod +x gateway
 ```
 
 ## 配置说明
+
+起步复制 [config.example.yaml](../config.example.yaml) → `config.yaml`（精简可运行集）。  
+完整可选段与推荐取值见 [config.full-example.yaml](../config.full-example.yaml)；未写出的项由代码默认值填充（如 `workspace.base_dir` 默认为 `./data/work`）。
 
 ### 环境变量
 
@@ -146,7 +150,7 @@ agents:
 
 | 配置项 | 说明 |
 |--------|------|
-| `no_progress_limit` | 连续 N 轮工具调用后工作区指纹（`git status --porcelain`）不变则退出；0 = 关闭检测（config.example.yaml 默认 3；省略时为 0 即关闭） |
+| `no_progress_limit` | 连续 N 轮工具调用后工作区指纹（`git status --porcelain`）不变则退出；0 = 关闭检测（config.full-example.yaml 示例为 3；YAML 省略时为 0 即关闭） |
 | `verify_commands` | 编码完成后、commit/PR 前执行的 shell 命令列表；任一命令失败则任务 failed，不写回 PR；空数组 = 跳过校验 |
 | `independent_checker` | 编码后、verify 前：用**全新 LLM 上下文**对 `git diff` 做 `VERDICT: PASS/FAIL`（防自评；默认 false） |
 
@@ -483,7 +487,7 @@ SELECT id, task_type, status, created_at FROM tasks ORDER BY id DESC LIMIT 10;
 ### 启动
 
 ```bash
-# 与 config.example.yaml 中 base_url 端口一致
+# 与 config.full-example.yaml 中 opencode-local base_url 端口一致
 opencode serve --port 4096
 # 若启用 Basic Auth，设置 OPENCODE_SERVER_PASSWORD 并与 yaml auth.password 对齐
 ```

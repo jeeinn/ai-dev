@@ -54,6 +54,57 @@ agents:
 	assert.Contains(t, err.Error(), "max_iterations")
 }
 
+func TestLoadEmptyYAMLAppliesDefaults(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(""), 0644))
+
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, "0.0.0.0", cfg.Server.Host)
+	assert.Equal(t, 8080, cfg.Server.Port)
+	assert.Equal(t, "./data/work", cfg.Workspace.BaseDir)
+	assert.Equal(t, "./data/gateway.db", cfg.Database.Path)
+	assert.Equal(t, "info", cfg.Logging.Level)
+	assert.Equal(t, "deepseek", cfg.LLM.Defaults.Provider)
+	assert.Equal(t, "deepseek-v4-flash", cfg.LLM.Defaults.Model)
+	assert.Equal(t, "internal", cfg.Agents.Backends.Default)
+	assert.Equal(t, "./data/work", cfg.Sandbox.BaseDir) // aligned from workspace
+	assert.Equal(t, DefaultAgentLoopConfig().MaxIterations, cfg.Agents.Loop.MaxIterations)
+	assert.Equal(t, DefaultAgentLoopConfig().TotalTimeout, cfg.Agents.Loop.TotalTimeout)
+}
+
+func TestLoadMinimalYAMLAppliesDefaults(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "minimal.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+gitea:
+  url: "http://localhost:3000"
+llm:
+  providers:
+    deepseek:
+      base_url: "https://api.deepseek.com/v1"
+      api_key: "test-key"
+  defaults:
+    provider: "deepseek"
+    model: "deepseek-v4-flash"
+auth:
+  jwt_secret: "test-secret"
+`), 0644))
+
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, "http://localhost:3000", cfg.Gitea.URL)
+	assert.Equal(t, "./data/work", cfg.Workspace.BaseDir)
+	assert.Equal(t, "./data/gateway.db", cfg.Database.Path)
+	assert.Equal(t, "test-secret", cfg.Auth.JWTSecret)
+	assert.Contains(t, cfg.LLM.Providers, "deepseek")
+}
+
 func TestApplyBackendDefaultsSetsInternal(t *testing.T) {
 	cfg := &Config{}
 	applyDefaults(cfg)

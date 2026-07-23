@@ -1,5 +1,6 @@
-# Gitea Agent Gateway 配置文件
+# Gitea Agent Gateway — 精简可运行示例
 # 复制为 config.yaml 并修改（config.yaml 已在 .gitignore，请勿提交含 Token 的配置）
+# 完整选项与注释见 config.full-example.yaml
 # 敏感项建议用环境变量：见 .env.example（复制为 .env，勿提交）
 
 server:
@@ -7,265 +8,34 @@ server:
   port: 8080
 
 gitea:
-  # Gitea 服务地址
   url: "http://localhost:3000"
-  # 管理员 API Token（用于自动注册 Agent 账号）
-  # 在 Gitea → 个人设置 → 应用 → 生成令牌，需包含 write:admin 权限
+  # Gitea → 个人设置 → 应用 → 生成令牌（需 write:admin）
   admin_token: "${GITEA_ADMIN_TOKEN}"
-  # Webhook 签名密钥（在 Gitea Webhook 设置中配置的密钥）
+  # 与 Gitea Webhook 设置中的密钥一致
   webhook_secret: "your-webhook-secret-here"
 
 workspace:
-  # Agent 工作目录根（Session 路径：{base_dir}/sessions/{id}/repo）
+  # Session / 任务工作区根目录（省略时代码默认为 ./data/work）
   base_dir: "./data/work"
-  # 失败任务保留时间
-  cleanup_after: "24h"
-  # 最大磁盘占用
-  max_disk_usage: "10GB"
-
-dispatcher:
-  # 最大并发 Agent 数
-  max_concurrent: 2
-  # 整任务失败后的重试次数（clone/runner 整次失败；不含 loop 内轮次）
-  task_retry_count: 1
-  # LLM 返回 429 时的退避等待（秒）；0 表示关闭 429 重试
-  rate_limit_backoff: 30
-  # 任务队列大小
-  queue_size: 100
 
 database:
-  # SQLite 数据库路径
   path: "./data/gateway.db"
 
 logging:
-  # 日志级别: debug / info / warn / error
-  # debug 时会记录所有 Gitea API 请求与响应摘要（敏感字段自动脱敏）
   level: "info"
-  # 日志目录
   path: "./data/logs"
 
 llm:
   providers:
-    # DeepSeek（推荐，性价比高）
-    # models 未设置 → 使用内置模型目录
     deepseek:
       base_url: "https://api.deepseek.com/v1"
       api_key: "${DEEPSEEK_API_KEY}"
       type: "openai_compatible"
-      default_params:
-        temperature: 0.7
-
-    # OpenAI — models: [] → 启用动态发现（调用 /models API）
-    # openai:
-    #   base_url: "https://api.openai.com/v1"
-    #   api_key: "${OPENAI_API_KEY}"
-    #   type: "openai_compatible"
-    #   models: []
-
-    # Claude（Anthropic）— 无公开 /models，始终使用内置目录
-    # claude:
-    #   api_key: "${ANTHROPIC_API_KEY}"
-    #   type: "anthropic"
-
-    # 本地 Ollama — models: [] → 调用 /api/tags 动态发现
-    # ollama:
-    #   base_url: "http://localhost:11434/v1"
-    #   api_key: "ollama"
-    #   models: []
-
   defaults:
     provider: "deepseek"
     model: "deepseek-v4-flash"
 
-  # 单次 ChatCompletion 遇 HTTP 429 后的重试次数（需 rate_limit_backoff > 0）
-  rate_limit_retries: 1
-
-# 调试选项（默认关闭）
-debug:
-  conversation_log:
-    enabled: false
-    max_content_chars: 100000   # 单条 message 写入前截断；0 = 不截断
-
-# API 管理接口配置
-api:
-  # 管理 API 认证 Token（留空则不认证）
-  # 调用 API 时需要在 Header 中添加: Authorization: Bearer <token>
-  auth_token: "${API_AUTH_TOKEN}"
-
-# Web UI / JWT 认证
-# 安全：生产环境必须更换 jwt_secret；首次登录后立即修改默认管理员密码
+# 生产环境必须更换 jwt_secret；首次登录后立即修改默认管理员密码
 auth:
   jwt_secret: "${JWT_SECRET:-change-me-in-production}"
-  jwt_expiration: "24h"
-  # 仅首次创建 admin 用户时生效
   default_admin_password: "${ADMIN_PASSWORD:-admin123}"
-
-# Agent 模板配置
-agents:
-  defaults:
-    provider: "deepseek"
-    model: "deepseek-v4-flash"
-    max_output_tokens: 8192
-    max_input_tokens: 115200  # ~128K 上下文的 90%，主流模型安全兜底
-    temperature: 0.3
-    timeout: "5m"           # 单次任务（analyze/review/reply）总超时
-
-  loop:
-    max_iterations: 10
-    total_timeout: "30m"    # 仅多轮任务（solve/fix_bug）总超时
-    iteration_interval: 3
-    # Harness：连续 N 轮工具调用后工作区指纹不变则退出（0=关闭；默认建议 3）
-    no_progress_limit: 3
-    # Harness：编码结束后、commit/PR 前执行的校验命令（空=跳过；失败则任务 failed）
-    # verify_commands:
-    #   - go test ./...
-    # Harness：编码后用「全新上下文」LLM 对 git diff 做 PASS/FAIL（防自评；默认关闭）
-    # independent_checker: true
-    #   - "go test ./..."
-    #   - "npm test"
-
-  # 编码后端配置（OpenCode Path A）
-  # 默认 internal（内置 AgentLoop）；非写任务（analyze/review/reply）始终 internal
-  # opencode-local 为可选 sidecar，需本机启动 opencode serve
-  backends:
-    default: internal
-    backends:
-      internal:
-        type: builtin
-      # opencode-local:
-      #   type: opencode_http
-      #   base_url: "http://127.0.0.1:4096"
-      #   auth:
-      #     username: opencode
-      #     password: "${OPENCODE_SERVER_PASSWORD}"
-      #   timeout: "45m"
-      #   workspace_mode: gateway_path   # 第一期唯一合法值
-      #   health_check:
-      #     path: /global/health
-      #     interval: 30s
-      #   allow_fallback_internal: false  # false=探活失败任务 failed；true=降级到 internal Loop
-
-  templates:
-    analyze:
-      name: "需求分析 Agent"
-      type: "analyze"
-      system_prompt: |
-        你是一个需求分析专家。你的任务是分析用户提交的 Issue，评估需求完整性和可行性。
-        请输出结构化的需求分析报告，包括：
-        1. 需求摘要
-        2. 完整性评估（是否有遗漏）
-        3. 可行性分析
-        4. 建议的实现方案
-        5. 风险点
-      user_template: |
-        请分析以下 Issue：
-
-        ## Issue #{{.Issue.Number}}: {{.Issue.Title}}
-
-        **状态**: {{.Issue.State}}
-        **作者**: {{.Issue.User.Login}}
-
-        {{.Issue.Body}}
-
-        请输出结构化需求分析报告。
-
-    review:
-      name: "代码审查 Agent"
-      type: "review"
-      system_prompt: |
-        你是一个资深代码审查专家。请审查 PR 变更，输出结构化审查报告。
-        关注点：
-        1. 代码质量和可读性
-        2. 潜在的 bug 和安全问题
-        3. 性能影响
-        4. 测试覆盖
-        5. 改进建议
-      user_template: |
-        请审查以下 PR：
-
-        ## PR #{{.PR.Number}}: {{.PR.Title}}
-
-        **状态**: {{.PR.State}}
-        **作者**: {{.PR.User.Login}}
-        **分支**: {{.PR.Head.Ref}} → {{.PR.Base.Ref}}
-
-        {{.PR.Body}}
-
-        请输出结构化审查报告。
-
-    reply:
-      name: "评论回复 Agent"
-      type: "interaction"
-      system_prompt: |
-        你是一个友好的 AI 助手。请根据上下文回复用户的评论。
-        保持专业、简洁、有帮助。
-      user_template: |
-        请回复以下评论：
-
-        **评论者**: {{.Comment.User.Login}}
-        **内容**:
-        {{.Comment.Body}}
-
-        请给出有帮助的回复。
-
-# ===== 工作流配置 (v2 Assign 工作流) =====
-# workflow:
-#   # 预设: free | standard | strict
-#   preset: standard
-#   gates:
-#     coder_requires_analyzed: off      # strict → hard
-#     allow_skip_analyze: true
-#     reanalyze_while_developing: soft
-#     rerun_same_stage: soft
-#     review_warn_if_draft: off
-#     coder_switch_agent: soft
-#   notify:
-#     on_analyze_done: true
-#     on_coder_pr_opened: true
-#     on_gate_soft: true
-#     on_gate_hard: true
-
-# ===== Session 配置 (Phase 17) =====
-# session:
-#   idle_ttl: "168h"              # 7 天无活动则 archive
-#   workspace_retention: "24h"    # archived 后延迟删盘
-#   pr_closed_retention: "168h"   # PR 未合并关闭后保留
-#   max_disk_per_repo: "5GB"      # 超限 LRU
-
-# ===== 沙箱配置 (P1.6) =====
-# 约定：task 级 workspace 为 {sandbox.base_dir}/task_{id}；Session 为 {workspace.base_dir}/sessions/...
-# 若 sandbox.base_dir 留空或仍为历史默认 "./workspace"，启动时自动对齐为 workspace.base_dir。
-# Session 工作区走 NewWithPath（Persistent）：不受 mode=temp 的 MkdirTemp/任务结束 Cleanup 影响，
-# 回收由 SessionLifecycle（Issue closed / PR merged / idle TTL / 磁盘上限）负责。
-sandbox:
-  # 工作目录模式: "fixed" | "temp"（仅影响无 Session 的 task 级 workspace）
-  # fixed: 使用固定 base_dir + task_{id} 子目录
-  # temp: 使用临时目录 (os.MkdirTemp)，任务完成后 Cleanup（Session 路径永不走此路径）
-  mode: "fixed"
-  # 与 workspace.base_dir 同根，避免 Session / Sandbox 双轨分裂
-  base_dir: "./data/work"
-  # 单命令超时
-  command_timeout: "5m"
-  # 任务总超时
-  task_timeout: "30m"
-  # 命令输出最大字节数
-  max_output: 1048576
-  # 文件写入最大字节数
-  max_file_size: 1048576
-  # 失败任务保留时间（fixed 模式）
-  cleanup_after: "24h"
-
-# ===== MCP 服务器配置 (P2.8) =====
-# 远程 MCP (Model Context Protocol) 服务器定义
-# Agent 可通过 mcp_servers 字段启用指定服务器的工具
-mcp:
-  servers:
-    # 示例：一个提供知识库检索的 MCP 服务器
-    # knowledge-base:
-    #   base_url: "http://localhost:8081/mcp"
-    #   api_key: "${MCP_KB_API_KEY}"   # Bearer token；无鉴权可留空
-    #   timeout: "30s"
-    # 示例：文件系统 MCP
-    # filesystem:
-    #   base_url: "http://localhost:8082/mcp"
-    #   timeout: "15s"

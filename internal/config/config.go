@@ -78,7 +78,7 @@ func applyDefaults(cfg *Config) {
 		cfg.Server.Port = 8080
 	}
 	if cfg.Workspace.BaseDir == "" {
-		cfg.Workspace.BaseDir = "/tmp/gateway-work"
+		cfg.Workspace.BaseDir = "./data/work"
 	}
 	if cfg.Workspace.CleanupAfter == "" {
 		cfg.Workspace.CleanupAfter = "24h"

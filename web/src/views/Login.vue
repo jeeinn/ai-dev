@@ -63,7 +63,12 @@ const handleLogin = async () => {
 
   loading.value = true
   try {
-    await authStore.login(form.username, form.password)
+    const user = await authStore.login(form.username, form.password)
+    if (user?.must_change_password) {
+      ElMessage.warning('请先修改默认密码')
+      router.push('/change-password')
+      return
+    }
     ElMessage.success('登录成功')
     router.push('/')
   } catch (error) {

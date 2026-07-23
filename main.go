@@ -62,10 +62,16 @@ func main() {
 	configPath := flag.String("config", "config.yaml", "path to configuration file")
 	flag.Parse()
 
-	// Load configuration
-	cfg, err := config.Load(*configPath)
+	// Load configuration (auto-generates minimal bootstrap YAML if missing)
+	loadRes, err := config.LoadWithBootstrap(*configPath)
 	if err != nil {
 		log.Fatalf("[FATAL] Failed to load config: %v", err)
+	}
+	cfg := loadRes.Config
+	if loadRes.BootstrapCreated {
+		log.Printf("[INFO] Bootstrap config written: %s (random jwt_secret generated)", loadRes.BootstrapPath)
+		log.Printf("[INFO] Default admin: admin / admin123 — change password on first login")
+		log.Printf("[INFO] Configure Gitea and LLM in Web UI → System Config")
 	}
 	logging.SetLevel(cfg.Logging.Level)
 	closeLog, err := logging.SetupOutput(cfg.Logging.Path)
@@ -159,11 +165,13 @@ func main() {
 	// Build HTTP server
 	mux := http.NewServeMux()
 
-	// Health check
+	// Health check (includes setup_required for ops / early UI probes)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		active := cfgManager.Get()
+		setup := config.CheckSetup(active)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status":"ok","version":"0.10.0"}`)
+		fmt.Fprintf(w, `{"status":"ok","version":"0.10.0","setup_required":%t}`, setup.SetupRequired)
 	})
 
 	// Webhook handler - wired to dispatcher
@@ -218,7 +226,7 @@ func main() {
 	apiHandler.RegisterRoutes(mux)
 
 	// Auth API
-	authHandler := api.NewAuthHandler(db, jwtManager)
+	authHandler := api.NewAuthHandler(db, jwtManager, cfg.Auth.DefaultAdminPassword)
 	authHandler.RegisterAuthRoutes(mux)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
@@ -235,7 +243,8 @@ func main() {
 	signal.Notify(done, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		log.Printf("[INFO] Server starting on %s", addr)
+		listenURL := fmt.Sprintf("http://127.0.0.1:%d", cfg.Server.Port)
+		log.Printf("[INFO] Server starting on %s (Web UI: %s)", addr, listenURL)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("[FATAL] Server failed: %v", err)
 		}

@@ -1,0 +1,21 @@
+# Normalize line endings for source files (avoids gofmt/CI CRLF noise on Windows).
+* text=auto
+
+*.go text eol=lf
+*.mod text eol=lf
+*.sum text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.js text eol=lf
+*.vue text eol=lf
+*.json text eol=lf
+*.sh text eol=lf
+
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

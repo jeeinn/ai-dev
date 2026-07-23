@@ -30,7 +30,7 @@ func TestJWTGenerateAndValidate(t *testing.T) {
 	manager := NewJWTManager("test-secret", 1*time.Hour)
 
 	// Generate token
-	token, err := manager.GenerateToken(1, "testuser", "admin")
+	token, err := manager.GenerateToken(1, "testuser", "admin", false)
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
 
@@ -47,7 +47,7 @@ func TestJWTExpiredToken(t *testing.T) {
 	manager := NewJWTManager("test-secret", 1*time.Millisecond)
 
 	// Generate token
-	token, err := manager.GenerateToken(1, "testuser", "admin")
+	token, err := manager.GenerateToken(1, "testuser", "admin", false)
 	require.NoError(t, err)
 
 	// Wait for token to expire
@@ -71,7 +71,7 @@ func TestJWTWrongSecret(t *testing.T) {
 	manager2 := NewJWTManager("secret2", 1*time.Hour)
 
 	// Generate with secret1
-	token, err := manager1.GenerateToken(1, "testuser", "admin")
+	token, err := manager1.GenerateToken(1, "testuser", "admin", false)
 	require.NoError(t, err)
 
 	// Validate with secret2 should fail

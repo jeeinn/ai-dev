@@ -78,22 +78,24 @@ go test ./tests/integration/ -v -count=1
 ### 1. 构建并启动
 
 ```bash
-cp config.example.yaml config.yaml
-# 精简可运行示例；完整选项见 config.full-example.yaml
+# 可选：预先准备配置；若省略，首次运行会自动生成最小 config.yaml
+# cp config.example.yaml config.yaml
+# 完整选项见 config.full-example.yaml
 # 可选：cp .env.example .env 后填入 Token / 密钥（勿提交 config.yaml / .env）
-# 可选：在 config.yaml 中预填 gitea / llm，也可全部通过 Web UI 配置
 
 cd web && npm install && npm run build && cd ..
 go build -o gateway .
-./gateway -config config.yaml
+./gateway
 ```
 
+或从 [Releases](https://github.com/jeeinn/ai-dev/releases) 下载对应平台**单二进制**后直接运行（无需 zip / 预置 yaml）。
+
 启动后访问 **Web UI**：http://localhost:8080  
-默认账号：`admin` / `admin123`
+默认账号：`admin` / `admin123`（首次登录**强制改密**）
 
-> **安全警示**：首次登录后**务必修改默认密码**；生产环境必须更换 `auth.jwt_secret`（或环境变量 `JWT_SECRET`）。Token / API Key 勿写入 git。
+> **安全警示**：首次登录必须修改默认密码；bootstrap 会随机生成 `auth.jwt_secret`。Token / API Key 勿写入 git。
 
-> `config.yaml` 可作为初始默认值；Web UI **系统配置**会优先显示数据库中的值，数据库未设置的项自动回退到 `config.yaml`。
+> `config.yaml` 可作为 bootstrap / 运维覆盖；Web UI **系统配置**写入数据库后优先于文件。未完成 Gitea/LLM 配置时，顶栏会显示 Setup 引导。
 
 ### 2. Web UI 配置（推荐顺序）
 

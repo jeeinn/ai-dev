@@ -28,7 +28,18 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status
+    const code = error.response?.data?.code
+    if (status === 403 && code === 'must_change_password') {
+      const authStore = useAuthStore()
+      if (authStore.user) {
+        authStore.user = { ...authStore.user, must_change_password: true }
+        localStorage.setItem('user', JSON.stringify(authStore.user))
+      }
+      router.push('/change-password')
+      return Promise.reject(error)
+    }
+    if (status === 401) {
       const authStore = useAuthStore()
       authStore.logout()
       router.push('/login')

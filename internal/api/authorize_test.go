@@ -16,7 +16,7 @@ func TestAuthorizeWrapAcceptsJWT(t *testing.T) {
 		jwtManager: jwtMgr,
 	}
 
-	token, err := jwtMgr.GenerateToken(1, "admin", "admin")
+	token, err := jwtMgr.GenerateToken(1, "admin", "admin", false)
 	if err != nil {
 		t.Fatalf("generate token: %v", err)
 	}

@@ -66,7 +66,7 @@ func TestLoadEmptyYAMLAppliesDefaults(t *testing.T) {
 	assert.Equal(t, "0.0.0.0", cfg.Server.Host)
 	assert.Equal(t, 8080, cfg.Server.Port)
 	assert.Equal(t, "./data/work", cfg.Workspace.BaseDir)
-	assert.Equal(t, "./data/gateway.db", cfg.Database.Path)
+	assert.Equal(t, "./data/matea.db", cfg.Database.Path)
 	assert.Equal(t, "info", cfg.Logging.Level)
 	assert.Equal(t, "deepseek", cfg.LLM.Defaults.Provider)
 	assert.Equal(t, "deepseek-v4-flash", cfg.LLM.Defaults.Model)
@@ -100,7 +100,7 @@ auth:
 
 	assert.Equal(t, "http://localhost:3000", cfg.Gitea.URL)
 	assert.Equal(t, "./data/work", cfg.Workspace.BaseDir)
-	assert.Equal(t, "./data/gateway.db", cfg.Database.Path)
+	assert.Equal(t, "./data/matea.db", cfg.Database.Path)
 	assert.Equal(t, "test-secret", cfg.Auth.JWTSecret)
 	assert.Contains(t, cfg.LLM.Providers, "deepseek")
 }
@@ -163,7 +163,7 @@ func TestLoadGeneratesBootstrapIfMissing(t *testing.T) {
 	cfg := res.Config
 	require.NotNil(t, cfg)
 	assert.Equal(t, 8080, cfg.Server.Port)
-	assert.Equal(t, "./data/gateway.db", cfg.Database.Path)
+	assert.Equal(t, "./data/matea.db", cfg.Database.Path)
 	assert.Equal(t, "./data/work", cfg.Workspace.BaseDir)
 	assert.Equal(t, "info", cfg.Logging.Level)
 	assert.NotEmpty(t, cfg.Auth.JWTSecret)

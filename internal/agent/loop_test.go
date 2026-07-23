@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/llm"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/llm"
 )
 
 type countingProvider struct {

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/llm"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/llm"
 )
 
 // EstimateTokens estimates the token count for a string.

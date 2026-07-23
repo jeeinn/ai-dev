@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	"gitea-agent-gateway/internal/config"
+	"github.com/jeeinn/matea/internal/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

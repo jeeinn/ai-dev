@@ -81,11 +81,11 @@ type ollamaTagList struct {
 		Size       int64  `json:"size"`
 		Digest     string `json:"digest"`
 		Details    struct {
-			Format           string   `json:"format"`
-			Family           string   `json:"family"`
-			Families         []string `json:"families"`
-			ParameterSize    string   `json:"parameter_size"`
-			QuantizationLevel string  `json:"quantization_level"`
+			Format            string   `json:"format"`
+			Family            string   `json:"family"`
+			Families          []string `json:"families"`
+			ParameterSize     string   `json:"parameter_size"`
+			QuantizationLevel string   `json:"quantization_level"`
 		} `json:"details"`
 	} `json:"models"`
 }

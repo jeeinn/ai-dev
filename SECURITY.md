@@ -1,6 +1,6 @@
 # 安全策略
 
-本项目（[jeeinn/ai-dev](https://github.com/jeeinn/ai-dev)）重视安全问题的负责任披露。
+本项目（[jeeinn/matea](https://github.com/jeeinn/matea)）重视安全问题的负责任披露。
 
 ## 支持的版本
 
@@ -13,7 +13,7 @@
 推荐渠道（任选其一）：
 
 1. **GitHub Security Advisories（优先）**  
-   在仓库页面打开 [Security → Advisories → Report a vulnerability](https://github.com/jeeinn/ai-dev/security/advisories/new)，通过私密报告提交。
+   在仓库页面打开 [Security → Advisories → Report a vulnerability](https://github.com/jeeinn/matea/security/advisories/new)，通过私密报告提交。
 
 2. **私密 Issue（若 Advisories 不可用）**  
    创建 Issue 时仅写简短标题与「已通过其他渠道发送细节」的说明，**不要**在正文公开复现步骤；或联系维护者约定私密沟通方式后再补充细节。

@@ -19,7 +19,7 @@
 go run scripts/common/e2e-mock-mcp.go          # 另开终端；测 MCP 时需要
 opencode serve --port 4096                     # 另开终端；测 Path A 时需要
 # 加载 data/e2e-env.local 后：
-.\gateway.exe -config config.yaml
+.\matea.exe -config config.yaml
 
 powershell -NoProfile -File scripts/windows/e2e-setup-gitea.ps1
 powershell -NoProfile -File scripts/windows/e2e-create-agents.ps1

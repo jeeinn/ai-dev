@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gitea-agent-gateway/internal/auth"
+	"github.com/jeeinn/matea/internal/auth"
 )
 
 type contextKey string

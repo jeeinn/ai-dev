@@ -5,8 +5,8 @@ import (
 	"log"
 	"strings"
 
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/webhook"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/webhook"
 )
 
 // buildTaskContext constructs the context string for the task from the event.

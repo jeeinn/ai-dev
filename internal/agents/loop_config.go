@@ -1,8 +1,8 @@
 package agents
 
 import (
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // MergeLoopConfig merges per-agent loop overrides onto system defaults.

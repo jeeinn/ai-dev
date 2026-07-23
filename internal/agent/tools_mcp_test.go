@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/mcp"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/mcp"
 )
 
 func TestRegisterMCPTools(t *testing.T) {

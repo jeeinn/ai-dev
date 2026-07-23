@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/workflow"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/workflow"
 )
 
 func cleanupUnassignEnv(env *TestEnv) {

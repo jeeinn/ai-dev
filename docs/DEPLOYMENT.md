@@ -1,6 +1,6 @@
 # 部署指南
 
-本文档说明如何部署 Gitea Agent Gateway 到生产环境。
+本文档说明如何部署 Matea 到生产环境。
 
 ## 目录
 
@@ -58,12 +58,12 @@ git push origin v0.11.0
 
 ### 方式一：下载单二进制（推荐）
 
-从 [Releases](https://github.com/jeeinn/ai-dev/releases) 下载对应平台二进制（如 `gateway-linux-amd64`），直接运行：
+从 [Releases](https://github.com/jeeinn/matea/releases) 下载对应平台二进制（如 `matea-linux-amd64`），直接运行：
 
 ```bash
-chmod +x gateway-linux-amd64
-./gateway-linux-amd64
-# 等价：./gateway-linux-amd64 -config config.yaml
+chmod +x matea-linux-amd64
+./matea-linux-amd64
+# 等价：./matea-linux-amd64 -config config.yaml
 ```
 
 首次启动若本地没有 `config.yaml`，会自动写入最小 bootstrap（端口 `8080`、数据目录 `./data/...`、随机 `jwt_secret`），并打印 Web 访问地址与默认管理员提示。
@@ -75,23 +75,23 @@ chmod +x gateway-linux-amd64
 3. 在 **系统配置** 填写 Gitea URL / Token / Webhook Secret 与 LLM Provider  
 4. 顶栏「未完成初始化」提示消失后即可配置 Agent 并接收 Webhook  
 
-Windows 下载 `gateway-windows-amd64.exe` 后双击或在终端运行即可。
+Windows 下载 `matea-windows-amd64.exe` 后双击或在终端运行即可。
 
 ### 方式二：从源码构建
 
 ```bash
 # 克隆代码
-git clone https://github.com/jeeinn/ai-dev.git
+git clone https://github.com/jeeinn/matea.git
 cd ai-dev
 
 # 构建前端
 cd web && npm install && npm run build && cd ..
 
 # 构建后端（前端资源通过 go:embed 打包进二进制）
-go build -o gateway .
+go build -o matea .
 
 # 直接运行（无 config.yaml 时自动生成）
-./gateway
+./matea
 ```
 
 也可预先 `cp config.example.yaml config.yaml` 再编辑；完整选项见 `config.full-example.yaml`。
@@ -140,7 +140,7 @@ gitea:
   webhook_secret: "${GITEA_WEBHOOK_SECRET}"
 
 database:
-  path: "./data/gateway.db"   # SQLite 数据库路径
+  path: "./data/matea.db"   # SQLite 数据库路径
 
 workspace:
   base_dir: "./data/work"     # Agent 工作目录
@@ -232,19 +232,19 @@ llm:
 
 ## Systemd 服务
 
-创建服务文件 `/etc/systemd/system/gateway.service`：
+创建服务文件 `/etc/systemd/system/matea.service`：
 
 ```ini
 [Unit]
-Description=Gitea Agent Gateway
+Description=Matea
 After=network.target
 
 [Service]
 Type=simple
 User=gateway
 Group=gateway
-WorkingDirectory=/opt/gateway
-ExecStart=/opt/gateway/gateway -config /opt/gateway/config.yaml
+WorkingDirectory=/opt/matea
+ExecStart=/opt/matea/matea -config /opt/matea/config.yaml
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -253,16 +253,16 @@ StandardError=journal
 # 安全加固
 NoNewPrivileges=yes
 ProtectSystem=strict
-ReadWritePaths=/opt/gateway/data
+ReadWritePaths=/opt/matea/data
 
 # 环境变量
-EnvironmentFile=/opt/gateway/.env
+EnvironmentFile=/opt/matea/.env
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-创建环境文件 `/opt/gateway/.env`：
+创建环境文件 `/opt/matea/.env`：
 
 ```bash
 GITEA_ADMIN_TOKEN=your-token-here
@@ -278,10 +278,10 @@ API_AUTH_TOKEN=your-api-token
 ```bash
 # 创建用户和目录
 sudo useradd -r -s /bin/false gateway
-sudo mkdir -p /opt/gateway/data
-sudo cp gateway config.yaml /opt/gateway/
-sudo cp .env /opt/gateway/
-sudo chown -R gateway:gateway /opt/gateway
+sudo mkdir -p /opt/matea/data
+sudo cp matea config.yaml /opt/matea/
+sudo cp .env /opt/matea/
+sudo chown -R matea:matea /opt/matea
 
 # 启动
 sudo systemctl daemon-reload
@@ -307,7 +307,7 @@ sudo journalctl -u gateway -f
 
 ```text
 # 思路概要（非完整、未维护的 Dockerfile）：
-# 1) builder：Go + Node，先 npm run build，再 go build -o gateway .
+# 1) builder：Go + Node，先 npm run build，再 go build -o matea .
 # 2) runtime：精简基础镜像，仅拷贝 gateway 与配置，暴露 8080，挂载 /app/data
 # Compose：映射端口、挂载 config.yaml、用环境变量注入 Token / JWT_SECRET
 ```
@@ -449,10 +449,10 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/stats
 
 ```bash
 # 备份数据库
-cp data/gateway.db data/gateway.db.bak
+cp data/matea.db data/matea.db.bak
 
 # 或使用 SQLite 命令
-sqlite3 data/gateway.db ".backup data/gateway-backup.db"
+sqlite3 data/matea.db ".backup data/matea-backup.db"
 ```
 
 ### 日志查看
@@ -509,7 +509,7 @@ curl http://localhost:8080/health
 ### 数据库检查
 
 ```bash
-sqlite3 data/gateway.db
+sqlite3 data/matea.db
 
 # 查看 Agent 列表
 SELECT id, name, gitea_username, status FROM agents;
@@ -543,7 +543,7 @@ agents:
       opencode-local:
         type: opencode_http
         base_url: "http://127.0.0.1:4096"
-        workspace_mode: gateway_path   # 第一期唯一合法值
+        workspace_mode: matea_path   # 第一期唯一合法值
         health_check:
           path: /health                # 或 /global/health，视 OpenCode 版本
         allow_fallback_internal: false # true=探活失败时降级内置 Loop（默认勿开）

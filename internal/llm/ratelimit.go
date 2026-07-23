@@ -19,9 +19,9 @@ func IsRateLimitError(err error) bool {
 
 // rateLimitRetryProvider retries ChatCompletion after a fixed backoff on 429 errors.
 type rateLimitRetryProvider struct {
-	inner       Provider
-	backoffSec  int
-	maxRetries  int
+	inner      Provider
+	backoffSec int
+	maxRetries int
 }
 
 // NewRateLimitRetryProvider wraps a provider with 429 backoff retries.

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/sandbox"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/sandbox"
+	"github.com/jeeinn/matea/internal/store"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,8 +29,8 @@ func newTestOpenCodeServer(t *testing.T, handlers map[string]http.HandlerFunc) *
 
 	// Default handlers — tests override via the handlers map (no double-registration)
 	defaultHandlers := map[string]http.HandlerFunc{
-		"/health": defaultHealthHandler,
-		"/session": defaultSessionCreateHandler,
+		"/health":   defaultHealthHandler,
+		"/session":  defaultSessionCreateHandler,
 		"/session/": defaultSessionSubHandler(),
 	}
 
@@ -202,7 +202,7 @@ func TestOpenCodeHTTPCreateSession(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "sess-abc", sessionID)
-	assert.Equal(t, "gateway-task-42", receivedBody["title"])
+	assert.Equal(t, "matea-task-42", receivedBody["title"])
 	assert.Equal(t, "/tmp/test-repo", receivedQuery)
 	assert.Equal(t, "/tmp/test-repo", receivedDirHeader)
 }

@@ -3,7 +3,7 @@ package dispatcher
 import (
 	"testing"
 
-	"gitea-agent-gateway/internal/webhook"
+	"github.com/jeeinn/matea/internal/webhook"
 )
 
 func TestRenderTemplateIssue(t *testing.T) {

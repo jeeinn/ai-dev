@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/llm"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/llm"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

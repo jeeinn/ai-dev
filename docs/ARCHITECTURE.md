@@ -1,8 +1,8 @@
-# Gitea Agent Gateway — 技术架构
+# Matea — 技术架构
 
 ## 概述
 
-Gitea Agent Gateway 是一个 Go 服务，接收 Gitea Webhook 事件，通过 **Assign Agent** 模型触发 AI Agent，执行 LLM 驱动的任务（分析、审查、开发、修复），并将结果写回 Gitea（评论或创建 PR）。
+Matea 是一个 Go 服务，接收 Gitea Webhook 事件，通过 **Assign Agent** 模型触发 AI Agent，执行 LLM 驱动的任务（分析、审查、开发、修复），并将结果写回 Gitea（评论或创建 PR）。
 
 核心设计原则：
 - **Assign 触发 Who，WorkflowContext 定义 When，WorkflowPolicy 定义能不能转，AgentSession 支撑 Continue**
@@ -58,7 +58,7 @@ graph TB
         GITEA[Gitea Server]
     end
 
-    subgraph Gateway["Gitea Agent Gateway (Go)"]
+    subgraph Gateway["Matea (Go)"]
         WH[webhook.Handler<br/>验签 / 去重 / 解析]
         RES[workflow.Resolver<br/>Assign / PR / @mention / lifecycle]
         SESS[workflow.SessionService<br/>GetOrCreate / CompleteTask]
@@ -126,7 +126,7 @@ flowchart LR
 ```
 WebhookEvent
   → Sender 过滤（sender == 任意 Agent → 忽略，防自触发）
-  → /gateway reset 检测（评论命令 → archive + context=idle）
+  → /matea reset 检测（评论命令 → archive + context=idle）
   → EventResolver.Resolve(event)
       ├─ lifecycle（issues.closed / pull_request.closed）→ SessionLifecycle，不入队
       └─ task 事件 → 继续
@@ -175,7 +175,7 @@ idle → analyzing → analyzed → developing → reviewing → done
 - PR review_requested → reviewing
 - Task 完成回调：analyze→analyzed, solve/fix→developing（写 PR ID）
 - Issue closed / PR merged → done + archive sessions（`SessionLifecycle`）
-- 评论 `/gateway reset` 或 `POST /api/sessions/reset` → context=idle，archive sessions
+- 评论 `/matea reset` 或 `POST /api/sessions/reset` → context=idle，archive sessions
 
 #### WorkflowPolicy — 三层门禁（`internal/workflow/policy.go`）
 
@@ -571,10 +571,10 @@ cp config.example.yaml config.yaml
 cd web && npm install && npm run build && cd ..
 
 # 3. 构建后端
-go build -o gateway .
+go build -o matea .
 
 # 4. 运行
-./gateway -config config.yaml
+./matea -config config.yaml
 
 # 5. 在 Gitea 仓库设置中添加 Webhook：
 #    URL: http://your-server:8080/webhook/gitea

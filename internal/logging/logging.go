@@ -64,7 +64,7 @@ func Errorf(format string, args ...any) {
 	}
 }
 
-// SetupOutput configures log output to stdout and optionally appends to dir/gateway.log.
+// SetupOutput configures log output to stdout and optionally appends to dir/matea.log.
 // Returns a cleanup function that should be deferred on shutdown.
 func SetupOutput(dir string) (func(), error) {
 	if strings.TrimSpace(dir) == "" {
@@ -75,7 +75,7 @@ func SetupOutput(dir string) (func(), error) {
 		return nil, fmt.Errorf("create log dir: %w", err)
 	}
 
-	logPath := filepath.Join(dir, "gateway.log")
+	logPath := filepath.Join(dir, "matea.log")
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("open log file %s: %w", logPath, err)

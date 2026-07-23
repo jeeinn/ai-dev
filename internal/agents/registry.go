@@ -4,7 +4,7 @@ import (
 	"log"
 	"sync"
 
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // Registry holds active agents in memory for fast lookup.

@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/sandbox"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/sandbox"
 )
 
 // ToolFunc is the function signature for tool implementations.

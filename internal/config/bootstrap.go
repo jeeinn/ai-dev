@@ -31,7 +31,7 @@ server:
   port: 8080
 
 database:
-  path: "./data/gateway.db"
+  path: "./data/matea.db"
 
 workspace:
   base_dir: "./data/work"

@@ -1,5 +1,5 @@
 {
-  "name": "gitea-agent-gateway-web",
+  "name": "matea-web",
   "version": "0.10.0",
   "private": true,
   "type": "module",

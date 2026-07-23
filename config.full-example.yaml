@@ -1,4 +1,4 @@
-# Gitea Agent Gateway — 完整配置参考
+# Matea — 完整配置参考
 # 日常上手请复制 config.example.yaml → config.yaml（精简可运行集）
 # 本文件列出全部可选段与推荐取值；未写出的项由代码 applyDefaults 填充
 # （例如 workspace.base_dir 默认为 ./data/work）
@@ -39,7 +39,7 @@ dispatcher:
 
 database:
   # SQLite 数据库路径
-  path: "./data/gateway.db"
+  path: "./data/matea.db"
 
 logging:
   # 日志级别: debug / info / warn / error
@@ -143,7 +143,7 @@ agents:
       #     username: opencode
       #     password: "${OPENCODE_SERVER_PASSWORD}"
       #   timeout: "45m"
-      #   workspace_mode: gateway_path   # 第一期唯一合法值
+      #   workspace_mode: matea_path   # 第一期唯一合法值
       #   health_check:
       #     path: /global/health
       #     interval: 30s

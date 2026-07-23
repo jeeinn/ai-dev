@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/webhook"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/webhook"
 )
 
 func TestL1ReviewRequiresPR(t *testing.T) {
@@ -120,12 +120,12 @@ func TestL1CoderPassesThrough(t *testing.T) {
 func TestFormatAgentComment(t *testing.T) {
 	body := "✅ 分析完成"
 	formatted := FormatAgentComment(body)
-	assert.Contains(t, formatted, "<!-- gateway-agent -->")
+	assert.Contains(t, formatted, "<!-- matea-agent -->")
 	assert.Contains(t, formatted, body)
 }
 
 func TestIsAgentComment(t *testing.T) {
-	assert.True(t, IsAgentComment("<!-- gateway-agent -->\nHello"))
+	assert.True(t, IsAgentComment("<!-- matea-agent -->\nHello"))
 	assert.False(t, IsAgentComment("Regular comment"))
 	assert.False(t, IsAgentComment(""))
 }

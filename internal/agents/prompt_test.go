@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 func TestPromptManagerGetPromptFromBuiltin(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"text/template"
 
-	"gitea-agent-gateway/internal/webhook"
+	"github.com/jeeinn/matea/internal/webhook"
 )
 
 // TemplateData is the data available for prompt template rendering.

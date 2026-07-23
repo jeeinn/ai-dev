@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/gitea"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/gitea"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 func newTestManager(t *testing.T, handler http.HandlerFunc) *Manager {
@@ -127,15 +127,15 @@ func TestUpdateAgentProvisionsGiteaUser(t *testing.T) {
 	})
 
 	agent := &store.Agent{
-		Name:          "issue分析",
-		GiteaUsername: "issue-analyze",
-		GiteaToken:    "old-localhost-token",
-		Provider:      "deepseek",
-		Model:         "deepseek-v4-flash",
+		Name:            "issue分析",
+		GiteaUsername:   "issue-analyze",
+		GiteaToken:      "old-localhost-token",
+		Provider:        "deepseek",
+		Model:           "deepseek-v4-flash",
 		MaxOutputTokens: 2048,
 		MaxInputTokens:  8192,
-		Role:          store.RoleAnalyze,
-		Status:        "active",
+		Role:            store.RoleAnalyze,
+		Status:          "active",
 	}
 	require.NoError(t, mgr.db.CreateAgent(agent))
 

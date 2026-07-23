@@ -9,9 +9,9 @@ import (
 // Task status constants.
 const (
 	StatusPending = "pending"
-	StatusRunning  = "running"
-	StatusSuccess  = "success"
-	StatusFailed   = "failed"
+	StatusRunning = "running"
+	StatusSuccess = "success"
+	StatusFailed  = "failed"
 	// StatusPartial indicates the runner succeeded but Gitea writeback failed.
 	// The task is not pure success: the result exists but was not delivered to the issue/PR.
 	StatusPartial = "partial"
@@ -42,15 +42,15 @@ type Task struct {
 
 // TaskUsage represents token usage for a task.
 type TaskUsage struct {
-	ID                int64     `json:"id"`
-	TaskID            int64     `json:"task_id"`
-	Provider          string    `json:"provider"`
-	Model             string    `json:"model"`
-	PromptTokens      int       `json:"prompt_tokens"`
-	CompletionTokens  int       `json:"completion_tokens"`
-	TotalTokens       int       `json:"total_tokens"`
-	Cost              float64   `json:"cost"`
-	CreatedAt         time.Time `json:"created_at"`
+	ID               int64     `json:"id"`
+	TaskID           int64     `json:"task_id"`
+	Provider         string    `json:"provider"`
+	Model            string    `json:"model"`
+	PromptTokens     int       `json:"prompt_tokens"`
+	CompletionTokens int       `json:"completion_tokens"`
+	TotalTokens      int       `json:"total_tokens"`
+	Cost             float64   `json:"cost"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 // TaskUsageSummary represents aggregated usage for a task.
@@ -326,7 +326,7 @@ func (db *DB) ResetTask(id int64, reason string) (*Task, error) {
 // FailOrphanedRunningTasks marks all running tasks as failed (e.g. after process crash/restart).
 func (db *DB) FailOrphanedRunningTasks(reason string) (int, error) {
 	if reason == "" {
-		reason = "gateway restarted; interrupted running task"
+		reason = "matea restarted; interrupted running task"
 	}
 	result, err := db.Exec(`UPDATE tasks SET status='failed', error=?, finished_at=CURRENT_TIMESTAMP
 		WHERE status='running'`, reason)

@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	agentpkg "gitea-agent-gateway/internal/agent"
-	"gitea-agent-gateway/internal/gitea"
-	"gitea-agent-gateway/internal/store"
+	agentpkg "github.com/jeeinn/matea/internal/agent"
+	"github.com/jeeinn/matea/internal/gitea"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // --- DevRunner ---

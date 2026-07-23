@@ -6,9 +6,9 @@ import (
 	"regexp"
 	"strings"
 
-	"gitea-agent-gateway/internal/gitea"
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/workflow"
+	"github.com/jeeinn/matea/internal/gitea"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/workflow"
 )
 
 // postGateComment posts a comment on the issue/PR using the agent's Gitea token.

@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"gitea-agent-gateway/internal/agents"
-	"gitea-agent-gateway/internal/auth"
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/agents"
+	"github.com/jeeinn/matea/internal/auth"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // Handler serves the management API.

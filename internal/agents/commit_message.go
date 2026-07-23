@@ -10,9 +10,9 @@ import (
 	"strings"
 	"unicode"
 
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/sandbox"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/sandbox"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 const commitSubjectMaxLen = 72

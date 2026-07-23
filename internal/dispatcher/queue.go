@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // TaskQueue is an in-memory task queue backed by SQLite for persistence.

@@ -53,15 +53,15 @@ jobs:
             GOOS="${goos}" GOARCH="${goarch}" go build -trimpath -ldflags="${ldflags}" -o "dist/${out}" .
           }
 
-          build linux   amd64 gateway-linux-amd64
-          build linux   arm64 gateway-linux-arm64
-          build windows amd64 gateway-windows-amd64.exe
-          build darwin  amd64 gateway-darwin-amd64
-          build darwin  arm64 gateway-darwin-arm64
+          build linux   amd64 matea-linux-amd64
+          build linux   arm64 matea-linux-arm64
+          build windows amd64 matea-windows-amd64.exe
+          build darwin  amd64 matea-darwin-amd64
+          build darwin  arm64 matea-darwin-arm64
 
           (
             cd dist
-            sha256sum gateway-* > checksums.txt
+            sha256sum matea-* > checksums.txt
           )
           ls -la dist
 
@@ -76,17 +76,17 @@ jobs:
             ## Quick start
 
             1. Download the binary for your platform (and verify `checksums.txt` if desired)
-            2. Run it: `./gateway` (Windows: `gateway-windows-amd64.exe`)
+            2. Run it: `./matea` (Windows: `matea-windows-amd64.exe`)
             3. On first run a minimal `config.yaml` is created automatically (random `jwt_secret`)
             4. Open http://127.0.0.1:8080 — login `admin` / `admin123`, **change password**, then configure Gitea / LLM in **System Config**
 
             Optional reference files in the repo: `config.example.yaml`, `.env.example`, `docs/DEPLOYMENT.md`.
           files: |
-            dist/gateway-linux-amd64
-            dist/gateway-linux-arm64
-            dist/gateway-windows-amd64.exe
-            dist/gateway-darwin-amd64
-            dist/gateway-darwin-arm64
+            dist/matea-linux-amd64
+            dist/matea-linux-arm64
+            dist/matea-windows-amd64.exe
+            dist/matea-darwin-amd64
+            dist/matea-darwin-arm64
             dist/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

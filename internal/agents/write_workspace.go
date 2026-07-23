@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitea-agent-gateway/internal/gitea"
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/sandbox"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/gitea"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/sandbox"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // WriteWorkspaceContext holds the prepared workspace state for a write task.

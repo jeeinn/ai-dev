@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	dbPath := "./data/gateway.db"
+	dbPath := "./data/matea.db"
 	if len(os.Args) > 1 {
 		dbPath = os.Args[1]
 	}

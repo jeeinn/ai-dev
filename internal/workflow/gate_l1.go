@@ -5,9 +5,9 @@ import (
 	"log"
 	"strings"
 
-	"gitea-agent-gateway/internal/gitea"
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/webhook"
+	"github.com/jeeinn/matea/internal/gitea"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/webhook"
 )
 
 // GateResult is the outcome of a gate check.
@@ -87,12 +87,12 @@ func (g *L1Gate) checkReviewRequiresPR(evt *webhook.WebhookEvent) GateResult {
 
 // FormatAgentComment wraps a message with the agent comment marker for loop prevention.
 func FormatAgentComment(body string) string {
-	return "<!-- gateway-agent -->\n" + body
+	return "<!-- matea-agent -->\n" + body
 }
 
 // IsAgentComment checks if a comment was posted by the gateway agent.
 func IsAgentComment(body string) bool {
-	return strings.HasPrefix(body, "<!-- gateway-agent -->")
+	return strings.HasPrefix(body, "<!-- matea-agent -->")
 }
 
 // CommentOnIssue posts a comment on the issue/PR using the agent's token.

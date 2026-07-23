@@ -1,4 +1,4 @@
-module gitea-agent-gateway
+module github.com/jeeinn/matea
 
 go 1.26.3
 

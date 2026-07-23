@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea-agent-gateway/internal/agents"
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/webhook"
+	"github.com/jeeinn/matea/internal/agents"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/webhook"
 )
 
 func setupMentionRegistry() *agents.Registry {
@@ -180,7 +180,7 @@ func TestMentionAgentCommentIgnored(t *testing.T) {
 		Repo:   webhook.Repository{FullName: "owner/repo"},
 		Issue:  &webhook.Issue{Number: 5},
 		Comment: &webhook.Comment{
-			Body: "<!-- gateway-agent -->\n✅ 分析完成\n@coder-ds 建议开始实现",
+			Body: "<!-- matea-agent -->\n✅ 分析完成\n@coder-ds 建议开始实现",
 			User: webhook.User{Login: "analyze-007"},
 		},
 		Sender: webhook.User{Login: "analyze-007"},

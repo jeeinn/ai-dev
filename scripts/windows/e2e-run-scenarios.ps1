@@ -125,7 +125,7 @@ function Require-LLM {
 }
 
 function Search-Log([string[]]$patterns) {
-  $logPath = "data/logs-e2e/gateway.log"
+  $logPath = "data/logs-e2e/matea.log"
   if (-not (Test-Path $logPath)) { return $false }
   $content = Get-Content $logPath -Raw -ErrorAction SilentlyContinue
   if (-not $content) { return $false }
@@ -136,7 +136,7 @@ function Search-Log([string[]]$patterns) {
 }
 
 function Find-LogHits([string[]]$patterns) {
-  $logPath = "data/logs-e2e/gateway.log"
+  $logPath = "data/logs-e2e/matea.log"
   if (-not (Test-Path $logPath)) { return @() }
   $hits = @()
   foreach ($line in (Get-Content $logPath -ErrorAction SilentlyContinue)) {
@@ -323,7 +323,7 @@ function Run-E4 {
 }
 
 function Set-AgentToken([int]$agentId, [string]$token) {
-  $dbPath = Join-Path $Root "data/gateway-e2e.db"
+  $dbPath = Join-Path $Root "data/matea-e2e.db"
   $py = @"
 import sqlite3
 c = sqlite3.connect(r'$dbPath')
@@ -335,7 +335,7 @@ c.close()
 }
 
 function Get-AgentToken([int]$agentId) {
-  $dbPath = Join-Path $Root "data/gateway-e2e.db"
+  $dbPath = Join-Path $Root "data/matea-e2e.db"
   $py = @"
 import sqlite3
 c = sqlite3.connect(r'$dbPath')
@@ -375,7 +375,7 @@ function Run-E9 {
     }
   } finally {
     try {
-      $tokName = "gateway-agent-e2e-restore-$(Get-Random)"
+      $tokName = "matea-agent-e2e-restore-$(Get-Random)"
       $newTok = Invoke-RestMethod -Method POST -Uri "$GiteaURL/api/v1/users/e2e-analyze/tokens" -Headers $gHeaders -Body (@{
         name = $tokName
         scopes = @("all")

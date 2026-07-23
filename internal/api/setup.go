@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"gitea-agent-gateway/internal/config"
+	"github.com/jeeinn/matea/internal/config"
 )
 
 func (h *Handler) getSetupStatus(w http.ResponseWriter, r *http.Request) {

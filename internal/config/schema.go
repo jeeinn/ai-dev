@@ -242,7 +242,7 @@ type BackendConfig struct {
 	BaseURL               string                   `yaml:"base_url"`                // opencode_http only
 	Auth                  BackendAuthConfig        `yaml:"auth"`                    // opencode_http only
 	Timeout               string                   `yaml:"timeout"`                 // e.g. "45m"
-	WorkspaceMode         string                   `yaml:"workspace_mode"`          // first release: "gateway_path" only
+	WorkspaceMode         string                   `yaml:"workspace_mode"`          // first release: "matea_path" only
 	HealthCheck           BackendHealthCheckConfig `yaml:"health_check"`            // opencode_http only
 	AllowFallbackInternal bool                     `yaml:"allow_fallback_internal"` // default false
 }

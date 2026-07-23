@@ -1,6 +1,6 @@
 # Binary
-gateway
-gateway.exe*
+matea
+matea.exe*
 dist/
 
 # Local config (contains tokens)

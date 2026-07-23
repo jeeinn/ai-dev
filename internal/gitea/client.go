@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"gitea-agent-gateway/internal/logging"
+	"github.com/jeeinn/matea/internal/logging"
 )
 
 // Client is a Gitea API client.

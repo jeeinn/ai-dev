@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gitea-agent-gateway/internal/sandbox"
+	"github.com/jeeinn/matea/internal/sandbox"
 )
 
 // CodeContext holds information about the codebase for the LLM.

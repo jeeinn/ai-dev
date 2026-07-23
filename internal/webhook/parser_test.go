@@ -290,7 +290,7 @@ func TestParseEventIssueAssigneeInsideIssue(t *testing.T) {
 		"repository": {
 			"id": 1,
 			"name": "repo",
-			"full_name": "jeeinn/ai-dev"
+			"full_name": "jeeinn/matea"
 		},
 		"issue": {
 			"id": 1,
@@ -315,7 +315,7 @@ func TestParseEventIssueAssigneeInsideIssue(t *testing.T) {
 func TestParseEventIssueAssignOnlyAssigneesList(t *testing.T) {
 	payload := []byte(`{
 		"action": "assigned",
-		"repository": {"id": 1, "name": "repo", "full_name": "jeeinn/ai-dev"},
+		"repository": {"id": 1, "name": "repo", "full_name": "jeeinn/matea"},
 		"issue": {
 			"id": 1, "number": 5, "title": "Test", "state": "open",
 			"user": {"id": 1, "login": "jeeinn"},
@@ -333,7 +333,7 @@ func TestParseEventIssueAssignOnlyAssigneesList(t *testing.T) {
 func TestParseEventIssueAssignEventType(t *testing.T) {
 	payload := []byte(`{
 		"action": "assigned",
-		"repository": {"id": 1, "name": "repo", "full_name": "jeeinn/ai-dev"},
+		"repository": {"id": 1, "name": "repo", "full_name": "jeeinn/matea"},
 		"issue": {
 			"id": 1, "number": 5, "title": "Test", "state": "open",
 			"user": {"id": 1, "login": "jeeinn"},

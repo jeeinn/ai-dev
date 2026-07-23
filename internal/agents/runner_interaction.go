@@ -1,0 +1,92 @@
+package agents
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"strings"
+
+	agentpkg "gitea-agent-gateway/internal/agent"
+	"gitea-agent-gateway/internal/llm"
+	"gitea-agent-gateway/internal/store"
+)
+
+// --- InteractionRunner ---
+
+// InteractionRunner handles @Mention reply tasks.
+type InteractionRunner struct {
+	factory *RunnerFactory
+}
+
+// NewInteractionRunner creates a new InteractionRunner.
+func NewInteractionRunner(factory *RunnerFactory) *InteractionRunner {
+	return &InteractionRunner{factory: factory}
+}
+
+// Run executes the interaction task.
+func (r *InteractionRunner) Run(ctx context.Context, task *store.Task, agent *store.Agent) (*Result, error) {
+	// Parse repo owner/name
+	parts := strings.SplitN(task.Repo, "/", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid repo format: %s", task.Repo)
+	}
+	owner, repo := parts[0], parts[1]
+
+	// Get Gitea client
+	client := r.factory.giteaFactory.GetGiteaClient(agent.GiteaToken)
+
+	// Get comment history for context
+	comments, err := client.IssueComments(owner, repo, task.IssueID)
+	if err != nil {
+		log.Printf("[WARN] Failed to get comments: %v", err)
+	}
+
+	// Build context with comment history
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Repository: %s\n", task.Repo))
+	sb.WriteString(fmt.Sprintf("Issue/PR #%d\n\n", task.IssueID))
+	sb.WriteString("## Comment History\n")
+	for i, c := range comments {
+		if i >= 10 { // Limit to last 10 comments
+			sb.WriteString("... (truncated)\n")
+			break
+		}
+		sb.WriteString(fmt.Sprintf("[%s]: %s\n\n", c.User.Login, c.Body))
+	}
+
+	// Get LLM provider
+	provider, err := r.factory.llmRegistry.Get(agent.Provider)
+	if err != nil {
+		return nil, fmt.Errorf("get provider: %w", err)
+	}
+
+	// Build messages
+	messages := []llm.Message{
+		{Role: "system", Content: agent.SystemPrompt},
+		{Role: "user", Content: sb.String()},
+	}
+
+	messages, err = agentpkg.TruncateMessages(messages, nil, r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model), r.factory.getModelMeta(agent.Provider, agent.Model))
+	if err != nil {
+		return nil, fmt.Errorf("truncate messages: %w", err)
+	}
+
+	// Call LLM
+	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
+		Model:       agent.Model,
+		Messages:    messages,
+		MaxTokens:   r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model),
+		Temperature: r.factory.resolveTemperature(agent.Temperature, agent.Provider, agent.Model),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("LLM call: %w", err)
+	}
+
+	log.Printf("[INFO] Task %d LLM response: %d tokens used", task.ID, resp.Usage.TotalTokens)
+	r.factory.recordTaskUsage(task.ID, agent.Provider, agent.Model, resp.Usage)
+
+	return &Result{
+		Content: resp.Content,
+		Action:  "comment",
+	}, nil
+}

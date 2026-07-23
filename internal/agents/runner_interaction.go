@@ -72,12 +72,13 @@ func (r *InteractionRunner) Run(ctx context.Context, task *store.Task, agent *st
 	}
 
 	// Call LLM
-	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
-		Model:       agent.Model,
-		Messages:    messages,
-		MaxTokens:   r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model),
-		Temperature: r.factory.resolveTemperature(agent.Temperature, agent.Provider, agent.Model),
-	})
+	req := &llm.ChatRequest{
+		Model:     agent.Model,
+		Messages:  messages,
+		MaxTokens: r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model),
+	}
+	r.factory.resolveSamplingParams(agent.Temperature, agent.Provider, agent.Model).ApplyTo(req)
+	resp, err := provider.ChatCompletion(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("LLM call: %w", err)
 	}

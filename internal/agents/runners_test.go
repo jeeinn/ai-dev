@@ -219,11 +219,19 @@ func TestFinalizeWriteTaskPRCommentsWhenOpenPRExists(t *testing.T) {
 
 // stubModelMeta implements ModelMetaProvider for resolveMax* tests.
 type stubModelMeta struct {
-	defs map[string]*config.ModelDefinition
+	defs           map[string]*config.ModelDefinition
+	providerParams map[string]config.ModelParams
 }
 
 func (s *stubModelMeta) GetModelMeta(provider, model string) *config.ModelDefinition {
 	return s.defs[provider+"/"+model]
+}
+
+func (s *stubModelMeta) GetProviderDefaultParams(provider string) config.ModelParams {
+	if s.providerParams == nil {
+		return config.ModelParams{}
+	}
+	return s.providerParams[provider]
 }
 
 func TestResolveMaxTokensUsesModelWhenAgentZero(t *testing.T) {
@@ -253,6 +261,47 @@ func TestResolveMaxTokensUsesModelWhenAgentZero(t *testing.T) {
 	// unknown model + agentMax 0 → agents.defaults
 	assert.Equal(t, factory.defaultMaxInput, factory.resolveMaxInputTokens(0, "deepseek", "unknown"))
 	assert.Equal(t, factory.defaultMaxOutput, factory.resolveMaxOutputTokens(0, "deepseek", "unknown"))
+}
+
+func TestResolveSamplingParamsFromModelAndProvider(t *testing.T) {
+	topPModel, topPProv := 0.9, 0.5
+	freq, presence := 0.2, 0.1
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil, sandbox.DefaultConfig(), nil, "")
+	factory.SetModelMetaProvider(&stubModelMeta{
+		defs: map[string]*config.ModelDefinition{
+			"openai/gpt-test": {
+				ID: "gpt-test",
+				DefaultParams: config.ModelParams{
+					TopP:             &topPModel,
+					FrequencyPenalty: &freq,
+				},
+			},
+		},
+		providerParams: map[string]config.ModelParams{
+			"openai": {
+				TopP:            &topPProv,
+				PresencePenalty: &presence,
+			},
+		},
+	})
+
+	sp := factory.resolveSamplingParams(0.7, "openai", "gpt-test")
+	assert.Equal(t, 0.7, sp.Temperature)
+	assert.Equal(t, 0.9, sp.TopP, "model top_p wins over provider")
+	assert.Equal(t, 0.2, sp.FrequencyPenalty)
+	assert.Equal(t, 0.1, sp.PresencePenalty, "provider presence used when model omits it")
+
+	sp = factory.resolveSamplingParams(0, "openai", "unknown")
+	assert.InDelta(t, factory.defaultTemp, sp.Temperature, 0.0001)
+	assert.Equal(t, 0.5, sp.TopP, "provider top_p when model missing")
+	assert.Equal(t, 0.0, sp.FrequencyPenalty)
+	assert.Equal(t, 0.1, sp.PresencePenalty)
+
+	req := &llm.ChatRequest{Model: "m"}
+	sp.ApplyTo(req)
+	assert.Equal(t, sp.Temperature, req.Temperature)
+	assert.Equal(t, sp.TopP, req.TopP)
+	assert.Equal(t, sp.PresencePenalty, req.PresencePenalty)
 }
 
 func TestRecordTaskUsageCostPerThousandTokens(t *testing.T) {

@@ -122,7 +122,7 @@ func (b *InternalCodingBackend) Run(ctx context.Context, req CodingRequest) (*Co
 
 	maxInput := factory.resolveMaxInputTokens(agentCfg.MaxInputTokens, agentCfg.Provider, agentCfg.Model)
 	maxOutput := factory.resolveMaxOutputTokens(agentCfg.MaxOutputTokens, agentCfg.Provider, agentCfg.Model)
-	temperature := factory.resolveTemperature(agentCfg.Temperature, agentCfg.Provider, agentCfg.Model)
+	sampling := factory.resolveSamplingParams(agentCfg.Temperature, agentCfg.Provider, agentCfg.Model)
 	mergedLoop := MergeLoopConfig(agentCfg.LoopConfig, factory.defaultLoop)
 
 	// Resolve tool pack and assemble registry
@@ -157,10 +157,11 @@ func (b *InternalCodingBackend) Run(ctx context.Context, req CodingRequest) (*Co
 		agentCfg.Model,
 		maxOutput,
 		maxInput,
-		temperature,
+		sampling.Temperature,
 		mergedLoop,
 	)
 
+	loop.SetSamplingParams(sampling.TopP, sampling.FrequencyPenalty, sampling.PresencePenalty)
 	loop.SetModelMeta(factory.getModelMeta(agentCfg.Provider, agentCfg.Model))
 	loop.SetProviderName(agentCfg.Provider)
 	loop.SetUsageRecorder(func(p, m string, usage llm.Usage) {

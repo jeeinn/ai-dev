@@ -11,6 +11,7 @@
 
 | # | 任务 | 优先级 | 建议位置 | 说明 |
 |---|------|--------|----------|------|
+| 3.3b | 采样参数透传 | P2 | `agents` / `agent.AgentLoop` | `top_p` / penalty：model→provider `default_params` → ChatRequest（`chore/llm-sampling-params`） |
 | 3.4 | 精确 tokenizer | P2 | `internal/agent/context.go` | 引入 tiktoken（或同类）替代 CJK 估算 |
 | 3.5 | 语义摘要 | P2 | `internal/agent/summarize.go` | 对超长历史对话做摘要以省入窗 |
 | 3.6 | 成本预算控制 | P2 | `internal/agents/*` | 单任务预算上限；超限中止或拒绝 |
@@ -19,6 +20,7 @@
 
 ## 完成标准（可选）
 
+- [x] 3.3b：model/provider `default_params` 的 top_p / penalty 透传到 ChatRequest；有单测  
 - [ ] 3.4：可选开启精确计数；默认仍可用现行估算；有单测对比误差  
 - [ ] 3.5：超长 Session 可配置摘要策略，不影响短对话路径  
 - [ ] 3.6：可配置 per-task 成本上限，超限写回可读错误  

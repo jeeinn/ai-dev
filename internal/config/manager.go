@@ -201,6 +201,7 @@ func (m *ConfigManager) getActiveMap() map[string]interface{} {
 		"agents.loop.iteration_interval":           cfg.Agents.Loop.IterationInterval,
 		"agents.loop.no_progress_limit":            cfg.Agents.Loop.NoProgressLimit,
 		"agents.loop.verify_commands":              cfg.Agents.Loop.VerifyCommands,
+		"agents.loop.independent_checker":          cfg.Agents.Loop.IndependentChecker,
 		"debug.conversation_log.enabled":           cfg.Debug.ConversationLog.Enabled,
 		"debug.conversation_log.max_content_chars": cfg.Debug.ConversationLog.MaxContentChars,
 	}

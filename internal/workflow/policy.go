@@ -33,13 +33,14 @@ type NotifyPolicy struct {
 
 // Gate IDs
 const (
-	GateCoderRequiresAnalyzed     = "coder_requires_analyzed"
-	GateAllowSkipAnalyze          = "allow_skip_analyze"
-	GateReanalyzeWhileDev         = "reanalyze_while_developing"
-	GateRerunSameStage            = "rerun_same_stage"
-	GateReviewWarnIfDraft         = "review_warn_if_draft"
-	GateCoderSwitchAgent          = "coder_switch_agent"
-	GateStageTransitionUnassign   = "stage_transition_unassign"
+	GateCoderRequiresAnalyzed   = "coder_requires_analyzed"
+	GateAllowSkipAnalyze        = "allow_skip_analyze"
+	GateReanalyzeWhileDev       = "reanalyze_while_developing"
+	GateRerunSameStage          = "rerun_same_stage"
+	GateReviewWarnIfDraft       = "review_warn_if_draft"
+	GateCoderSwitchAgent        = "coder_switch_agent"
+	GateStageTransitionUnassign = "stage_transition_unassign"
+	GateReviewNotSameCoder      = "review_not_same_coder"
 )
 
 // PresetFree returns the free preset (minimal gates).
@@ -47,13 +48,14 @@ func PresetFree() *WorkflowPolicy {
 	return &WorkflowPolicy{
 		Preset: "free",
 		Gates: map[string]string{
-			GateCoderRequiresAnalyzed:     "off",
-			GateAllowSkipAnalyze:          "true",
-			GateReanalyzeWhileDev:         "off",
-			GateRerunSameStage:            "off",
-			GateReviewWarnIfDraft:         "off",
-			GateCoderSwitchAgent:          "off",
-			GateStageTransitionUnassign:   "off",
+			GateCoderRequiresAnalyzed:   "off",
+			GateAllowSkipAnalyze:        "true",
+			GateReanalyzeWhileDev:       "off",
+			GateRerunSameStage:          "off",
+			GateReviewWarnIfDraft:       "off",
+			GateCoderSwitchAgent:        "off",
+			GateStageTransitionUnassign: "off",
+			GateReviewNotSameCoder:      "off",
 		},
 		Notify: NotifyPolicy{
 			OnAnalyzeDone:   true,
@@ -69,13 +71,14 @@ func PresetStandard() *WorkflowPolicy {
 	return &WorkflowPolicy{
 		Preset: "standard",
 		Gates: map[string]string{
-			GateCoderRequiresAnalyzed:     "off",
-			GateAllowSkipAnalyze:          "true",
-			GateReanalyzeWhileDev:         "soft",
-			GateRerunSameStage:            "soft",
-			GateReviewWarnIfDraft:         "off",
-			GateCoderSwitchAgent:          "soft",
-			GateStageTransitionUnassign:   "soft",
+			GateCoderRequiresAnalyzed:   "off",
+			GateAllowSkipAnalyze:        "true",
+			GateReanalyzeWhileDev:       "soft",
+			GateRerunSameStage:          "soft",
+			GateReviewWarnIfDraft:       "off",
+			GateCoderSwitchAgent:        "soft",
+			GateStageTransitionUnassign: "soft",
+			GateReviewNotSameCoder:      "soft",
 		},
 		Notify: NotifyPolicy{
 			OnAnalyzeDone:   true,
@@ -91,13 +94,14 @@ func PresetStrict() *WorkflowPolicy {
 	return &WorkflowPolicy{
 		Preset: "strict",
 		Gates: map[string]string{
-			GateCoderRequiresAnalyzed:     "hard",
-			GateAllowSkipAnalyze:          "false",
-			GateReanalyzeWhileDev:         "hard",
-			GateRerunSameStage:            "hard",
-			GateReviewWarnIfDraft:         "soft",
-			GateCoderSwitchAgent:          "hard",
-			GateStageTransitionUnassign:   "hard",
+			GateCoderRequiresAnalyzed:   "hard",
+			GateAllowSkipAnalyze:        "false",
+			GateReanalyzeWhileDev:       "hard",
+			GateRerunSameStage:          "hard",
+			GateReviewWarnIfDraft:       "soft",
+			GateCoderSwitchAgent:        "hard",
+			GateStageTransitionUnassign: "hard",
+			GateReviewNotSameCoder:      "hard",
 		},
 		Notify: NotifyPolicy{
 			OnAnalyzeDone:   true,
@@ -187,6 +191,8 @@ func EvaluateGate(policy *WorkflowPolicy, gateID string, ctx *store.WorkflowCont
 		return evalCoderSwitchAgent(level, ctx, agentID)
 	case GateReviewWarnIfDraft:
 		return evalReviewWarnIfDraft(level, isDraftPR)
+	case GateReviewNotSameCoder:
+		return evalReviewNotSameCoder(level, ctx, agentID)
 	default:
 		return GateEvaluateResult{Allowed: true, Level: "pass", Code: gateID}
 	}
@@ -275,6 +281,31 @@ func evalReviewWarnIfDraft(level GateLevel, isDraftPR bool) GateEvaluateResult {
 	return GateEvaluateResult{
 		Allowed: true, Level: "soft", Code: GateReviewWarnIfDraft,
 		Message: "⚠️ " + msg,
+	}
+}
+
+// evalReviewNotSameCoder blocks/warns when the review agent is the same agent that
+// last worked the issue as coder (Maker ≠ Checker at the workflow layer).
+func evalReviewNotSameCoder(level GateLevel, ctx *store.WorkflowContext, reviewAgentID int64) GateEvaluateResult {
+	if ctx == nil || reviewAgentID == 0 || ctx.ActiveAgentID == 0 || ctx.ActiveAgentID != reviewAgentID {
+		return GateEvaluateResult{Allowed: true, Level: "pass", Code: GateReviewNotSameCoder}
+	}
+	sameCoderContext := ctx.Stage == store.StageDeveloping || ctx.ActiveRole == store.RoleCoder
+	if !sameCoderContext {
+		return GateEvaluateResult{Allowed: true, Level: "pass", Code: GateReviewNotSameCoder}
+	}
+
+	msg := "审查 Agent 与当前开发 Agent 为同一账号，属于自评，审查结论可信度较低。"
+	hint := "请 Request Reviewer 使用独立的 review 角色 Agent。"
+	if level == GateHard {
+		return GateEvaluateResult{
+			Allowed: false, Level: "hard", Code: GateReviewNotSameCoder,
+			Message: "❌ " + msg, Hint: hint,
+		}
+	}
+	return GateEvaluateResult{
+		Allowed: true, Level: "soft", Code: GateReviewNotSameCoder,
+		Message: "⚠️ " + msg + " 已按配置继续执行。", Hint: hint,
 	}
 }
 

@@ -27,5 +27,8 @@ func MergeLoopConfig(agentLoop *store.AgentLoopConfig, defaults config.AgentLoop
 	if agentLoop.VerifyCommands != nil {
 		merged.VerifyCommands = append([]string{}, agentLoop.VerifyCommands...)
 	}
+	if agentLoop.IndependentChecker != nil {
+		merged.IndependentChecker = *agentLoop.IndependentChecker
+	}
 	return merged
 }

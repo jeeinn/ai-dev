@@ -18,6 +18,7 @@ import (
 func TestMergeLoopConfigHarnessFields(t *testing.T) {
 	defaults := config.DefaultAgentLoopConfig()
 	assert.Equal(t, 3, defaults.NoProgressLimit)
+	assert.False(t, defaults.IndependentChecker)
 
 	off := 0
 	agent := &store.AgentLoopConfig{
@@ -30,13 +31,16 @@ func TestMergeLoopConfigHarnessFields(t *testing.T) {
 	assert.Len(t, merged.VerifyCommands, 0)
 
 	on := 5
+	checker := true
 	agent2 := &store.AgentLoopConfig{
-		NoProgressLimit: &on,
-		VerifyCommands:  []string{"go test ./..."},
+		NoProgressLimit:    &on,
+		VerifyCommands:     []string{"go test ./..."},
+		IndependentChecker: &checker,
 	}
 	merged2 := MergeLoopConfig(agent2, defaults)
 	assert.Equal(t, 5, merged2.NoProgressLimit)
 	assert.Equal(t, []string{"go test ./..."}, merged2.VerifyCommands)
+	assert.True(t, merged2.IndependentChecker)
 }
 
 func TestRunHarnessVerifyOK(t *testing.T) {

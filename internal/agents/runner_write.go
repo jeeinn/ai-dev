@@ -145,8 +145,20 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		return nil, fmt.Errorf("coding backend %s reported failure: %s", backend.Name(), codingResult.Summary)
 	}
 
-	// Harness verify gate: opt-in shell checks before commit/PR (internal + OpenCode).
+	// Harness: independent checker (fresh LLM context) then optional shell verify.
 	mergedLoop := MergeLoopConfig(agentCfg.LoopConfig, factory.defaultLoop)
+	provider := codingResult.Provider
+	if provider == nil {
+		provider, _ = factory.llmRegistry.Get(agentCfg.Provider)
+	}
+	if mergedLoop.IndependentChecker {
+		sampling := factory.resolveSamplingParams(agentCfg.Temperature, agentCfg.Provider, agentCfg.Model)
+		maxOut := factory.resolveMaxOutputTokens(agentCfg.MaxOutputTokens, agentCfg.Provider, agentCfg.Model)
+		if err := runIndependentChecker(ctx, sb, provider, agentCfg.Model, sampling, maxOut,
+			task.Event, task.Context, codingResult.Summary); err != nil {
+			return nil, err
+		}
+	}
 	if err := runHarnessVerify(sb, mergedLoop.VerifyCommands); err != nil {
 		return nil, err
 	}
@@ -158,7 +170,6 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 	// For opencode backend, Provider is nil (LLM runs server-side), so
 	// finalize will look up the provider again from the registry — a minor
 	// overhead but keeps the contract simple.
-	provider := codingResult.Provider
 	if provider == nil {
 		provider, _ = factory.llmRegistry.Get(agentCfg.Provider)
 	}

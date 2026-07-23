@@ -29,6 +29,7 @@ var configKeys = []string{
 	"agents.loop.iteration_interval",
 	"agents.loop.no_progress_limit",
 	"agents.loop.verify_commands",
+	"agents.loop.independent_checker",
 	"debug.conversation_log.enabled",
 	"debug.conversation_log.max_content_chars",
 	"workflow.preset",
@@ -65,6 +66,12 @@ func parseConfigValue(key, value string) (interface{}, error) {
 		}
 		return f, nil
 	case "debug.conversation_log.enabled":
+		b, err := parseBoolValue(value)
+		if err != nil {
+			return nil, err
+		}
+		return b, nil
+	case "agents.loop.independent_checker":
 		b, err := parseBoolValue(value)
 		if err != nil {
 			return nil, err
@@ -131,6 +138,8 @@ func getConfigValueTyped(cfg *Config, key string) interface{} {
 		return cfg.Agents.Loop.NoProgressLimit
 	case "agents.loop.verify_commands":
 		return cfg.Agents.Loop.VerifyCommands
+	case "agents.loop.independent_checker":
+		return cfg.Agents.Loop.IndependentChecker
 	case "debug.conversation_log.enabled":
 		return cfg.Debug.ConversationLog.Enabled
 	case "debug.conversation_log.max_content_chars":
@@ -243,6 +252,12 @@ func applyConfigEntry(cfg *Config, key, value string) error {
 			return fmt.Errorf("invalid JSON: %w", err)
 		}
 		cfg.Agents.Loop.VerifyCommands = cmds
+	case "agents.loop.independent_checker":
+		b, err := parseBoolValue(value)
+		if err != nil {
+			return fmt.Errorf("not a boolean: %s", value)
+		}
+		cfg.Agents.Loop.IndependentChecker = b
 	case "debug.conversation_log.enabled":
 		b, err := parseBoolValue(value)
 		if err != nil {
@@ -316,6 +331,8 @@ func getConfigEntry(cfg *Config, key string) string {
 	case "agents.loop.verify_commands":
 		data, _ := json.Marshal(cfg.Agents.Loop.VerifyCommands)
 		return string(data)
+	case "agents.loop.independent_checker":
+		return strconv.FormatBool(cfg.Agents.Loop.IndependentChecker)
 	case "debug.conversation_log.enabled":
 		return strconv.FormatBool(cfg.Debug.ConversationLog.Enabled)
 	case "debug.conversation_log.max_content_chars":

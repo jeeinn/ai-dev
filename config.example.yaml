@@ -118,6 +118,9 @@ agents:
     no_progress_limit: 3
     # Harness：编码结束后、commit/PR 前执行的校验命令（空=跳过；失败则任务 failed）
     # verify_commands:
+    #   - go test ./...
+    # Harness：编码后用「全新上下文」LLM 对 git diff 做 PASS/FAIL（防自评；默认关闭）
+    # independent_checker: true
     #   - "go test ./..."
     #   - "npm test"
 

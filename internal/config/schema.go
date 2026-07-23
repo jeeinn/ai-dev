@@ -193,13 +193,13 @@ const (
 
 // SandboxConfig contains sandbox configuration for isolation and safety.
 type SandboxConfig struct {
-	Mode           SandboxMode `yaml:"mode"`             // "temp" | "fixed"
-	BaseDir        string      `yaml:"base_dir"`         // Fixed mode base directory
-	CommandTimeout string      `yaml:"command_timeout"`  // Single command timeout (duration string)
-	TaskTimeout    string      `yaml:"task_timeout"`     // Total task timeout (duration string)
-	MaxOutput      int         `yaml:"max_output"`       // Max output bytes per command
-	MaxFileSize    int         `yaml:"max_file_size"`    // Max file size for write operations
-	CleanupAfter   string      `yaml:"cleanup_after"`    // Failed task retention time (duration string)
+	Mode           SandboxMode `yaml:"mode"`            // "temp" | "fixed"
+	BaseDir        string      `yaml:"base_dir"`        // Fixed mode base directory
+	CommandTimeout string      `yaml:"command_timeout"` // Single command timeout (duration string)
+	TaskTimeout    string      `yaml:"task_timeout"`    // Total task timeout (duration string)
+	MaxOutput      int         `yaml:"max_output"`      // Max output bytes per command
+	MaxFileSize    int         `yaml:"max_file_size"`   // Max file size for write operations
+	CleanupAfter   string      `yaml:"cleanup_after"`   // Failed task retention time (duration string)
 }
 
 // DefaultSandboxConfig returns default sandbox configuration.
@@ -232,18 +232,18 @@ type ToolPackConfig struct {
 // Non-write tasks (Analyze/Review/Reply) always use the implicit `internal` backend
 // regardless of this config. See server-runtime-design-v4.md §3 / §4.4.
 type AgentBackendsConfig struct {
-	Default  string                  `yaml:"default"`  // backend name; empty → "internal"
+	Default  string                   `yaml:"default"`  // backend name; empty → "internal"
 	Backends map[string]BackendConfig `yaml:"backends"` // named backends; "internal" is implicit
 }
 
 // BackendConfig describes one coding backend. Type distinguishes builtin vs opencode.
 type BackendConfig struct {
-	Type                  string                   `yaml:"type"`        // builtin | opencode_http
-	BaseURL               string                   `yaml:"base_url"`    // opencode_http only
-	Auth                  BackendAuthConfig        `yaml:"auth"`        // opencode_http only
-	Timeout               string                   `yaml:"timeout"`     // e.g. "45m"
-	WorkspaceMode         string                   `yaml:"workspace_mode"`         // first release: "gateway_path" only
-	HealthCheck           BackendHealthCheckConfig `yaml:"health_check"`           // opencode_http only
+	Type                  string                   `yaml:"type"`                    // builtin | opencode_http
+	BaseURL               string                   `yaml:"base_url"`                // opencode_http only
+	Auth                  BackendAuthConfig        `yaml:"auth"`                    // opencode_http only
+	Timeout               string                   `yaml:"timeout"`                 // e.g. "45m"
+	WorkspaceMode         string                   `yaml:"workspace_mode"`          // first release: "gateway_path" only
+	HealthCheck           BackendHealthCheckConfig `yaml:"health_check"`            // opencode_http only
 	AllowFallbackInternal bool                     `yaml:"allow_fallback_internal"` // default false
 }
 
@@ -286,21 +286,23 @@ type AgentTemplateConfig struct {
 
 // AgentLoopConfig contains agent loop configuration (multi-turn tasks only).
 type AgentLoopConfig struct {
-	MaxIterations     int      `yaml:"max_iterations"`     // Max iteration rounds (default 20)
-	TotalTimeout      string   `yaml:"total_timeout"`      // Total loop task timeout (default "30m")
-	IterationInterval int      `yaml:"iteration_interval"` // Seconds between loop rounds (default 0)
-	NoProgressLimit   int      `yaml:"no_progress_limit"`  // Consecutive tool rounds with unchanged workspace → stop; 0 = disabled
-	VerifyCommands    []string `yaml:"verify_commands"`    // Shell commands run after coding, before commit/PR; empty = skip
+	MaxIterations      int      `yaml:"max_iterations"`      // Max iteration rounds (default 20)
+	TotalTimeout       string   `yaml:"total_timeout"`       // Total loop task timeout (default "30m")
+	IterationInterval  int      `yaml:"iteration_interval"`  // Seconds between loop rounds (default 0)
+	NoProgressLimit    int      `yaml:"no_progress_limit"`   // Consecutive tool rounds with unchanged workspace → stop; 0 = disabled
+	VerifyCommands     []string `yaml:"verify_commands"`     // Shell commands run after coding, before commit/PR; empty = skip
+	IndependentChecker bool     `yaml:"independent_checker"` // After coding, fresh LLM PASS/FAIL on git diff (no loop history)
 }
 
 // DefaultAgentLoopConfig returns default agent loop configuration.
 func DefaultAgentLoopConfig() AgentLoopConfig {
 	return AgentLoopConfig{
-		MaxIterations:     20,
-		TotalTimeout:      "30m",
-		IterationInterval: 0,
-		NoProgressLimit:   3, // harness: stall detection on by default for write loops
-		VerifyCommands:    nil,
+		MaxIterations:      20,
+		TotalTimeout:       "30m",
+		IterationInterval:  0,
+		NoProgressLimit:    3, // harness: stall detection on by default for write loops
+		VerifyCommands:     nil,
+		IndependentChecker: false, // opt-in: Maker≠Checker LLM gate before commit/PR
 	}
 }
 

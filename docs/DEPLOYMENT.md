@@ -148,6 +148,9 @@ agents:
 |--------|------|
 | `no_progress_limit` | 连续 N 轮工具调用后工作区指纹（`git status --porcelain`）不变则退出；0 = 关闭检测（config.example.yaml 默认 3；省略时为 0 即关闭） |
 | `verify_commands` | 编码完成后、commit/PR 前执行的 shell 命令列表；任一命令失败则任务 failed，不写回 PR；空数组 = 跳过校验 |
+| `independent_checker` | 编码后、verify 前：用**全新 LLM 上下文**对 `git diff` 做 `VERDICT: PASS/FAIL`（防自评；默认 false） |
+
+工作流门禁 `review_not_same_coder`（standard=soft / strict=hard）：审查 Agent 与当前开发 Agent 为同一 ID 时警告或阻断。
 
 **示例**：
 

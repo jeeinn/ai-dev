@@ -8,7 +8,7 @@
 | [`TESTING.md`](TESTING.md) | **统一测试指南**（单元 / Mock 集成 / **本机 E2E 前置条件**） |
 
 详细环境准备、凭据、配置、场景矩阵与已知坑：**请读 [TESTING.md § 本机真实 Gitea E2E](TESTING.md#本机真实-gitea-e2e前置与复现)**。  
-最近全量报告：[docs/20260716-e2e-test-report.md](../docs/20260716-e2e-test-report.md)。
+最近全量报告：[docs/archived/20260716-e2e-test-report.md](../docs/archived/20260716-e2e-test-report.md)。
 
 ## Local E2E（Windows，速查）
 

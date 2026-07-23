@@ -1,5 +1,10 @@
 # LLM 调用层 & Prompt 管理设计（v2 动态 Agent 版）
 
+> **状态：已归档（2026-07-23）**  
+> 早期 Prompt/Provider 设计；接口细节以代码与 ../ARCHITECTURE.md 为准  
+> 现行文档入口：[../TASKS.md](../TASKS.md) · [../ARCHITECTURE.md](../ARCHITECTURE.md) · [../DEPLOYMENT.md](../DEPLOYMENT.md)
+
+---
 ## 一、Provider 架构
 
 只实现两种 Provider，覆盖所有主流模型。

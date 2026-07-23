@@ -81,7 +81,7 @@ CI 会在指向 `main` / `master` 的 PR 上自动跑上述检查。
 
 - 架构：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - 部署：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-- 开源准备：[docs/OPEN-SOURCE-CHECKLIST.md](docs/OPEN-SOURCE-CHECKLIST.md)
+- 开源准备（已完成归档）：[docs/archived/20260716-OPEN-SOURCE-CHECKLIST.md](docs/archived/20260716-OPEN-SOURCE-CHECKLIST.md)
 - 任务清单：[docs/TASKS.md](docs/TASKS.md)
 
 如有疑问，可在 GitHub Issues 提问（非安全敏感内容）。

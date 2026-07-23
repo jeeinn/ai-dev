@@ -1,9 +1,14 @@
 # Internal Agent 能力扩展：ToolPack / MCP / Skills，以及 Analyze 仓库检索
 
+> **状态：已归档（2026-07-23）**  
+> ToolPack/MCP/Skills/Analyze 设计已落地；现行行为见 ../ARCHITECTURE.md  
+> 现行文档入口：[../TASKS.md](../TASKS.md) · [../ARCHITECTURE.md](../ARCHITECTURE.md) · [../DEPLOYMENT.md](../DEPLOYMENT.md)
+
+---
 > 状态：决策稿（可落地）  
 > 日期：2026-07-14  
 > 范围：**仅 `backend=internal` 的 AgentLoop**；OpenCode 路径不替代托管 MCP/Skills（见 §7）  
-> 相关：[server-runtime-design-v4](./server-runtime-design-v4.md) · [todo-20260714-opencode-path-a](./todo-20260714-opencode-path-a.md) · [llm-prompt-design](./llm-prompt-design.md)  
+> 相关：[server-runtime-design-v4](../server-runtime-design-v4.md) · [todo-20260714-opencode-path-a](20260714-todo-opencode-path-a.md) · [llm-prompt-design](20260531-llm-prompt-design.md)  
 > 标准参考：[Agent Skills Specification](https://agentskills.io/specification)
 
 ---

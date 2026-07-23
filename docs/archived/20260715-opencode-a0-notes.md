@@ -1,8 +1,13 @@
 # OpenCode A0 — 工作目录与 API 字段笔记
 
+> **状态：已归档（2026-07-23）**  
+> OpenCode directory 字段笔记（已实现）；参考代码 OpenCodeHTTPBackend  
+> 现行文档入口：[../TASKS.md](../TASKS.md) · [../ARCHITECTURE.md](../ARCHITECTURE.md) · [../DEPLOYMENT.md](../DEPLOYMENT.md)
+
+---
 > 更新：2026-07-15  
 > 状态：公开文档推导 + 代码已对齐；**本机 `opencode serve` 端到端 PoC 仍待人工跑通验收**  
-> 关联：[todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md) · [server-runtime-design-v4.md](server-runtime-design-v4.md)
+> 关联：[todo-20260714-opencode-path-a.md](20260714-todo-opencode-path-a.md) · [server-runtime-design-v4.md](../server-runtime-design-v4.md)
 
 ---
 

@@ -1,9 +1,10 @@
 # TODO: LLM Provider 可选增强
 
-> 状态：未完成（可选 / P2）  
+> 状态：可选 / 暂缓（剩余 3.4–3.6）；3.3b 已完成  
 > 创建日期：2026-07-14  
+> 更新：2026-07-23  
 > 来源：从 [archived/20260710-LLMProvider模型选择与Token配置扩展方案.md](archived/20260710-LLMProvider模型选择与Token配置扩展方案.md) 拆出  
-> 说明：主方案 Phase 1/2 与 Phase 3.1–3.3（usage 记录、成本估算、任务页展示）已完成并归档；本文仅跟踪剩余可选能力。
+> 说明：主方案与采样参数透传已完成；本文仅跟踪剩余可选能力（与 [TASKS.md](TASKS.md) 对齐）。
 
 ---
 
@@ -11,7 +12,6 @@
 
 | # | 任务 | 优先级 | 建议位置 | 说明 |
 |---|------|--------|----------|------|
-| 3.3b | 采样参数透传 | P2 | `agents` / `agent.AgentLoop` | `top_p` / penalty：model→provider `default_params` → ChatRequest（`chore/llm-sampling-params`） |
 | 3.4 | 精确 tokenizer | P2 | `internal/agent/context.go` | 引入 tiktoken（或同类）替代 CJK 估算 |
 | 3.5 | 语义摘要 | P2 | `internal/agent/summarize.go` | 对超长历史对话做摘要以省入窗 |
 | 3.6 | 成本预算控制 | P2 | `internal/agents/*` | 单任务预算上限；超限中止或拒绝 |

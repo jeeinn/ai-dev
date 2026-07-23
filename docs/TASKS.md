@@ -1,101 +1,57 @@
 # 任务清单
 
 > 更新：2026-07-23  
+> **状态：暂缓推进** — 已完成项与点时报告已归档；本文件仅保留未完成的按需 backlog。  
 > 产品边界：**Gitea 优先** · 内置 Agent 默认可用 · OpenCode 可选 · 不做多托管平台抽象  
 > 决策：[archived/20260714-coding-gateway-multi-vcs.md](archived/20260714-coding-gateway-multi-vcs.md)  
-> P0–P2 核心演进已归档：[archived/20260716-TASKS.md](archived/20260716-TASKS.md)  
-> 架构评估延后项取舍：[20260722-architecture-evaluation.md](20260722-architecture-evaluation.md)
+> 已归档交付记录：  
+> - P0–P2 核心演进 → [archived/20260716-TASKS.md](archived/20260716-TASKS.md)  
+> - P3 开源 + 开源后加固 → [archived/20260723-TASKS.md](archived/20260723-TASKS.md)  
+> 架构评估（点时）→ [archived/20260722-architecture-evaluation.md](archived/20260722-architecture-evaluation.md)
 
 ---
 
 ## 演进主线
 
 ```text
-P0–P2 核心能力（已交付）
+P0–P2（已归档）→ P3 开源 + 加固（已归档）
         │
-        └─► P3 开源准备（已交付）
-                │
-                ├─► 已做：P1 硬化 + 大文件拆分 + 采样参数透传 + Harness 独立 Checker + 沙箱 rg/temp
-                └─► TASKS 主线：OpenCode A+ / LLM 可选增强（按需）
+        └─► 按需 backlog（暂缓）：OpenCode A+ / LLM 可选 / 沙箱细项
 ```
 
 ---
 
-## P3 — 开源准备
+## 按需 backlog（未完成）
 
-详单：[OPEN-SOURCE-CHECKLIST.md](OPEN-SOURCE-CHECKLIST.md)
+### 沙箱可选增强
 
-### 11. 开源阻塞（首发前必须）
+详见 [archived/20260604-sandbox-roadmap.md](archived/20260604-sandbox-roadmap.md)（核心已交付）
 
-- [x] LICENSE 文件（MIT，与 README 一致）
-- [x] CI：`.github/workflows` 跑 `go test ./... -count=1` + `go vet ./...`
-- [x] 清理 `DEPLOYMENT.md` 等占位 URL（`your-org`）
-- [x] README / DEPLOYMENT 安全默认值警示（改默认密码、`jwt_secret`）
-- [x] 敏感配置：`config.example.yaml` 完整；可选 `.env.example`；勿提交 token
-- [x] README「5 分钟 Mock 测试」+ Gitea 完整联调入口
-
-### 12. 强烈建议（首发前质量加固）
-
-- [x] v2 联调 Sign-off：补 **Merge → `done`**（[20260717-v2-merge-signoff.md](20260717-v2-merge-signoff.md)；Mock + E13）
-- [x] Session / Sandbox **双轨 `base_dir` 对齐**
-- [x] `loop_config` 启动参数校验（`max_iterations` 1–100、`timeout` 1m–1h）
-- [x] Dockerfile：**文档澄清：示例暂未提供**（短期不做 compose/K8s；见 [DEPLOYMENT.md](DEPLOYMENT.md)）
-- [x] Linux E2E：`scripts/linux/e2e-smoke.sh`；TESTING 说明完整 Assign E2E 以 Windows/pwsh 为主
-- [x] 文档同步：`sandbox-roadmap.md`、`todo-20260714-opencode-path-a.md`、内部能力验收状态
-- [x] `CONTRIBUTING.md` + `SECURITY.md`
-- [x] 首版 Release **已发布**：CHANGELOG `[0.10.0]` + [RELEASE-v0.10.0.md](RELEASE-v0.10.0.md)；tag `v0.10.0` + 5 平台二进制已上传（https://github.com/jeeinn/ai-dev/releases/tag/v0.10.0；跳过已有 v0.2–v0.7.0）
-
----
-
-## P1 — 遗留（不阻塞开源）
-
-详见 [sandbox-roadmap.md](sandbox-roadmap.md)
-
-### 6. 沙箱补强
-
-- [x] `rg` 工具（Analyze 读仓效率；未安装回退 `search_code`）
-- [x] temp 模式清理与 Session workspace 生命周期对齐（`Persistent` + Setup 不覆盖预置路径）
 - [ ] （可选）`cat` 行号范围、`find` glob、审计日志内容摘要
 
----
+### OpenCode A+
 
-## P2 — 增强（开源后 / 按需）
-
-### 13. OpenCode A+
-
-设计：[server-runtime-design-v4.md](server-runtime-design-v4.md) §A+ · [todo-20260714-opencode-path-a.md](todo-20260714-opencode-path-a.md)
+设计：[server-runtime-design-v4.md](server-runtime-design-v4.md) §A+ · 清单归档：[archived/20260714-todo-opencode-path-a.md](archived/20260714-todo-opencode-path-a.md)
 
 - [ ] SSE 进度 → Issue 评论或 task progress
 - [ ] 持久化 `opencode_session_id`（Session 续作）
 - [ ] OpenCode 集成测试：mock server + 假仓库
 - [ ] Claude PrintBackend（契约型 CLI，非 Path B）
 
-### 14. LLM 可选增强
+### LLM 可选增强
 
 [todo-20260714-LLMProvider-可选增强.md](todo-20260714-LLMProvider-可选增强.md)
 
-- [x] 采样参数透传：`top_p` / `frequency_penalty` / `presence_penalty`（配置 `default_params` → ChatRequest；分支 `chore/llm-sampling-params`）
 - [ ] tiktoken 精确计数（可选开启）
 - [ ] 超长 Session 语义摘要
 - [ ] per-task 成本预算上限
 
-### 15. 产品打磨
+### 继续延后
 
-完整列表见 [archived/20260714-TASKS.md](archived/20260714-TASKS.md)、[archived/20260716-TASKS.md](archived/20260716-TASKS.md) §10。
-
-- [x] `AgentDetail.vue` 移除「触发规则」弃用 Tab
-- [x] Agent 创建向导（按 role 一键填 Prompt）
-- [x] WorkflowPolicy per-repo DB 覆盖
-- [x] 阶段切换 Gitea unassign（设计曾标可选跳过）
-- [x] 组织级 Webhook 注册指引（DEPLOYMENT 扩展）
-
-### 16. Harness 验证
-
-> 落地：`agents.loop.no_progress_limit` + `verify_commands` + `independent_checker`；门禁 `review_not_same_coder`
-
-- [x] Dev/BugFix：测试/构建通过作为程序化完成条件（`verify_commands`，opt-in；失败 → 任务 failed，不 commit/PR）
-- [x] Review 与 Coder 独立 Checker 上下文（防自评）：Review 独立 Prompt；Coder 可选 `independent_checker`；L2 `review_not_same_coder`
-- [x] Loop 无进展退出（连续 N 轮 workspace 指纹不变则停；示例默认 `no_progress_limit: 3`）
+| 项 | 说明 |
+|----|------|
+| API 中间件链 | CORS / 限流 / 访问日志；有运维痛点再立项 |
+| `gitea.Client` Transport 显式复用 | DefaultTransport 已够用 |
 
 ---
 
@@ -110,30 +66,13 @@ P0–P2 核心能力（已交付）
 
 ---
 
-## 建议节奏
-
-| 阶段 | 焦点 |
-|------|------|
-| 已完成 | P3 开源 + v0.10.0；架构 P1 硬化；大文件拆分；采样参数透传；Harness 独立 Checker；**沙箱 rg / temp·Session 对齐** |
-| 主线下一刀 | OpenCode A+（SSE 进度等）或 LLM 可选增强（tiktoken / 摘要 / 预算）按需 |
-| 按需 | OpenCode A+；LLM tiktoken/摘要/预算；沙箱可选增强（`cat` 行号 / `find` glob / 审计摘要） |
-| 继续延后 | API 中间件链（CORS/限流/访问日志）、`gitea.Client` Transport 显式复用（DefaultTransport 已够用） |
-
-评估延后项相对主线（历史取舍）：中间件链 / Transport 有运维痛点再立项，不单开抢主线。
-
----
-
-## 相关文档
+## 现行文档（非归档）
 
 | 文档 | 用途 |
 |------|------|
-| [OPEN-SOURCE-CHECKLIST.md](OPEN-SOURCE-CHECKLIST.md) | 开源阻塞 + 强烈建议详单 |
-| [20260717-v2-merge-signoff.md](20260717-v2-merge-signoff.md) | S1 Merge→done Sign-off |
-| [RELEASE-v0.10.0.md](RELEASE-v0.10.0.md) | v0.10.0 发布步骤 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 现行架构 |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | 部署 |
-| [20260716-e2e-test-report.md](20260716-e2e-test-report.md) | 本机 E2E 报告 |
-| [server-runtime-design-v4.md](server-runtime-design-v4.md) | OpenCode / CodingBackend |
-| [sandbox-roadmap.md](sandbox-roadmap.md) | 沙箱细项 |
-| [archived/20260716-TASKS.md](archived/20260716-TASKS.md) | P0–P2 交付记录 |
-| [archived/](archived/) | 历史设计与旧 TASKS |
+| [server-runtime-design-v4.md](server-runtime-design-v4.md) | OpenCode / CodingBackend 设计权威 |
+| [todo-20260714-LLMProvider-可选增强.md](todo-20260714-LLMProvider-可选增强.md) | LLM 剩余可选增强 |
+| [archived/20260723-TASKS.md](archived/20260723-TASKS.md) | P3 + 开源后加固交付记录 |
+| [archived/](archived/) | 历史设计、签核、E2E、清单 |

@@ -1,7 +1,7 @@
 # TODO: OpenCode 后端接入方案（早期稿）
 
 > 状态：**已归档** — 方案已被 [server-runtime-design-v4](../server-runtime-design-v4.md) 取代（HTTP/`opencode serve` 优先，非 CLI 主路径）  
-> 未完成实施清单见 [`../todo-20260714-opencode-path-a.md`](../todo-20260714-opencode-path-a.md)  
+> 未完成实施清单见 [`20260714-todo-opencode-path-a.md`](20260714-todo-opencode-path-a.md)  
 > 创建日期：2026-07-10  
 > 归档日期：2026-07-14
 
@@ -396,7 +396,7 @@ func TestExternalCLIRunner_Run(t *testing.T) {
 - OpenCode GitHub：https://github.com/opencode-ai/opencode
 - OpenCode CLI 文档：https://docs.opencode.ai/cli
 - 项目架构文档：`docs/ARCHITECTURE.md`
-- 沙箱路线图：`docs/sandbox-roadmap.md`
+- 沙箱路线图：`docs/archived/20260604-sandbox-roadmap.md`
 
 ---
 

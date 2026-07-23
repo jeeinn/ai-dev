@@ -14,10 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 首个**公开开源**发布候选（仓库已有 `v0.2`–`v0.7.0` 历史 tag，故从 **0.10.0** 起跳）。  
 以**预编译二进制 + systemd**部署为主；容器示例暂未提供。  
-发布步骤：[docs/RELEASE-v0.10.0.md](docs/RELEASE-v0.10.0.md) · 仓库：https://github.com/jeeinn/ai-dev
+发布步骤：[docs/archived/20260717-RELEASE-v0.10.0.md](docs/archived/20260717-RELEASE-v0.10.0.md) · 仓库：https://github.com/jeeinn/ai-dev
 
 ### Added (开源质量加固)
-- **E13 E2E**：Merge open PR → workflow `stage=done`（S1；见 docs/20260717-v2-merge-signoff.md）
+- **E13 E2E**：Merge open PR → workflow `stage=done`（S1；见 docs/archived/20260717-v2-merge-signoff.md）
 - **loop_config 校验**：`max_iterations` 1–100、`total_timeout` 1m–1h
 - **Workspace / Sandbox base_dir 对齐**：历史默认 `./workspace` 继承 `workspace.base_dir`
 - **Linux**：`scripts/linux/e2e-smoke.sh`（Mock 冒烟；完整 E2E 以 Windows PS1 / pwsh 为主）
@@ -69,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **迁移**: 使用 Label (`ai:analyze`, `ai:solve`) 触发的用户需改为 Assign Agent
 
 ### Planned
-- Phase 14: 沙箱增强（详见 sandbox-roadmap.md）
+- Phase 14: 沙箱增强（详见 docs/archived/20260604-sandbox-roadmap.md）
 - Phase 17: Session 续作 + WorkflowPolicy L2/L3
 
 ## [0.7.0] - 2026-06-05

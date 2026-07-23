@@ -1,5 +1,10 @@
 # 本机 Gitea 全覆盖 E2E 测试报告
 
+> **状态：已归档（2026-07-23）**  
+> 本机 E2E 点时报告（13/13）；非现行运维文档  
+> 现行文档入口：[../TASKS.md](../TASKS.md) · [../ARCHITECTURE.md](../ARCHITECTURE.md) · [../DEPLOYMENT.md](../DEPLOYMENT.md)
+
+---
 > 日期：2026-07-16  
 > 仓库：`x:\ai-dev`（commit `e92f72a`）  
 > 驱动：Assign Webhook → Gateway → SenseNova / OpenCode / Mock MCP  

@@ -1,5 +1,10 @@
 # 架构深度评估报告 — Gitea Agent Gateway
 
+> **状态：已归档（2026-07-23）**  
+> 点时架构评估；P1 硬化等后续已落地，见 20260723-TASKS.md  
+> 现行文档入口：[../TASKS.md](../TASKS.md) · [../ARCHITECTURE.md](../ARCHITECTURE.md) · [../DEPLOYMENT.md](../DEPLOYMENT.md)
+
+---
 > 评估日期：2026-07-22
 > 评估基线：v0.10.0（分支 `feature/llm-provider-model-catalog`）
 > 评估范围：Go 后端（internal/ 131 个文件）、Vue3 前端（web/src）、配置与文档体系

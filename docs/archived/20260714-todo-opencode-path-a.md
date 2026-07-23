@@ -1,10 +1,15 @@
 # TODO: OpenCode Path A 接入
 
+> **状态：已归档（2026-07-23）**  
+> Path A（A0–A4）已交付；A+ 见 ../TASKS.md  
+> 现行文档入口：[../TASKS.md](../TASKS.md) · [../ARCHITECTURE.md](../ARCHITECTURE.md) · [../DEPLOYMENT.md](../DEPLOYMENT.md)
+
+---
 > 状态：**Path A 主路径已交付**（A0–A4）；A+ 为可选后续  
 > 创建日期：2026-07-14  
 > 更新：2026-07-17  
-> 设计依据：[server-runtime-design-v4.md](server-runtime-design-v4.md)  
-> 字段笔记：[opencode-a0-notes.md](opencode-a0-notes.md)  
+> 设计依据：[server-runtime-design-v4.md](../server-runtime-design-v4.md)  
+> 字段笔记：[opencode-a0-notes.md](20260715-opencode-a0-notes.md)  
 > E2E：[20260716-e2e-test-report.md](20260716-e2e-test-report.md)（E1/E6/E10 PASS）
 
 ---
@@ -22,7 +27,7 @@
 
 ### A0 — PoC ✅
 
-- [x] 记录实际请求字段 → [opencode-a0-notes.md](opencode-a0-notes.md)
+- [x] 记录实际请求字段 → [opencode-a0-notes.md](20260715-opencode-a0-notes.md)
 - [x] 本机 `opencode serve` 端到端改码落在 Gateway workspace（E1+E6）
 
 ### A1 — 配置与存储 ✅

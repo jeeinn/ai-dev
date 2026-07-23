@@ -1,5 +1,10 @@
 # 沙箱增强迭代计划
 
+> **状态：已归档（2026-07-23）**  
+> 沙箱核心项已交付；剩余可选见 ../TASKS.md  
+> 现行文档入口：[../TASKS.md](../TASKS.md) · [../ARCHITECTURE.md](../ARCHITECTURE.md) · [../DEPLOYMENT.md](../DEPLOYMENT.md)
+
+---
 > 目标版本：v0.4  
 > 状态：核心已落地；剩余按需（`cat` 行号、`find` glob、审计摘要）  
 > 更新：2026-07-23（`rg` + temp/Session 对齐）

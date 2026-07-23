@@ -1,8 +1,13 @@
 # v2 Merge → done Sign-off（S1）
 
+> **状态：已归档（2026-07-23）**  
+> S1 Merge→done 签核已完成  
+> 现行文档入口：[../TASKS.md](../TASKS.md) · [../ARCHITECTURE.md](../ARCHITECTURE.md) · [../DEPLOYMENT.md](../DEPLOYMENT.md)
+
+---
 > 日期：2026-07-17  
-> 对照：[archived/20260709-v2-gitea-integration-checklist.md](archived/20260709-v2-gitea-integration-checklist.md) §2.4  
-> 开源清单：[OPEN-SOURCE-CHECKLIST.md](OPEN-SOURCE-CHECKLIST.md) S1
+> 对照：[archived/20260709-v2-gitea-integration-checklist.md](20260709-v2-gitea-integration-checklist.md) §2.4  
+> 开源清单：[OPEN-SOURCE-CHECKLIST.md](20260716-OPEN-SOURCE-CHECKLIST.md) S1
 
 ## 验收结论
 

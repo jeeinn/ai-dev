@@ -1,7 +1,7 @@
 # 测试指南
 
 > 本文是仓库**统一测试说明**：单元 / Mock 集成 / **本机真实 Gitea E2E** 前置条件与复现步骤。  
-> 脚本目录索引见 [README.md](README.md)。最近一次全量 E2E 报告：[docs/20260716-e2e-test-report.md](../docs/20260716-e2e-test-report.md)。
+> 脚本目录索引见 [README.md](README.md)。最近一次全量 E2E 报告：[docs/archived/20260716-e2e-test-report.md](../docs/archived/20260716-e2e-test-report.md)。
 
 ## 脚本目录
 
@@ -116,7 +116,7 @@ powershell -NoProfile -File scripts/windows/e2e-run-scenarios.ps1
 
 - `data/e2e-results.json` — 场景 PASS/FAIL（gitignore）
 - Gateway 日志 — `data/logs-e2e/`
-- 报告模板参考 — `docs/20260716-e2e-test-report.md`
+- 报告模板参考 — `docs/archived/20260716-e2e-test-report.md`
 
 ### 场景矩阵（摘要）
 

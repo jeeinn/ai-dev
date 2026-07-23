@@ -65,7 +65,7 @@ go test ./tests/integration/ -v -count=1
 1. 按下方「构建并启动」与 Web UI 配置完成首次部署  
 2. 本机 E2E 前置与复现：[scripts/TESTING.md](scripts/TESTING.md)#本机真实-gitea-e2e前置与复现  
 3. v2 Assign 联调清单：[docs/archived/20260709-v2-gitea-integration-checklist.md](docs/archived/20260709-v2-gitea-integration-checklist.md)  
-4. 最近一次本机 E2E 报告：[docs/20260716-e2e-test-report.md](docs/20260716-e2e-test-report.md)
+4. 最近一次本机 E2E 报告：[docs/archived/20260716-e2e-test-report.md](docs/archived/20260716-e2e-test-report.md)
 
 ### 前置条件
 
@@ -300,10 +300,10 @@ go vet ./...
 ## 文档
 
 - [技术架构](docs/ARCHITECTURE.md)
-- [任务清单](docs/TASKS.md)
-- [开源准备清单](docs/OPEN-SOURCE-CHECKLIST.md)
+- [任务清单](docs/TASKS.md)（按需 backlog，暂缓）
 - [部署指南](docs/DEPLOYMENT.md)
 - [服务器运行时设计 v4](docs/server-runtime-design-v4.md)
+- [开源准备清单（已归档）](docs/archived/20260716-OPEN-SOURCE-CHECKLIST.md)
 - [平台策略：Gitea 优先（已归档）](docs/archived/20260714-coding-gateway-multi-vcs.md)
 - [Assign 工作流 v2 设计（已归档）](docs/archived/20260615-trigger-rules-and-workflow-improvement.md)
 - [测试指南](scripts/TESTING.md) · [脚本目录](scripts/README.md)

@@ -161,7 +161,7 @@ type opencodeCreateSessionResponse struct {
 
 // createSession calls POST /session and returns the new session id.
 //
-// Working directory binding (OpenCode serve — see docs/opencode-a0-notes.md):
+// Working directory binding (OpenCode serve — see docs/archived/20260715-opencode-a0-notes.md):
 // The server scopes project context via query `?directory=` and/or header
 // `X-Opencode-Directory`. Message-body `directory` alone is NOT sufficient on
 // current serve builds to pin the session workspace; we always send both query

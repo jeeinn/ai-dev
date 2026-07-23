@@ -25,7 +25,7 @@
 
 v2 正确识别了长期方向：可复现环境、并发调度、项目记忆、可插拔 Agent。但对照当前代码（v2 Assign 模型已落地），存在三个落地 gap：
 
-1. **编排已有、运行时未抽象**：`workflow.SessionService`、`runWriteTask`、Gitea 回写已成熟；若按 v2 Phase 1 先做 worktree + HostProvider，会延迟 **OpenCode 接入**（已在 [20260710-opencode-integration.md](./20260710-opencode-integration.md) 标为高优先级；现行清单见 [../todo-20260714-opencode-path-a.md](../todo-20260714-opencode-path-a.md)）。
+1. **编排已有、运行时未抽象**：`workflow.SessionService`、`runWriteTask`、Gitea 回写已成熟；若按 v2 Phase 1 先做 worktree + HostProvider，会延迟 **OpenCode 接入**（已在 [20260710-opencode-integration.md](./20260710-opencode-integration.md) 标为高优先级；现行清单见 [20260714-todo-opencode-path-a.md](20260714-todo-opencode-path-a.md)）。
 2. **Session Continue 是产品核心**：PR 上 @mention 改代码依赖 Session 级固定 workspace；worktree 是并发优化，不能替换 Session 语义。
 3. **Agent 仍是进程内 Loop**：`agent.AgentLoop` 阻塞执行，无法 spawn `opencode` / `claude` CLI。
 
@@ -618,7 +618,7 @@ agents:
 ## 11. 相关文档
 
 - [20260714-server-runtime-design-v2.md](./20260714-server-runtime-design-v2.md) — 长期 Runtime 完整设计
-- [20260710-opencode-integration.md](./20260710-opencode-integration.md) — OpenCode 早期方案（已归档；现行见 [../todo-20260714-opencode-path-a.md](../todo-20260714-opencode-path-a.md)）
+- [20260710-opencode-integration.md](./20260710-opencode-integration.md) — OpenCode 早期方案（已归档；现行见 [20260714-todo-opencode-path-a.md](20260714-todo-opencode-path-a.md)）
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — 当前 Gateway 架构
 - [20260601-agent-development-decisions.md](./20260601-agent-development-decisions.md) — Host 模式决策
 

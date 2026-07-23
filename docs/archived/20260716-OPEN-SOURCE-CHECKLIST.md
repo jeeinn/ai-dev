@@ -1,8 +1,13 @@
 # 开源准备清单
 
+> **状态：已归档（2026-07-23）**  
+> 开源准备清单已全部勾选（v0.10.0 已发布）；现行 backlog 见 ../TASKS.md  
+> 现行文档入口：[../TASKS.md](../TASKS.md) · [../ARCHITECTURE.md](../ARCHITECTURE.md) · [../DEPLOYMENT.md](../DEPLOYMENT.md)
+
+---
 > 更新：2026-07-17  
-> 对应任务：[TASKS.md](TASKS.md) §P3  
-> 背景：P0–P2 核心演进已交付（见 [archived/20260716-TASKS.md](archived/20260716-TASKS.md)、[20260716-e2e-test-report.md](20260716-e2e-test-report.md)）
+> 对应任务：[TASKS.md](../TASKS.md) §P3  
+> 背景：P0–P2 核心演进已交付（见 [archived/20260716-TASKS.md](20260716-TASKS.md)、[20260716-e2e-test-report.md](20260716-e2e-test-report.md)）
 
 本文跟踪**首次公开发布**前必须完成（阻塞）与强烈建议完成（质量加固）的事项。
 
@@ -48,7 +53,7 @@
 - [x] S1 Merge→done 联调 Sign-off（Mock + E13 脚本；见 [20260717-v2-merge-signoff.md](20260717-v2-merge-signoff.md)）
 - [x] S2 Session/Sandbox base_dir 对齐
 - [x] S3 loop_config 参数校验
-- [x] S4 Dockerfile：**文档澄清：示例暂未提供**（短期不做；见 [DEPLOYMENT.md](DEPLOYMENT.md)#容器部署暂未提供）
+- [x] S4 Dockerfile：**文档澄清：示例暂未提供**（短期不做；见 [DEPLOYMENT.md](../DEPLOYMENT.md)#容器部署暂未提供）
 - [x] S5 Linux E2E 或说明（`e2e-smoke.sh` + TESTING：完整 E2E 以 Windows/pwsh 为主）
 - [x] S6 子文档状态同步
 - [x] S7 CONTRIBUTING + SECURITY
@@ -70,10 +75,10 @@
 
 | 文档 | 用途 |
 |------|------|
-| [TASKS.md](TASKS.md) | 现行任务（含 P3 摘要） |
-| [archived/20260716-TASKS.md](archived/20260716-TASKS.md) | P0–P2 完整交付记录 |
+| [TASKS.md](../TASKS.md) | 现行任务（含 P3 摘要） |
+| [archived/20260716-TASKS.md](20260716-TASKS.md) | P0–P2 完整交付记录 |
 | [20260716-e2e-test-report.md](20260716-e2e-test-report.md) | 本机 E2E 13/13 PASS |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | 部署说明（短期以二进制 + systemd 为主；容器示例暂未提供） |
-| [scripts/TESTING.md](../scripts/TESTING.md) | 测试与 E2E 复现 |
+| [DEPLOYMENT.md](../DEPLOYMENT.md) | 部署说明（短期以二进制 + systemd 为主；容器示例暂未提供） |
+| [scripts/TESTING.md](../../scripts/TESTING.md) | 测试与 E2E 复现 |
 | [20260717-v2-merge-signoff.md](20260717-v2-merge-signoff.md) | S1 Merge→done |
-| [RELEASE-v0.10.0.md](RELEASE-v0.10.0.md) | v0.10.0 tag / 二进制步骤 |
+| [RELEASE-v0.10.0.md](20260717-RELEASE-v0.10.0.md) | v0.10.0 tag / 二进制步骤 |

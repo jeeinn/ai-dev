@@ -33,17 +33,17 @@ func TestCreateAgentWithRole(t *testing.T) {
 	db := newTestDB(t)
 
 	agent := &Agent{
-		Name:          "analyze-007",
-		GiteaUsername: "analyze-007",
-		GiteaToken:    "token-abc",
-		Provider:      "deepseek",
-		Model:         "deepseek-chat",
+		Name:            "analyze-007",
+		GiteaUsername:   "analyze-007",
+		GiteaToken:      "token-abc",
+		Provider:        "deepseek",
+		Model:           "deepseek-chat",
 		MaxOutputTokens: 4096,
 		MaxInputTokens:  8192,
-		Temperature:   0.3,
-		SystemPrompt:  "You are an analyzer.",
-		Role:          RoleAnalyze,
-		Status:        "active",
+		Temperature:     0.3,
+		SystemPrompt:    "You are an analyzer.",
+		Role:            RoleAnalyze,
+		Status:          "active",
 	}
 
 	err := db.CreateAgent(agent)

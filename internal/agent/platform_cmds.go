@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gitea-agent-gateway/internal/sandbox"
+	"github.com/jeeinn/matea/internal/sandbox"
 )
 
 // isCommandMissing reports whether Execute failed because the binary is not on PATH.

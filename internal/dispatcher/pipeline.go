@@ -5,9 +5,9 @@ import (
 	"log"
 	"strings"
 
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/webhook"
-	"gitea-agent-gateway/internal/workflow"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/webhook"
+	"github.com/jeeinn/matea/internal/workflow"
 )
 
 // handleEventV2 processes events through the new Assign-based pipeline.
@@ -18,14 +18,14 @@ func (d *Dispatcher) handleEventV2(evt *webhook.WebhookEvent) bool {
 		return true
 	}
 
-	// Step 1b: Check for /gateway reset command in comments
-	if evt.Comment != nil && strings.Contains(evt.Comment.Body, "/gateway reset") {
+	// Step 1b: Check for /matea reset command in comments
+	if evt.Comment != nil && strings.Contains(evt.Comment.Body, "/matea reset") {
 		issueID := 0
 		if evt.Issue != nil {
 			issueID = evt.Issue.Number
 		}
 		if issueID > 0 {
-			log.Printf("[INFO] /gateway reset command detected for %s#%d", evt.Repo.FullName, issueID)
+			log.Printf("[INFO] /matea reset command detected for %s#%d", evt.Repo.FullName, issueID)
 			d.resetIssue(evt.Repo.FullName, issueID)
 			return true
 		}

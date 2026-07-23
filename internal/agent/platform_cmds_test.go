@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/sandbox"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/sandbox"
 )
 
 func TestRgCmd(t *testing.T) {

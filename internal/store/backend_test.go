@@ -57,9 +57,9 @@ func TestUpdateAgentBackend(t *testing.T) {
 	agent := &Agent{
 		Name:          "coder-2",
 		GiteaUsername: "coder-2",
-		GiteaToken:   "tok",
+		GiteaToken:    "tok",
 		Role:          RoleCoder,
-		Status:       "active",
+		Status:        "active",
 	}
 	require.NoError(t, db.CreateAgent(agent))
 

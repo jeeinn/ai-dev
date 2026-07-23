@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"gitea-agent-gateway/internal/agents"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/agents"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // AgentDTO is the API response for agents, hiding sensitive fields.

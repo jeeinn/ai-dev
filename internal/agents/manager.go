@@ -7,12 +7,12 @@ import (
 	"log"
 	"strings"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/gitea"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/gitea"
+	"github.com/jeeinn/matea/internal/store"
 )
 
-const agentTokenName = "gateway-agent"
+const agentTokenName = "matea-agent"
 
 // Manager handles agent lifecycle (create, update, delete) and Gitea account registration.
 type Manager struct {
@@ -36,26 +36,26 @@ func (m *Manager) SetRegistry(registry *Registry) {
 	m.registry = registry
 }
 
-	// CreateAgentRequest is the payload for creating a new agent.
-	type CreateAgentRequest struct {
-		Name            string                 `json:"name"`
-		GiteaUsername   string                 `json:"gitea_username"`
-		Provider        string                 `json:"provider"`
-		Model           string                 `json:"model"`
-		MaxOutputTokens int                    `json:"max_output_tokens"`
-		MaxInputTokens  int                    `json:"max_input_tokens"`
-		Temperature     float64                `json:"temperature"`
-		Timeout         string                 `json:"timeout"`
-		SystemPrompt    string                 `json:"system_prompt"`
-		UserTemplate    string                 `json:"user_template"`
-		LoopConfig      *store.AgentLoopConfig `json:"loop_config,omitempty"`
-		Repos           []string               `json:"repos,omitempty"` // Repos to add as collaborator (e.g. ["owner/repo"])
-		Role            string                 `json:"role"`            // analyze | coder | review
-		Backend         string                 `json:"backend"`                    // coding backend; default "internal"
-		BackendOptions  map[string]any         `json:"backend_options,omitempty"`  // backend-specific options
-		ToolPack        string                 `json:"tool_pack"`                  // ToolPack name; empty = use role-based default
-		McpServers      []string               `json:"mcp_servers,omitempty"`      // Enabled MCP server names
-	}
+// CreateAgentRequest is the payload for creating a new agent.
+type CreateAgentRequest struct {
+	Name            string                 `json:"name"`
+	GiteaUsername   string                 `json:"gitea_username"`
+	Provider        string                 `json:"provider"`
+	Model           string                 `json:"model"`
+	MaxOutputTokens int                    `json:"max_output_tokens"`
+	MaxInputTokens  int                    `json:"max_input_tokens"`
+	Temperature     float64                `json:"temperature"`
+	Timeout         string                 `json:"timeout"`
+	SystemPrompt    string                 `json:"system_prompt"`
+	UserTemplate    string                 `json:"user_template"`
+	LoopConfig      *store.AgentLoopConfig `json:"loop_config,omitempty"`
+	Repos           []string               `json:"repos,omitempty"`           // Repos to add as collaborator (e.g. ["owner/repo"])
+	Role            string                 `json:"role"`                      // analyze | coder | review
+	Backend         string                 `json:"backend"`                   // coding backend; default "internal"
+	BackendOptions  map[string]any         `json:"backend_options,omitempty"` // backend-specific options
+	ToolPack        string                 `json:"tool_pack"`                 // ToolPack name; empty = use role-based default
+	McpServers      []string               `json:"mcp_servers,omitempty"`     // Enabled MCP server names
+}
 
 // ReloadGitea updates the Gitea client after config changes.
 func (m *Manager) ReloadGitea(cfg *config.GiteaConfig) {
@@ -151,27 +151,27 @@ func (m *Manager) CreateAgent(req CreateAgentRequest) (*store.Agent, error) {
 	if role == "" {
 		role = store.RoleAnalyze
 	}
-		agent := &store.Agent{
-			Name:            req.Name,
-			GiteaUsername:   req.GiteaUsername,
-			GiteaToken:      token,
-			Provider:        req.Provider,
-			Model:           req.Model,
-			MaxOutputTokens: req.MaxOutputTokens,
-			MaxInputTokens:  req.MaxInputTokens,
-			Temperature:     req.Temperature,
-			Timeout:         req.Timeout,
-			SystemPrompt:    req.SystemPrompt,
-			UserTemplate:    req.UserTemplate,
-			LoopConfig:      req.LoopConfig,
-			Repos:           req.Repos,
-			Role:            role,
-			Status:          "active",
-			Backend:         req.Backend,
-			BackendOptions:  req.BackendOptions,
-			ToolPack:        req.ToolPack,
-			McpServers:      req.McpServers,
-		}
+	agent := &store.Agent{
+		Name:            req.Name,
+		GiteaUsername:   req.GiteaUsername,
+		GiteaToken:      token,
+		Provider:        req.Provider,
+		Model:           req.Model,
+		MaxOutputTokens: req.MaxOutputTokens,
+		MaxInputTokens:  req.MaxInputTokens,
+		Temperature:     req.Temperature,
+		Timeout:         req.Timeout,
+		SystemPrompt:    req.SystemPrompt,
+		UserTemplate:    req.UserTemplate,
+		LoopConfig:      req.LoopConfig,
+		Repos:           req.Repos,
+		Role:            role,
+		Status:          "active",
+		Backend:         req.Backend,
+		BackendOptions:  req.BackendOptions,
+		ToolPack:        req.ToolPack,
+		McpServers:      req.McpServers,
+	}
 	if err := m.db.CreateAgent(agent); err != nil {
 		return nil, fmt.Errorf("store agent: %w", err)
 	}

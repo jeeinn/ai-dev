@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	"gitea-agent-gateway/internal/llm"
+	"github.com/jeeinn/matea/internal/llm"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

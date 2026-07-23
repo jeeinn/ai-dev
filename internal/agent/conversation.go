@@ -1,6 +1,6 @@
 package agent
 
-import "gitea-agent-gateway/internal/llm"
+import "github.com/jeeinn/matea/internal/llm"
 
 // ConversationRecorder persists agent loop messages when debug logging is enabled.
 type ConversationRecorder interface {

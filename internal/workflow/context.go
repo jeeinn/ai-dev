@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // WorkflowManager manages WorkflowContext state transitions.

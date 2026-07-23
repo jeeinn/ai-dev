@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gitea-agent-gateway/internal/logging"
+	"github.com/jeeinn/matea/internal/logging"
 )
 
 const debugBodyLimit = 512

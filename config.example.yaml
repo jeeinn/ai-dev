@@ -1,4 +1,4 @@
-# Gitea Agent Gateway — 精简可运行示例
+# Matea — 精简可运行示例
 # 复制为 config.yaml 并修改（config.yaml 已在 .gitignore，请勿提交含 Token 的配置）
 # 完整选项与注释见 config.full-example.yaml
 # 敏感项建议用环境变量：见 .env.example（复制为 .env，勿提交）
@@ -19,7 +19,7 @@ workspace:
   base_dir: "./data/work"
 
 database:
-  path: "./data/gateway.db"
+  path: "./data/matea.db"
 
 logging:
   level: "info"

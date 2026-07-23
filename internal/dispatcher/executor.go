@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"gitea-agent-gateway/internal/agents"
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/gitea"
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/mcp"
-	"gitea-agent-gateway/internal/sandbox"
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/workflow"
+	"github.com/jeeinn/matea/internal/agents"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/gitea"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/mcp"
+	"github.com/jeeinn/matea/internal/sandbox"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/workflow"
 )
 
 // GiteaClientFactory creates Gitea clients for result writeback.

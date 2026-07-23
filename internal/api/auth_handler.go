@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"gitea-agent-gateway/internal/auth"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/auth"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // AuthHandler handles authentication endpoints.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"gitea-agent-gateway/internal/config"
+	"github.com/jeeinn/matea/internal/config"
 )
 
 // Registry manages MCP server clients and their tools.

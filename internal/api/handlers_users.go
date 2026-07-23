@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"gitea-agent-gateway/internal/auth"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/auth"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // --- User endpoints ---

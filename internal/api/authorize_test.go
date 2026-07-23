@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"gitea-agent-gateway/internal/auth"
+	"github.com/jeeinn/matea/internal/auth"
 )
 
 func TestAuthorizeWrapAcceptsJWT(t *testing.T) {

@@ -1,7 +1,9 @@
-# Gitea Agent Gateway
+# Matea
 
-[![CI](https://github.com/jeeinn/ai-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/jeeinn/ai-dev/actions/workflows/ci.yml)
-[![Release](https://github.com/jeeinn/ai-dev/actions/workflows/release.yml/badge.svg)](https://github.com/jeeinn/ai-dev/actions/workflows/release.yml)
+> Matea — your AI dev mate for Gitea.
+
+[![CI](https://github.com/jeeinn/matea/actions/workflows/ci.yml/badge.svg)](https://github.com/jeeinn/matea/actions/workflows/ci.yml)
+[![Release](https://github.com/jeeinn/matea/actions/workflows/release.yml/badge.svg)](https://github.com/jeeinn/matea/actions/workflows/release.yml)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license)
 [![Tests](https://img.shields.io/badge/Tests-55+-brightgreen)](#测试)
@@ -84,11 +86,11 @@ go test ./tests/integration/ -v -count=1
 # 可选：cp .env.example .env 后填入 Token / 密钥（勿提交 config.yaml / .env）
 
 cd web && npm install && npm run build && cd ..
-go build -o gateway .
-./gateway
+go build -o matea .
+./matea
 ```
 
-或从 [Releases](https://github.com/jeeinn/ai-dev/releases) 下载对应平台**单二进制**后直接运行（无需 zip / 预置 yaml）。
+或从 [Releases](https://github.com/jeeinn/matea/releases) 下载对应平台**单二进制**后直接运行（无需 zip / 预置 yaml）。
 
 启动后访问 **Web UI**：http://localhost:8080  
 默认账号：`admin` / `admin123`（首次登录**强制改密**）
@@ -155,13 +157,13 @@ llm:
 ### 构建（仅后端）
 
 ```bash
-go build -o gateway .
+go build -o matea .
 ```
 
 ### 运行
 
 ```bash
-./gateway -config config.yaml
+./matea -config config.yaml
 ```
 
 - **健康检查**: http://localhost:8080/health
@@ -227,7 +229,7 @@ agents:
 
 ```bash
 # 终端 1: 后端
-go build -o gateway . && ./gateway -config config.yaml
+go build -o matea . && ./matea -config config.yaml
 
 # 终端 2: 前端（热更新）
 cd web && npm run dev
@@ -299,7 +301,7 @@ go vet ./...
 | `review` | PR 上 **Request Reviewer** review Agent | 代码审查，输出审查评论 |
 
 **续作**：在 Issue/PR 评论中 **@Agent用户名**；`/dev`、`/reply`、`/force` 控制行为。  
-**重置**：评论 `/gateway reset` 或 `POST /api/sessions/reset?repo=&issue=`。
+**重置**：评论 `/matea reset` 或 `POST /api/sessions/reset?repo=&issue=`。
 
 > v2 已弃用 `ai:analyze` / `ai:solve` 等 Label 触发及 routes 配置。迁移见 [设计文档 §11.2](docs/archived/20260615-trigger-rules-and-workflow-improvement.md#112-从-label-触发迁移到-assign)。
 

@@ -218,7 +218,9 @@ func intPtr(i int) *int {
 // BuiltinModelCatalog is the built-in model metadata for common providers.
 // Users can override or extend via ProviderConfig.Models.
 // Official DeepSeek API model IDs (api-docs.deepseek.com, as of 2026-04-24):
-//   deepseek-v4-pro, deepseek-v4-flash
+//
+//	deepseek-v4-pro, deepseek-v4-flash
+//
 // Legacy aliases deepseek-chat / deepseek-reasoner route to v4-flash and
 // are deprecated on 2026-07-24 UTC.
 var BuiltinModelCatalog = map[string][]ModelDefinition{

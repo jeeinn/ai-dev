@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"gitea-agent-gateway/internal/config"
+	"github.com/jeeinn/matea/internal/config"
 )
 
 func newTestMCPServer(handler http.Handler) *httptest.Server {

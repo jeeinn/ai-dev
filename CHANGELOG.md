@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Release 主推单二进制**：恢复上传平台裸二进制 + `checksums.txt`（不再依赖 zip 预置 yaml）
 - 部署文档改为 goploy 式：下载 → 运行 → 浏览器配置
+- **项目更名 `gitea-agent-gateway` → Matea**：模块路径 `github.com/jeeinn/matea`、二进制 `matea`/`matea.exe`、展示名 `Matea`、仓库 `github.com/jeeinn/matea`
+  - **硬切（不兼容旧版本）**：评论命令仅识别 `/matea reset`（旧 `/gateway reset` 失效）；Agent 评论标记仅识别 `<!-- matea-agent -->`（旧 `<!-- gateway-agent -->` 失效）
+  - 默认数据库 `./data/gateway.db` → `./data/matea.db`、默认日志 `gateway.log` → `matea.log`；升级时请手动复制旧库（见 `docs/DEPLOYMENT.md` 迁移段）
+  - 任务失败原因文案 `gateway restarted; …` → `matea restarted; …`；OpenCode session 标题 `gateway-task-%d` → `matea-task-%d`
+  - `workspace_mode` 枚举 `gateway_path` → `matea_path`（不兼容旧配置）
 
 ## [0.10.2] - 2026-07-23
 

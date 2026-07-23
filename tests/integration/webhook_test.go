@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 func TestWebhookIssueAssigned(t *testing.T) {

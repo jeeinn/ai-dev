@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"gitea-agent-gateway/internal/config"
+	"github.com/jeeinn/matea/internal/config"
 )
 
 // Client is an MCP (Model Context Protocol) client that communicates

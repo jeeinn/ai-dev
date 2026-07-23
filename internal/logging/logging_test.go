@@ -9,9 +9,9 @@ import (
 
 func TestSetLevel(t *testing.T) {
 	tests := []struct {
-		input    string
-		debugOn  bool
-		infoOn   bool
+		input   string
+		debugOn bool
+		infoOn  bool
 	}{
 		{"debug", true, true},
 		{"info", false, true},
@@ -42,7 +42,7 @@ func TestSetupOutputWritesToFile(t *testing.T) {
 	SetLevel("info")
 	Infof("hello from test log")
 
-	data, err := os.ReadFile(filepath.Join(dir, "gateway.log"))
+	data, err := os.ReadFile(filepath.Join(dir, "matea.log"))
 	if err != nil {
 		t.Fatalf("read log file: %v", err)
 	}

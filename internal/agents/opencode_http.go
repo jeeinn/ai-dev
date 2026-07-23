@@ -12,12 +12,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"gitea-agent-gateway/internal/config"
+	"github.com/jeeinn/matea/internal/config"
 )
 
 const (
-	opencodeWorkspaceModeGatewayPath = "gateway_path"
-	opencodeDefaultTimeout          = 45 * time.Minute
+	opencodeWorkspaceModeGatewayPath = "matea_path"
+	opencodeDefaultTimeout           = 45 * time.Minute
 )
 
 // OpenCodeHTTPBackend implements CodingBackend by calling a local
@@ -173,7 +173,7 @@ func (b *OpenCodeHTTPBackend) createSession(ctx context.Context, req CodingReque
 	}
 
 	body := map[string]interface{}{
-		"title": fmt.Sprintf("gateway-task-%d", req.Task.ID),
+		"title": fmt.Sprintf("matea-task-%d", req.Task.ID),
 	}
 
 	httpReq, err := b.newJSONRequest(ctx, http.MethodPost, url, body)
@@ -196,12 +196,12 @@ func (b *OpenCodeHTTPBackend) createSession(ctx context.Context, req CodingReque
 
 // opencodeMessageRequest maps to the /session/{id}/message request body.
 type opencodeMessageRequest struct {
-	ModelID    string                   `json:"modelID"`
-	ProviderID string                   `json:"providerID"`
-	Parts      []opencodeMessagePart    `json:"parts"`
-	System     string                   `json:"system,omitempty"`
-	Tools      *opencodeToolsConfig     `json:"tools,omitempty"`
-	Directory  string                   `json:"directory,omitempty"`
+	ModelID    string                `json:"modelID"`
+	ProviderID string                `json:"providerID"`
+	Parts      []opencodeMessagePart `json:"parts"`
+	System     string                `json:"system,omitempty"`
+	Tools      *opencodeToolsConfig  `json:"tools,omitempty"`
+	Directory  string                `json:"directory,omitempty"`
 }
 
 type opencodeMessagePart struct {

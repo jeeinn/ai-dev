@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"sync"
 
-	"gitea-agent-gateway/internal/config"
+	"github.com/jeeinn/matea/internal/config"
 )
 
 // EventCallback is called when a webhook event is parsed and matched.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // GateLevel defines the enforcement level of a gate.

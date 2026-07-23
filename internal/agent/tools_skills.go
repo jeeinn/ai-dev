@@ -10,8 +10,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/sandbox"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/sandbox"
 )
 
 // skillScanDirs lists the well-known directories (relative to a scan root) to
@@ -39,11 +39,11 @@ type Skill struct {
 
 // SkillTool defines a tool provided by a skill.
 type SkillTool struct {
-	Name        string        `json:"name"`
-	Description string        `json:"description"`
-	Parameters  []SkillParam  `json:"parameters"`
-	Required    []string      `json:"required"`
-	Script      string        `json:"script"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Parameters  []SkillParam `json:"parameters"`
+	Required    []string     `json:"required"`
+	Script      string       `json:"script"`
 }
 
 // SkillParam defines a parameter for a skill tool.
@@ -55,16 +55,16 @@ type SkillParam struct {
 
 // skillFrontmatter is the YAML structure inside the --- block.
 type skillFrontmatter struct {
-	Name        string           `yaml:"name"`
-	Description string           `yaml:"description"`
-	Tools       []skillFMTool   `yaml:"tools"`
+	Name        string        `yaml:"name"`
+	Description string        `yaml:"description"`
+	Tools       []skillFMTool `yaml:"tools"`
 }
 
 type skillFMTool struct {
-	Name        string          `yaml:"name"`
-	Description string          `yaml:"description"`
-	Script      string          `yaml:"script"`
-	Parameters  []skillFMParam  `yaml:"parameters"`
+	Name        string         `yaml:"name"`
+	Description string         `yaml:"description"`
+	Script      string         `yaml:"script"`
+	Parameters  []skillFMParam `yaml:"parameters"`
 }
 
 type skillFMParam struct {
@@ -192,15 +192,15 @@ func (r *SkillRegistry) scanSkillDir(dir string) error {
 //
 // Supported formats:
 //
-//	1) agentskills.io YAML frontmatter:
-//	   ---
-//	   name: my-skill
-//	   description: ...
-//	   tools: [...]
-//	   ---
-//	   # Body instructions (Markdown)
+//  1. agentskills.io YAML frontmatter:
+//     ---
+//     name: my-skill
+//     description: ...
+//     tools: [...]
+//     ---
+//     # Body instructions (Markdown)
 //
-//	2) Legacy (no frontmatter): parsed by the heading-based heuristic.
+//  2. Legacy (no frontmatter): parsed by the heading-based heuristic.
 func parseSkillFile(path string) (*Skill, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {

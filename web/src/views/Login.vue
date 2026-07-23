@@ -3,7 +3,7 @@
     <el-card class="login-card">
       <template #header>
         <div class="card-header">
-          <h2>Gitea Agent Gateway</h2>
+          <h2>Matea</h2>
           <p>AI Agent 管理平台</p>
         </div>
       </template>

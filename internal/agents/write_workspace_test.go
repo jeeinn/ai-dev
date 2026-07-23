@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/sandbox"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/sandbox"
+	"github.com/jeeinn/matea/internal/store"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

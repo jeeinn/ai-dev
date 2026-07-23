@@ -30,7 +30,7 @@
 | 服务 | 默认地址 | 说明 |
 |------|----------|------|
 | Gitea | `http://localhost:3000` | 示例安装目录 `x:\gitea`；`gitea.exe`，`app.ini` 中 `ROOT_URL` 指向本机 |
-| Gateway | `http://127.0.0.1:8080` | `go build -o gateway.exe .` 后 `.\gateway.exe -config config.yaml` |
+| Gateway | `http://127.0.0.1:8080` | `go build -o matea.exe .` 后 `.\matea.exe -config config.yaml` |
 | OpenCode（Path A / A0） | `http://127.0.0.1:4096` | `opencode serve --port 4096`；健康检查 `/global/health` |
 | Mock MCP（P2.8） | `http://127.0.0.1:18080` | `go run scripts/common/e2e-mock-mcp.go` |
 
@@ -72,7 +72,7 @@ Get-Content data\e2e-env.local | ForEach-Object {
 | `gitea.url` | `http://localhost:3000` |
 | `gitea.admin_token` | `${GITEA_ADMIN_TOKEN}` |
 | `gitea.webhook_secret` | 与仓库 Webhook 一致（如 `local-e2e-webhook-2026`） |
-| `database.path` | `./data/gateway-e2e.db` |
+| `database.path` | `./data/matea-e2e.db` |
 | `workspace.base_dir` / sandbox | `./data/work-e2e` |
 | `logging.path` | `./data/logs-e2e` |
 | `llm.providers.*` | OpenAI-compatible（曾用 SenseNova：`https://token.sensenova.cn/v1`） |
@@ -103,7 +103,7 @@ go run scripts/common/e2e-mock-mcp.go
 opencode serve --port 4096
 
 # Gateway（另开终端，已 load e2e-env.local）
-.\gateway.exe -config config.yaml
+.\matea.exe -config config.yaml
 
 powershell -NoProfile -File scripts/windows/e2e-setup-gitea.ps1
 powershell -NoProfile -File scripts/windows/e2e-create-agents.ps1

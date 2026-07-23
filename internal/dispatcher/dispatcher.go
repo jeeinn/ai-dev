@@ -7,14 +7,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gitea-agent-gateway/internal/agents"
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/gitea"
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/sandbox"
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/webhook"
-	"gitea-agent-gateway/internal/workflow"
+	"github.com/jeeinn/matea/internal/agents"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/gitea"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/sandbox"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/webhook"
+	"github.com/jeeinn/matea/internal/workflow"
 )
 
 // Dispatcher orchestrates the event processing pipeline:
@@ -213,7 +213,7 @@ func (d *Dispatcher) Shutdown() {
 // Start initializes the executor workers, loads pending tasks, and starts the queue scanner.
 func (d *Dispatcher) Start() error {
 	// Mark orphaned running tasks as failed (e.g. previous process killed with Ctrl+C)
-	if n, err := d.db.FailOrphanedRunningTasks("gateway restarted; interrupted running task"); err != nil {
+	if n, err := d.db.FailOrphanedRunningTasks("matea restarted; interrupted running task"); err != nil {
 		log.Printf("[WARN] Failed to clear orphaned running tasks: %v", err)
 	} else if n > 0 {
 		log.Printf("[INFO] Marked %d orphaned running task(s) as failed after restart", n)

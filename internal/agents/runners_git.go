@@ -5,8 +5,8 @@ import (
 	"log"
 	"strings"
 
-	"gitea-agent-gateway/internal/sandbox"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/sandbox"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // resolveWorkBranch picks the branch to work on for session sync and checkout.

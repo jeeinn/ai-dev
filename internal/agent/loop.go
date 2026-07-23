@@ -7,9 +7,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/logging"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/logging"
 )
 
 // AgentLoop manages the multi-turn conversation between LLM and tools.

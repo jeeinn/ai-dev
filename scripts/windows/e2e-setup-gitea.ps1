@@ -98,7 +98,7 @@ Put-File ".agents/skills/hello/SKILL.md" $skill "chore: add e2e hello skill"
 $readme = @"
 # gateway-poc
 
-Local E2E test repository for Gitea Agent Gateway.
+Local E2E test repository for Matea.
 
 ## Files
 

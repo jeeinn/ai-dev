@@ -41,7 +41,7 @@ func (m *JWTManager) GenerateToken(userID int64, username, role string, mustChan
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.expiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "gitea-agent-gateway",
+			Issuer:    "matea",
 		},
 	}
 

@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"gitea-agent-gateway/internal/agents"
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/sandbox"
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/webhook"
-	"gitea-agent-gateway/internal/workflow"
+	"github.com/jeeinn/matea/internal/agents"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/sandbox"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/webhook"
+	"github.com/jeeinn/matea/internal/workflow"
 )
 
 // mockLLMProvider returns a fixed response for testing.
@@ -61,17 +61,17 @@ func createTestAgent(t *testing.T, db *store.DB) *store.Agent {
 	t.Helper()
 
 	agent := &store.Agent{
-		Name:          "test-agent",
-		GiteaUsername: "ai-agent",
-		GiteaToken:    "test-token",
-		Provider:      "mock",
-		Model:         "mock-model",
+		Name:            "test-agent",
+		GiteaUsername:   "ai-agent",
+		GiteaToken:      "test-token",
+		Provider:        "mock",
+		Model:           "mock-model",
 		MaxOutputTokens: 1024,
 		MaxInputTokens:  8192,
-		Temperature:   0.3,
-		SystemPrompt:  "You are a helpful AI assistant.",
-		Role:          store.RoleAnalyze,
-		Status:        "active",
+		Temperature:     0.3,
+		SystemPrompt:    "You are a helpful AI assistant.",
+		Role:            store.RoleAnalyze,
+		Status:          "active",
 	}
 
 	if err := db.CreateAgent(agent); err != nil {
@@ -100,10 +100,10 @@ func TestDispatcherHandleEvent(t *testing.T) {
 		URL: giteaServer.URL,
 	}
 	dispatcherCfg := &config.DispatcherConfig{
-			MaxConcurrent: 1,
-			TaskRetryCount: 0,
-			QueueSize:     10,
-		}
+		MaxConcurrent:  1,
+		TaskRetryCount: 0,
+		QueueSize:      10,
+	}
 
 	llmRegistry := &llm.Registry{}
 	llmRegistry.Register("mock", &mockLLMProvider{})
@@ -179,9 +179,9 @@ func TestDispatcherDuplicateDelivery(t *testing.T) {
 
 	giteaCfg := &config.GiteaConfig{URL: "http://localhost:0"}
 	dispatcherCfg := &config.DispatcherConfig{
-			MaxConcurrent: 1,
-			QueueSize:     10,
-		}
+		MaxConcurrent: 1,
+		QueueSize:     10,
+	}
 
 	sandboxCfg := sandbox.DefaultConfig()
 	d := NewDispatcher(db, giteaCfg, dispatcherCfg, nil, nil, sandboxCfg, config.DefaultMCPConfig())

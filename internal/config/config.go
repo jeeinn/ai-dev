@@ -132,7 +132,7 @@ func applyDefaults(cfg *Config) {
 		cfg.Dispatcher.QueueSize = 100
 	}
 	if cfg.Database.Path == "" {
-		cfg.Database.Path = "./data/gateway.db"
+		cfg.Database.Path = "./data/matea.db"
 	}
 	if cfg.Logging.Level == "" {
 		cfg.Logging.Level = "info"

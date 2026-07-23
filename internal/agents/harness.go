@@ -6,9 +6,9 @@ import (
 	"log"
 	"strings"
 
-	agentpkg "gitea-agent-gateway/internal/agent"
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/sandbox"
+	agentpkg "github.com/jeeinn/matea/internal/agent"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/sandbox"
 )
 
 // workspaceProgressSnapshot returns a fingerprint of uncommitted workspace state.

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // PromptManager manages prompt loading with priority: DB > config > built-in.

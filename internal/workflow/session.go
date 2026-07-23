@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // SessionService manages AgentSession lifecycle.

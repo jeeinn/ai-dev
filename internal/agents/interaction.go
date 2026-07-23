@@ -4,7 +4,7 @@ import (
 	"log"
 	"strings"
 
-	"gitea-agent-gateway/internal/webhook"
+	"github.com/jeeinn/matea/internal/webhook"
 )
 
 // InteractionHandler processes @Mention interactions.

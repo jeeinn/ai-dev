@@ -3,8 +3,8 @@ package agents
 import (
 	"testing"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/store"
 
 	"github.com/stretchr/testify/assert"
 )

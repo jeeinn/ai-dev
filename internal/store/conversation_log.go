@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"gitea-agent-gateway/internal/llm"
+	"github.com/jeeinn/matea/internal/llm"
 )
 
 // ConversationLogEntry is one persisted message from an agent loop iteration.

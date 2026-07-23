@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"gitea-agent-gateway/internal/agents"
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/webhook"
+	"github.com/jeeinn/matea/internal/agents"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/webhook"
 )
 
 // ResolveResult holds the resolution of a webhook event.

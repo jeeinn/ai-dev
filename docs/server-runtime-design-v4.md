@@ -248,7 +248,7 @@ agents:
         username: opencode
         password: "${OPENCODE_SERVER_PASSWORD}"
       timeout: "45m"
-      workspace_mode: gateway_path   # 第一期唯一合法值
+      workspace_mode: matea_path   # 第一期唯一合法值
       health_check:
         path: /global/health
         interval: 30s
@@ -407,7 +407,7 @@ Path C（按需）
 | 2 | sidecar 未启动 | health 失败 → 明确评论；不静默吃掉任务 |
 | 3 | system_prompt / model 映射不符合预期 | UI 注明「部分由 OpenCode 接管」；日志打 WARN |
 | 4 | refactor 写路径回归 | Step 2 独立 PR；强制 `internal` 回归测试 |
-| 5 | 误做成远程 | `workspace_mode` 非 `gateway_path` 直接拒绝加载 |
+| 5 | 误做成远程 | `workspace_mode` 非 `matea_path` 直接拒绝加载 |
 | 6 | 项目变重 | 禁止 Path B/C 与 A 捆绑交付 |
 
 ---

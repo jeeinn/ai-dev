@@ -16,15 +16,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gitea-agent-gateway/internal/agents"
-	"gitea-agent-gateway/internal/api"
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/dispatcher"
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/sandbox"
-	"gitea-agent-gateway/internal/store"
-	"gitea-agent-gateway/internal/webhook"
-	"gitea-agent-gateway/internal/workflow"
+	"github.com/jeeinn/matea/internal/agents"
+	"github.com/jeeinn/matea/internal/api"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/dispatcher"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/sandbox"
+	"github.com/jeeinn/matea/internal/store"
+	"github.com/jeeinn/matea/internal/webhook"
+	"github.com/jeeinn/matea/internal/workflow"
 
 	_ "modernc.org/sqlite"
 )
@@ -61,21 +61,21 @@ func NewTestEnv(t *testing.T) *TestEnv {
 			URL:        giteaMock.URL,
 			AdminToken: "test-admin-token",
 		},
-			Dispatcher: config.DispatcherConfig{
-				MaxConcurrent: 2,
-				TaskRetryCount: 0,
-				QueueSize:     10,
+		Dispatcher: config.DispatcherConfig{
+			MaxConcurrent:  2,
+			TaskRetryCount: 0,
+			QueueSize:      10,
+		},
+		Agents: config.AgentsConfig{
+			Defaults: config.AgentDefaultsConfig{
+				Provider:        "mock",
+				Model:           "mock-model",
+				MaxOutputTokens: 1024,
+				MaxInputTokens:  8192,
+				Temperature:     0.3,
+				Timeout:         "5m",
 			},
-			Agents: config.AgentsConfig{
-				Defaults: config.AgentDefaultsConfig{
-					Provider:        "mock",
-					Model:           "mock-model",
-					MaxOutputTokens: 1024,
-					MaxInputTokens:  8192,
-					Temperature:     0.3,
-					Timeout:         "5m",
-				},
-			},
+		},
 		API: config.APIConfig{
 			AuthToken: "test-api-token",
 		},
@@ -212,18 +212,18 @@ func (e *TestEnv) SendWebhook(event, deliveryID string, payload interface{}) err
 func (e *TestEnv) CreateTestAgent(t *testing.T) *store.Agent {
 	t.Helper()
 
-		agent := &store.Agent{
-			Name:            "test-agent",
-			GiteaUsername:   "ai-agent",
-			GiteaToken:      "test-gitea-token",
-			Provider:        "mock",
-			Model:           "mock-model",
-			MaxOutputTokens: 1024,
-			MaxInputTokens:  8192,
-			Temperature:     0.3,
-			SystemPrompt:    "You are a helpful AI assistant.",
-			Status:          "active",
-		}
+	agent := &store.Agent{
+		Name:            "test-agent",
+		GiteaUsername:   "ai-agent",
+		GiteaToken:      "test-gitea-token",
+		Provider:        "mock",
+		Model:           "mock-model",
+		MaxOutputTokens: 1024,
+		MaxInputTokens:  8192,
+		Temperature:     0.3,
+		SystemPrompt:    "You are a helpful AI assistant.",
+		Status:          "active",
+	}
 
 	err := e.DB.CreateAgent(agent)
 	require.NoError(t, err)
@@ -357,19 +357,19 @@ func (r *RecordingGiteaMock) CommentCalls() []GiteaCommentCall {
 func (e *TestEnv) CreateTestAgentWithRole(t *testing.T, name, username, role string) *store.Agent {
 	t.Helper()
 
-		agent := &store.Agent{
-			Name:            name,
-			GiteaUsername:   username,
-			GiteaToken:      "test-gitea-token",
-			Provider:        "mock",
-			Model:           "mock-model",
-			MaxOutputTokens: 1024,
-			MaxInputTokens:  8192,
-			Temperature:     0.3,
-			SystemPrompt:    "You are a helpful AI assistant.",
-			Role:            role,
-			Status:          "active",
-		}
+	agent := &store.Agent{
+		Name:            name,
+		GiteaUsername:   username,
+		GiteaToken:      "test-gitea-token",
+		Provider:        "mock",
+		Model:           "mock-model",
+		MaxOutputTokens: 1024,
+		MaxInputTokens:  8192,
+		Temperature:     0.3,
+		SystemPrompt:    "You are a helpful AI assistant.",
+		Role:            role,
+		Status:          "active",
+	}
 
 	err := e.DB.CreateAgent(agent)
 	require.NoError(t, err)

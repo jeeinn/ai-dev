@@ -4,16 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Gitea Agent Gateway — a Go service that receives Gitea webhooks, routes events to AI agents, and writes results back as Gitea comments or PRs. Supports multi-turn tool-use agent loops for code generation tasks.
+Matea — a Go service that receives Gitea webhooks, routes events to AI agents, and writes results back as Gitea comments or PRs. Supports multi-turn tool-use agent loops for code generation tasks.
 
 ## Build & Run
 
 ```bash
 # Build
-go build -o gateway .
+go build -o matea .
 
 # Run
-./gateway -config config.yaml
+./matea -config config.yaml
 
 # Format & Vet
 go fmt ./...

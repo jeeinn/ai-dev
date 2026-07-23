@@ -3,7 +3,7 @@
     <!-- 新用户引导 -->
     <el-card v-if="agents.length === 0" class="welcome-card" shadow="hover">
       <div class="welcome-content">
-        <h2>👋 欢迎使用 Gitea Agent Gateway</h2>
+        <h2>👋 欢迎使用 Matea</h2>
         <p class="welcome-desc">按照以下步骤快速开始使用</p>
         <el-steps :active="welcomeStep" direction="vertical" class="welcome-steps">
           <el-step title="配置 Gitea 连接" description="在系统配置中填写 Gitea 地址和管理员 Token">

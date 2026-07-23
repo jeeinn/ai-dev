@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // AuditLogger logs command executions to the database.

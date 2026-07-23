@@ -6,11 +6,11 @@ import (
 	"log"
 	"time"
 
-	agentpkg "gitea-agent-gateway/internal/agent"
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/sandbox"
-	"gitea-agent-gateway/internal/store"
+	agentpkg "github.com/jeeinn/matea/internal/agent"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/sandbox"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // CodingBackend executes the coding phase of a write task on a prepared workspace.

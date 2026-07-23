@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"gitea-agent-gateway/internal/config"
-	"gitea-agent-gateway/internal/gitea"
-	"gitea-agent-gateway/internal/llm"
+	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/gitea"
+	"github.com/jeeinn/matea/internal/llm"
 )
 
 // --- System Config endpoints ---
@@ -114,11 +114,11 @@ func (h *Handler) getProviderModels(w http.ResponseWriter, r *http.Request) {
 	models, source, err := h.cfgManager.GetProviderModels(providerName)
 	if err != nil {
 		writeJSON(w, 200, map[string]interface{}{
-			"success":  false,
-			"error":    err.Error(),
+			"success":         false,
+			"error":           err.Error(),
 			"fallback_source": source,
-			"source":   source,
-			"models":   models,
+			"source":          source,
+			"models":          models,
 		})
 		return
 	}
@@ -204,33 +204,33 @@ func (h *Handler) testLLMConfig(w http.ResponseWriter, r *http.Request) {
 		"deepseek-v4-flash",
 	))
 
-		maxTokens := 8
-		if v := firstNonEmpty(
-			asString(payload["agents.defaults.max_output_tokens"]),
-			h.stringConfigValue("agents.defaults.max_output_tokens"),
-		); v != "" {
-			if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
-				maxTokens = n
-			}
+	maxTokens := 8
+	if v := firstNonEmpty(
+		asString(payload["agents.defaults.max_output_tokens"]),
+		h.stringConfigValue("agents.defaults.max_output_tokens"),
+	); v != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
+			maxTokens = n
 		}
-		if maxTokens > 16 {
-			maxTokens = 16
-		}
-		if maxTokens <= 0 {
-			maxTokens = 8
-		}
+	}
+	if maxTokens > 16 {
+		maxTokens = 16
+	}
+	if maxTokens <= 0 {
+		maxTokens = 8
+	}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
 
-		resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
-			Model: model,
-			Messages: []llm.Message{
-				{Role: "user", Content: "ping"},
-			},
-			MaxTokens:   maxTokens,
-			Temperature: 0,
-		})
+	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
+		Model: model,
+		Messages: []llm.Message{
+			{Role: "user", Content: "ping"},
+		},
+		MaxTokens:   maxTokens,
+		Temperature: 0,
+	})
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":      false,

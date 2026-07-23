@@ -1,9 +1,9 @@
 package agents
 
 import (
-	agentpkg "gitea-agent-gateway/internal/agent"
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/store"
+	agentpkg "github.com/jeeinn/matea/internal/agent"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 type conversationRecorder struct {

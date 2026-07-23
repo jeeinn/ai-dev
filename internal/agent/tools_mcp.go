@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"gitea-agent-gateway/internal/llm"
-	"gitea-agent-gateway/internal/mcp"
+	"github.com/jeeinn/matea/internal/llm"
+	"github.com/jeeinn/matea/internal/mcp"
 )
 
 // RegisterMCPTools discovers tools from the specified MCP servers and registers

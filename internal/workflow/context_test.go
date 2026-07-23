@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea-agent-gateway/internal/store"
+	"github.com/jeeinn/matea/internal/store"
 )
 
 func newTestDB(t *testing.T) *store.DB {
@@ -183,7 +183,7 @@ func TestOnTaskCompleteReviewWithPRID(t *testing.T) {
 	got, err := db.GetWorkflowContext("owner/repo", 30)
 	require.NoError(t, err)
 	assert.Equal(t, store.StageReviewing, got.Stage) // Stays reviewing
-	assert.Equal(t, 42, got.PRID)                     // PR ID written
+	assert.Equal(t, 42, got.PRID)                    // PR ID written
 }
 
 func TestApplyTransition(t *testing.T) {

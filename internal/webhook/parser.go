@@ -7,16 +7,16 @@ import (
 
 // WebhookEvent represents the parsed Gitea webhook event.
 type WebhookEvent struct {
-	DeliveryID string       `json:"-"`
-	Event      string       `json:"-"`
-	Action     string       `json:"action"`
-	Repo       Repository   `json:"repository"`
-	Issue      *Issue       `json:"issue,omitempty"`
-	PR         *PullRequest `json:"pull_request,omitempty"`
-	Comment    *Comment     `json:"comment,omitempty"`
-	Assignee          *User `json:"assignee,omitempty"`          // Single assignee from issues.assigned event
-	RequestedReviewer *User `json:"requested_reviewer,omitempty"` // Single reviewer from pull_request.review_requested (Gitea format)
-	Sender            User  `json:"sender"`
+	DeliveryID        string       `json:"-"`
+	Event             string       `json:"-"`
+	Action            string       `json:"action"`
+	Repo              Repository   `json:"repository"`
+	Issue             *Issue       `json:"issue,omitempty"`
+	PR                *PullRequest `json:"pull_request,omitempty"`
+	Comment           *Comment     `json:"comment,omitempty"`
+	Assignee          *User        `json:"assignee,omitempty"`           // Single assignee from issues.assigned event
+	RequestedReviewer *User        `json:"requested_reviewer,omitempty"` // Single reviewer from pull_request.review_requested (Gitea format)
+	Sender            User         `json:"sender"`
 }
 
 type Repository struct {

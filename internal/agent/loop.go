@@ -24,6 +24,9 @@ type AgentLoop struct {
 	maxTokens         int // output tokens per completion
 	maxInputTokens    int // input budget for messages+tools
 	temperature       float64
+	topP              float64
+	frequencyPenalty  float64
+	presencePenalty   float64
 	maxIterations     int
 	iterationInterval time.Duration
 	recorder          ConversationRecorder
@@ -98,6 +101,14 @@ func (a *AgentLoop) SetProviderName(name string) {
 	a.providerName = name
 }
 
+// SetSamplingParams sets optional top_p / penalty values (0 = omit / provider default).
+// Temperature continues to come from the constructor.
+func (a *AgentLoop) SetSamplingParams(topP, frequencyPenalty, presencePenalty float64) {
+	a.topP = topP
+	a.frequencyPenalty = frequencyPenalty
+	a.presencePenalty = presencePenalty
+}
+
 // SetConversationRecorder enables per-iteration conversation persistence for a task.
 func (a *AgentLoop) SetConversationRecorder(recorder ConversationRecorder, taskID int64) {
 	a.recorder = recorder
@@ -149,11 +160,14 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 		msgStart := len(messages)
 
 		resp, err := a.provider.ChatCompletion(ctx, &llm.ChatRequest{
-			Model:       a.model,
-			Messages:    messages,
-			Tools:       tools,
-			MaxTokens:   a.maxTokens,
-			Temperature: a.temperature,
+			Model:            a.model,
+			Messages:         messages,
+			Tools:            tools,
+			MaxTokens:        a.maxTokens,
+			Temperature:      a.temperature,
+			TopP:             a.topP,
+			FrequencyPenalty: a.frequencyPenalty,
+			PresencePenalty:  a.presencePenalty,
 		})
 		if err != nil {
 			return "", fmt.Errorf("LLM call: %w", err)

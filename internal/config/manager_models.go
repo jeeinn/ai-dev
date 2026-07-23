@@ -127,6 +127,15 @@ func (m *ConfigManager) GetModelMeta(providerName, modelID string) *ModelDefinit
 	return nil
 }
 
+// GetProviderDefaultParams returns provider-level default_params for sampling.
+func (m *ConfigManager) GetProviderDefaultParams(providerName string) ModelParams {
+	pc, ok := m.getProviderConfig(providerName)
+	if !ok {
+		return ModelParams{}
+	}
+	return pc.DefaultParams
+}
+
 // discoverModels attempts to fetch the model list from the provider's API.
 // Uses the injected ModelDiscoveryFunc (if set) to avoid circular imports.
 func (m *ConfigManager) discoverModels(providerName string, pc ProviderConfig) ([]ModelDefinition, string, error) {

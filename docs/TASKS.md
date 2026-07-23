@@ -1,9 +1,10 @@
 # 任务清单
 
-> 更新：2026-07-17  
+> 更新：2026-07-23  
 > 产品边界：**Gitea 优先** · 内置 Agent 默认可用 · OpenCode 可选 · 不做多托管平台抽象  
 > 决策：[archived/20260714-coding-gateway-multi-vcs.md](archived/20260714-coding-gateway-multi-vcs.md)  
-> P0–P2 核心演进已归档：[archived/20260716-TASKS.md](archived/20260716-TASKS.md)
+> P0–P2 核心演进已归档：[archived/20260716-TASKS.md](archived/20260716-TASKS.md)  
+> 架构评估延后项取舍：[20260722-architecture-evaluation.md](20260722-architecture-evaluation.md)
 
 ---
 
@@ -12,7 +13,10 @@
 ```text
 P0–P2 核心能力（已交付）
         │
-        └─► P3 开源准备 ──► 首发后：沙箱补强 / 产品打磨 / Harness 验证
+        └─► P3 开源准备（已交付）
+                │
+                ├─► 已做：P1 硬化（竞态/inbox/type）+ 大文件拆分 + 采样参数透传
+                └─► TASKS 主线：Harness Checker → 沙箱 rg/temp → OpenCode A+（按需）
 ```
 
 ---
@@ -70,6 +74,7 @@ P0–P2 核心能力（已交付）
 
 [todo-20260714-LLMProvider-可选增强.md](todo-20260714-LLMProvider-可选增强.md)
 
+- [x] 采样参数透传：`top_p` / `frequency_penalty` / `presence_penalty`（配置 `default_params` → ChatRequest；分支 `chore/llm-sampling-params`）
 - [ ] tiktoken 精确计数（可选开启）
 - [ ] 超长 Session 语义摘要
 - [ ] per-task 成本预算上限
@@ -109,9 +114,13 @@ P0–P2 核心能力（已交付）
 
 | 阶段 | 焦点 |
 |------|------|
-| 第 1 周 | P3.11 开源阻塞 + CONTRIBUTING/SECURITY |
-| 第 2 周 | P3.12 质量加固 + v0.10.0 Release |
-| 之后 | Harness 验证门禁 → 产品打磨 / rg → OpenCode A+（按需） |
+| 已完成 | P3 开源 + v0.10.0；架构 P1 硬化；大文件拆分；**采样参数透传** |
+| 主线下一刀 | **Harness** Review/Coder 独立 Checker（防自评） |
+| 随后 | 沙箱 `rg` / temp 生命周期对齐 |
+| 按需 | OpenCode A+（SSE 进度等）→ LLM tiktoken / 摘要 / 成本预算 |
+| 继续延后 | API 中间件链（CORS/限流/访问日志）、`gitea.Client` Transport 显式复用（DefaultTransport 已够用） |
+
+评估延后项相对主线（历史取舍）：**TopP 透传（已做）> 中间件链 > Transport**；后两项有运维痛点再立项，不单开抢主线。
 
 ---
 

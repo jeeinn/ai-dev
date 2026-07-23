@@ -56,12 +56,13 @@ func (r *AnalyzeRunner) runSingleShot(ctx context.Context, task *store.Task, age
 		return nil, fmt.Errorf("truncate messages: %w", err)
 	}
 
-	resp, err := provider.ChatCompletion(ctx, &llm.ChatRequest{
-		Model:       agent.Model,
-		Messages:    messages,
-		MaxTokens:   r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model),
-		Temperature: r.factory.resolveTemperature(agent.Temperature, agent.Provider, agent.Model),
-	})
+	req := &llm.ChatRequest{
+		Model:     agent.Model,
+		Messages:  messages,
+		MaxTokens: r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model),
+	}
+	r.factory.resolveSamplingParams(agent.Temperature, agent.Provider, agent.Model).ApplyTo(req)
+	resp, err := provider.ChatCompletion(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("LLM call: %w", err)
 	}
@@ -79,7 +80,7 @@ func (r *AnalyzeRunner) runSingleShot(ctx context.Context, task *store.Task, age
 func (r *AnalyzeRunner) runAnalyzeLoop(ctx context.Context, task *store.Task, agent *store.Agent, provider llm.Provider, sb *sandbox.Sandbox) (*Result, error) {
 	maxInput := r.factory.resolveMaxInputTokens(agent.MaxInputTokens, agent.Provider, agent.Model)
 	maxOutput := r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model)
-	temperature := r.factory.resolveTemperature(agent.Temperature, agent.Provider, agent.Model)
+	sampling := r.factory.resolveSamplingParams(agent.Temperature, agent.Provider, agent.Model)
 
 	if !llm.SupportsTools(provider) {
 		log.Printf("[WARN] Task %d provider %q lacks tool support; falling back to single-shot analyze", task.ID, agent.Provider)
@@ -132,10 +133,11 @@ func (r *AnalyzeRunner) runAnalyzeLoop(ctx context.Context, task *store.Task, ag
 		agent.Model,
 		maxOutput,
 		maxInput,
-		temperature,
+		sampling.Temperature,
 		r.factory.defaultLoop,
 	)
 	loop.SetMaxIterations(5)
+	loop.SetSamplingParams(sampling.TopP, sampling.FrequencyPenalty, sampling.PresencePenalty)
 	loop.SetModelMeta(r.factory.getModelMeta(agent.Provider, agent.Model))
 	loop.SetProviderName(agent.Provider)
 	loop.SetUsageRecorder(func(p, m string, usage llm.Usage) {

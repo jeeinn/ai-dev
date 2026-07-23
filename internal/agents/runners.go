@@ -42,6 +42,28 @@ type GiteaClientFactory interface {
 // ModelMetaProvider can return model metadata for a given provider+model.
 type ModelMetaProvider interface {
 	GetModelMeta(provider, model string) *config.ModelDefinition
+	// GetProviderDefaultParams returns provider-level default_params (may be zero).
+	GetProviderDefaultParams(provider string) config.ModelParams
+}
+
+// SamplingParams holds generation controls for ChatCompletion.
+// Temperature always has a concrete value; TopP / penalties use 0 to mean "omit" (API default).
+type SamplingParams struct {
+	Temperature      float64
+	TopP             float64
+	FrequencyPenalty float64
+	PresencePenalty  float64
+}
+
+// ApplyTo sets sampling fields on a chat request.
+func (p SamplingParams) ApplyTo(req *llm.ChatRequest) {
+	if req == nil {
+		return
+	}
+	req.Temperature = p.Temperature
+	req.TopP = p.TopP
+	req.FrequencyPenalty = p.FrequencyPenalty
+	req.PresencePenalty = p.PresencePenalty
 }
 
 // RunnerFactory creates runners based on task type.
@@ -196,6 +218,34 @@ func (f *RunnerFactory) resolveTemperature(agentTemp float64, provider, model st
 		return fallbackTemp
 	}
 	return base
+}
+
+// resolveSamplingParams resolves temperature plus optional top_p / penalty params.
+// Optional floats: model default_params → provider default_params → 0 (omit from request).
+func (f *RunnerFactory) resolveSamplingParams(agentTemp float64, provider, model string) SamplingParams {
+	sp := SamplingParams{
+		Temperature: f.resolveTemperature(agentTemp, provider, model),
+	}
+	var modelParams, providerParams config.ModelParams
+	if f.modelMeta != nil {
+		if meta := f.modelMeta.GetModelMeta(provider, model); meta != nil {
+			modelParams = meta.DefaultParams
+		}
+		providerParams = f.modelMeta.GetProviderDefaultParams(provider)
+	}
+	sp.TopP = firstFloat(modelParams.TopP, providerParams.TopP)
+	sp.FrequencyPenalty = firstFloat(modelParams.FrequencyPenalty, providerParams.FrequencyPenalty)
+	sp.PresencePenalty = firstFloat(modelParams.PresencePenalty, providerParams.PresencePenalty)
+	return sp
+}
+
+func firstFloat(values ...*float64) float64 {
+	for _, v := range values {
+		if v != nil {
+			return *v
+		}
+	}
+	return 0
 }
 
 func (f *RunnerFactory) getModelMeta(provider, model string) *config.ModelDefinition {

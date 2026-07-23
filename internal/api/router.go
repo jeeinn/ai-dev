@@ -56,6 +56,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/config/test/gitea", h.jwtWrap(h.testGiteaConfig))
 	mux.HandleFunc("POST /api/config/test/llm", h.jwtWrap(h.testLLMConfig))
 
+	// Setup status (JWT; used by Web UI banner)
+	mux.HandleFunc("GET /api/setup/status", h.jwtWrap(h.getSetupStatus))
+
 	// Prompt template endpoints
 	mux.HandleFunc("GET /api/prompt-templates", h.authorizeWrap(h.listPromptTemplates))
 	mux.HandleFunc("PUT /api/prompt-templates", h.jwtWrap(h.updatePromptTemplates))

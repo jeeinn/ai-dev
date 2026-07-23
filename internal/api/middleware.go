@@ -4,13 +4,22 @@ import (
 	"context"
 	"net/http"
 	"strings"
+
+	"gitea-agent-gateway/internal/auth"
 )
 
 type contextKey string
 
 const claimsKey contextKey = "claims"
 
+// ClaimsFromContext returns JWT claims stored by jwtWrap / AuthHandler.
+func ClaimsFromContext(ctx context.Context) (*auth.Claims, bool) {
+	c, ok := ctx.Value(claimsKey).(*auth.Claims)
+	return c, ok
+}
+
 // jwtWrap validates JWT token from Authorization header and adds claims to context.
+// When the user must change password, management API calls are rejected with 403.
 func (h *Handler) jwtWrap(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if h.jwtManager == nil {
@@ -30,6 +39,14 @@ func (h *Handler) jwtWrap(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
+		if claims.MustChangePassword {
+			writeJSON(w, 403, map[string]string{
+				"error": "password change required",
+				"code":  "must_change_password",
+			})
+			return
+		}
+
 		ctx := context.WithValue(r.Context(), claimsKey, claims)
 		next(w, r.WithContext(ctx))
 	}
@@ -42,6 +59,13 @@ func (h *Handler) authorizeWrap(next http.HandlerFunc) http.HandlerFunc {
 
 		if h.jwtManager != nil && token != "" {
 			if claims, err := h.jwtManager.ValidateToken(token); err == nil {
+				if claims.MustChangePassword {
+					writeJSON(w, 403, map[string]string{
+						"error": "password change required",
+						"code":  "must_change_password",
+					})
+					return
+				}
 				ctx := context.WithValue(r.Context(), claimsKey, claims)
 				next(w, r.WithContext(ctx))
 				return

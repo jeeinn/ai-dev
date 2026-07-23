@@ -15,9 +15,10 @@ type JWTManager struct {
 
 // Claims represents the JWT claims.
 type Claims struct {
-	UserID   int64  `json:"user_id"`
-	Username string `json:"username"`
-	Role     string `json:"role"`
+	UserID             int64  `json:"user_id"`
+	Username           string `json:"username"`
+	Role               string `json:"role"`
+	MustChangePassword bool   `json:"must_change_password,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -30,11 +31,13 @@ func NewJWTManager(secret string, expiration time.Duration) *JWTManager {
 }
 
 // GenerateToken generates a new JWT token for a user.
-func (m *JWTManager) GenerateToken(userID int64, username, role string) (string, error) {
+// mustChangePassword is embedded in claims so hot-path middleware need not hit the DB.
+func (m *JWTManager) GenerateToken(userID int64, username, role string, mustChangePassword bool) (string, error) {
 	claims := Claims{
-		UserID:   userID,
-		Username: username,
-		Role:     role,
+		UserID:             userID,
+		Username:           username,
+		Role:               role,
+		MustChangePassword: mustChangePassword,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.expiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

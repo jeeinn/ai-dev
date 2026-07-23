@@ -9,15 +9,42 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// LoadResult holds the loaded config and whether a bootstrap file was created.
+type LoadResult struct {
+	Config           *Config
+	BootstrapCreated bool
+	BootstrapPath    string
+}
+
 // Load reads the configuration from the given YAML file path.
-// Environment variables in the form ${VAR_NAME} are expanded.
+// If the file does not exist, a minimal bootstrap config is written first
+// (random jwt_secret), then loaded. Environment variables (${VAR} / ${VAR:-default})
+// are expanded as usual.
 func Load(path string) (*Config, error) {
+	res, err := LoadWithBootstrap(path)
+	if err != nil {
+		return nil, err
+	}
+	return res.Config, nil
+}
+
+// LoadWithBootstrap is like Load but reports whether a bootstrap file was created.
+func LoadWithBootstrap(path string) (*LoadResult, error) {
+	created := false
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err := WriteBootstrapConfig(path); err != nil {
+			return nil, fmt.Errorf("bootstrap config: %w", err)
+		}
+		created = true
+	} else if err != nil {
+		return nil, fmt.Errorf("stat config file: %w", err)
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config file: %w", err)
 	}
 
-	// Expand environment variables
 	expanded := expandEnvVars(string(data))
 
 	var cfg Config
@@ -29,7 +56,11 @@ func Load(path string) (*Config, error) {
 	if err := ValidateAgentLoopConfig(cfg.Agents.Loop); err != nil {
 		return nil, err
 	}
-	return &cfg, nil
+	return &LoadResult{
+		Config:           &cfg,
+		BootstrapCreated: created,
+		BootstrapPath:    path,
+	}, nil
 }
 
 // ValidateAgentLoopConfig checks agents.loop ranges after defaults are applied.

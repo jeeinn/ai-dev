@@ -148,3 +148,114 @@ func TestApplyBackendDefaultsBackfillsInternalType(t *testing.T) {
 	assert.Equal(t, "internal", cfg.Agents.Backends.Default)
 	assert.Equal(t, BackendTypeBuiltin, cfg.Agents.Backends.Backends["internal"].Type)
 }
+
+func TestLoadGeneratesBootstrapIfMissing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	res, err := LoadWithBootstrap(path)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.True(t, res.BootstrapCreated)
+	assert.Equal(t, path, res.BootstrapPath)
+	require.FileExists(t, path)
+
+	cfg := res.Config
+	require.NotNil(t, cfg)
+	assert.Equal(t, 8080, cfg.Server.Port)
+	assert.Equal(t, "./data/gateway.db", cfg.Database.Path)
+	assert.Equal(t, "./data/work", cfg.Workspace.BaseDir)
+	assert.Equal(t, "info", cfg.Logging.Level)
+	assert.NotEmpty(t, cfg.Auth.JWTSecret)
+	assert.NotContains(t, cfg.Auth.JWTSecret, "change-me")
+	assert.NotEqual(t, "change-this-in-production", cfg.Auth.JWTSecret)
+	assert.Equal(t, "admin123", cfg.Auth.DefaultAdminPassword)
+
+	// Second load must not recreate
+	res2, err := LoadWithBootstrap(path)
+	require.NoError(t, err)
+	assert.False(t, res2.BootstrapCreated)
+	assert.Equal(t, cfg.Auth.JWTSecret, res2.Config.Auth.JWTSecret)
+}
+
+func TestWriteBootstrapConfigRandomSecret(t *testing.T) {
+	dir := t.TempDir()
+	path1 := filepath.Join(dir, "a.yaml")
+	path2 := filepath.Join(dir, "b.yaml")
+	require.NoError(t, WriteBootstrapConfig(path1))
+	require.NoError(t, WriteBootstrapConfig(path2))
+
+	c1, err := Load(path1)
+	require.NoError(t, err)
+	c2, err := Load(path2)
+	require.NoError(t, err)
+	assert.NotEqual(t, c1.Auth.JWTSecret, c2.Auth.JWTSecret)
+	assert.GreaterOrEqual(t, len(c1.Auth.JWTSecret), 32)
+}
+
+func TestCheckSetupIncomplete(t *testing.T) {
+	cfg := &Config{}
+	applyDefaults(cfg)
+	st := CheckSetup(cfg)
+	assert.True(t, st.SetupRequired)
+	assert.False(t, st.GiteaOK)
+	assert.False(t, st.LLMOK)
+	assert.Contains(t, st.Missing, "gitea.url")
+	assert.Contains(t, st.Missing, "gitea.admin_token")
+	assert.Contains(t, st.Missing, "gitea.webhook_secret")
+	assert.Contains(t, st.Missing, "llm.providers")
+}
+
+func TestCheckSetupComplete(t *testing.T) {
+	cfg := &Config{
+		Gitea: GiteaConfig{
+			URL:           "http://localhost:3000",
+			AdminToken:    "token",
+			WebhookSecret: "secret",
+		},
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"deepseek": {
+					BaseURL: "https://api.deepseek.com/v1",
+					APIKey:  "sk-test",
+				},
+			},
+			Defaults: LLMDefaultsConfig{Provider: "deepseek", Model: "deepseek-v4-flash"},
+		},
+	}
+	st := CheckSetup(cfg)
+	assert.False(t, st.SetupRequired)
+	assert.True(t, st.GiteaOK)
+	assert.True(t, st.LLMOK)
+	assert.Empty(t, st.Missing)
+}
+
+func TestCheckSetupLocalLLMWithoutAPIKey(t *testing.T) {
+	cfg := &Config{
+		Gitea: GiteaConfig{
+			URL:           "http://gitea",
+			AdminToken:    "t",
+			WebhookSecret: "s",
+		},
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"ollama": {BaseURL: "http://127.0.0.1:11434/v1"},
+			},
+			Defaults: LLMDefaultsConfig{Provider: "ollama", Model: "llama3"},
+		},
+	}
+	st := CheckSetup(cfg)
+	assert.False(t, st.SetupRequired)
+	assert.True(t, st.LLMOK)
+}
+
+func TestIsLikelyLocalLLM(t *testing.T) {
+	assert.True(t, isLikelyLocalLLM("http://127.0.0.1:11434/v1"))
+	assert.True(t, isLikelyLocalLLM("http://localhost:11434"))
+	assert.True(t, isLikelyLocalLLM("http://[::1]:11434/v1"))
+	assert.True(t, isLikelyLocalLLM("http://192.168.1.10:11434"))
+	assert.True(t, isLikelyLocalLLM("http://10.0.0.5:11434"))
+	assert.True(t, isLikelyLocalLLM("http://172.16.0.2:11434"))
+	assert.False(t, isLikelyLocalLLM("https://api.deepseek.com/v1"))
+	assert.False(t, isLikelyLocalLLM(""))
+}

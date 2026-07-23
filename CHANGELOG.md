@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Bootstrap 自生成配置**：无 `config.yaml` 时首次启动自动写入最小 bootstrap（随机 `jwt_secret`），可直接打开 Web UI
+- **Setup 引导**：`GET /api/setup/status` + `/health.setup_required`；Web 顶栏在 Gitea/LLM 未配齐时引导至系统配置
+- **首次登录强制改密**：默认 admin 带 `must_change_password`；仍使用默认密码时也会强制修改
+
+### Changed
+- **Release 主推单二进制**：恢复上传平台裸二进制 + `checksums.txt`（不再依赖 zip 预置 yaml）
+- 部署文档改为 goploy 式：下载 → 运行 → 浏览器配置
+
 ## [0.10.2] - 2026-07-23
 
 ### Changed

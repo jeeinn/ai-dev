@@ -9,6 +9,12 @@ const routes = [
     meta: { guest: true }
   },
   {
+    path: '/change-password',
+    name: 'ChangePassword',
+    component: () => import('../views/ChangePassword.vue'),
+    meta: { requiresAuth: true, allowPasswordChange: true }
+  },
+  {
     path: '/',
     name: 'Layout',
     component: () => import('../components/Layout.vue'),
@@ -65,13 +71,25 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
-  } else if (to.meta.guest && authStore.isAuthenticated) {
-    next('/')
-  } else if (to.meta.roles && !to.meta.roles.includes(authStore.user?.role)) {
-    next('/')
-  } else {
-    next()
+    return
   }
+
+  if (to.meta.guest && authStore.isAuthenticated) {
+    next(authStore.mustChangePassword ? '/change-password' : '/')
+    return
+  }
+
+  if (authStore.isAuthenticated && authStore.mustChangePassword && !to.meta.allowPasswordChange) {
+    next('/change-password')
+    return
+  }
+
+  if (to.meta.roles && !to.meta.roles.includes(authStore.user?.role)) {
+    next('/')
+    return
+  }
+
+  next()
 })
 
 export default router

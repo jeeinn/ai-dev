@@ -17,9 +17,9 @@
 
 > **安全警示（必读）**
 >
-> - Web UI 默认账号为 `admin` / `admin123`：**首次登录后务必立即修改密码**。
-> - 生产环境必须更换 `auth.jwt_secret`（或环境变量 `JWT_SECRET`），勿使用示例默认值。
-> - Token、API Key、Webhook 密钥请用环境变量或本地 `config.yaml` / `.env` 管理，**不要提交到 git**。
+> - Web UI 默认账号为 `admin` / `admin123`：**首次登录会强制修改密码**。
+> - 首次运行会自动生成 `config.yaml`，其中 `auth.jwt_secret` 为随机值；勿使用示例中的 `change-me`。
+> - Token、API Key、Webhook 密钥请用环境变量或 Web **系统配置**管理，**不要提交到 git**。
 
 ## 环境要求
 
@@ -29,16 +29,15 @@
 | Go | 1.26+（仅从源码构建时） |
 | 内存 | ≥ 512MB |
 | 磁盘 | ≥ 1GB（含工作空间） |
-| 网络 | 能访问 Gitea 和 LLM API |
+| 网络 | 能访问 Gitea 和 LLM API（配置完成前也可先启动 Web UI） |
 
 ## 维护者：打 tag 自动出 Release Draft
 
 推送匹配 `v*` 的 tag 后，GitHub Actions（[`.github/workflows/release.yml`](../.github/workflows/release.yml)）会：
 
 1. 构建前端并交叉编译 5 个平台二进制（linux/windows/darwin × amd64/arm64）
-2. 每个平台打成 **zip 部署包**（`gateway`/`gateway.exe` + `config.example.yaml` + `.env.example` + `README.txt`）
-3. 生成 `checksums.txt`（对 zip 做 SHA256）
-4. 创建 **draft** Release 并上传产物
+2. 生成 `checksums.txt`（对各二进制做 SHA256）
+3. 创建 **draft** Release 并上传**单二进制**产物（无需预先准备 `config.yaml`）
 
 维护者流程：
 
@@ -57,7 +56,28 @@ git push origin v0.11.0
 
 ## 快速部署
 
-### 方式一：从源码构建
+### 方式一：下载单二进制（推荐）
+
+从 [Releases](https://github.com/jeeinn/ai-dev/releases) 下载对应平台二进制（如 `gateway-linux-amd64`），直接运行：
+
+```bash
+chmod +x gateway-linux-amd64
+./gateway-linux-amd64
+# 等价：./gateway-linux-amd64 -config config.yaml
+```
+
+首次启动若本地没有 `config.yaml`，会自动写入最小 bootstrap（端口 `8080`、数据目录 `./data/...`、随机 `jwt_secret`），并打印 Web 访问地址与默认管理员提示。
+
+然后：
+
+1. 浏览器打开 http://127.0.0.1:8080  
+2. 使用 `admin` / `admin123` 登录并**修改密码**  
+3. 在 **系统配置** 填写 Gitea URL / Token / Webhook Secret 与 LLM Provider  
+4. 顶栏「未完成初始化」提示消失后即可配置 Agent 并接收 Webhook  
+
+Windows 下载 `gateway-windows-amd64.exe` 后双击或在终端运行即可。
+
+### 方式二：从源码构建
 
 ```bash
 # 克隆代码
@@ -70,35 +90,25 @@ cd web && npm install && npm run build && cd ..
 # 构建后端（前端资源通过 go:embed 打包进二进制）
 go build -o gateway .
 
-# 准备配置（config.yaml / .env 含敏感信息，勿提交）
-cp config.example.yaml config.yaml
-# 精简可运行示例；完整选项与注释见 config.full-example.yaml
-# 可选：cp .env.example .env 后填入 Token / 密钥
-# 编辑 config.yaml
-
-# 运行
-./gateway -config config.yaml
+# 直接运行（无 config.yaml 时自动生成）
+./gateway
 ```
 
-### 方式二：使用预编译 zip 包
-
-从 [Releases](https://github.com/jeeinn/ai-dev/releases) 下载对应平台的 zip（如 `gateway-linux-amd64.zip`），解压后配置并运行：
-
-```bash
-unzip gateway-linux-amd64.zip -d gateway && cd gateway
-cp config.example.yaml config.yaml
-cp .env.example .env
-# 编辑 config.yaml / .env（填入 Token、密钥）
-chmod +x gateway
-./gateway -config config.yaml
-```
-
-Windows 解压 `gateway-windows-amd64.zip` 后运行 `gateway.exe -config config.yaml`。
+也可预先 `cp config.example.yaml config.yaml` 再编辑；完整选项见 `config.full-example.yaml`。
 
 ## 配置说明
 
-起步复制 [config.example.yaml](../config.example.yaml) → `config.yaml`（精简可运行集）。  
+**推荐路径**：启动 → Web 登录改密 → **系统配置** 写入 Gitea / LLM（存入数据库，优先于文件）。
+
+起步也可复制 [config.example.yaml](../config.example.yaml) → `config.yaml`（精简可运行集）。  
 完整可选段与推荐取值见 [config.full-example.yaml](../config.full-example.yaml)；未写出的项由代码默认值填充（如 `workspace.base_dir` 默认为 `./data/work`）。
+
+Bootstrap 文件通常只保留：
+
+- `server.port`（默认 8080）
+- `database.path` / `workspace.base_dir`（默认 `./data/...`）
+- `auth.jwt_secret`（首次随机生成）
+- `auth.default_admin_password`（仅首次创建 admin 用户）
 
 ### 环境变量
 

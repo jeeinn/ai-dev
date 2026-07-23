@@ -134,6 +134,7 @@ func (db *DB) migrate() error {
 			display_name  TEXT DEFAULT '',
 			email         TEXT DEFAULT '',
 			is_active     INTEGER DEFAULT 1,
+			must_change_password INTEGER NOT NULL DEFAULT 0,
 			last_login    DATETIME,
 			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -248,6 +249,7 @@ func (db *DB) migrate() error {
 		`ALTER TABLE processed_deliveries ADD COLUMN status TEXT NOT NULL DEFAULT 'processed'`,
 		`ALTER TABLE processed_deliveries ADD COLUMN event_type TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE processed_deliveries ADD COLUMN payload BLOB`,
+		`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`,
 	}
 
 	for _, m := range additionalMigrations {

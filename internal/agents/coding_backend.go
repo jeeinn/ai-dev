@@ -33,9 +33,9 @@ type CodingBackend interface {
 }
 
 // HealthCheckableBackend is an optional interface for backends that support
- // an up-front health probe. When implemented, runWriteTask calls HealthCheck
- // BEFORE prepareWriteWorkspace. Failure returns an error (task → failed) unless
- // allow_fallback_internal is set on the backend config.
+// an up-front health probe. When implemented, runWriteTask calls HealthCheck
+// BEFORE prepareWriteWorkspace. Failure returns an error (task → failed) unless
+// allow_fallback_internal is set on the backend config.
 type HealthCheckableBackend interface {
 	HealthCheck(ctx context.Context) error
 }
@@ -115,6 +115,9 @@ func (b *InternalCodingBackend) Run(ctx context.Context, req CodingRequest) (*Co
 	provider, err := factory.llmRegistry.Get(agentCfg.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("get provider: %w", err)
+	}
+	if !llm.SupportsTools(provider) {
+		return nil, fmt.Errorf("provider %q does not support tool calls (Anthropic adapter has no tools yet); use an openai_compatible provider for coder tasks", agentCfg.Provider)
 	}
 
 	maxInput := factory.resolveMaxInputTokens(agentCfg.MaxInputTokens, agentCfg.Provider, agentCfg.Model)

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gitea-agent-gateway/internal/agents"
@@ -25,7 +26,7 @@ type Dispatcher struct {
 	queue     *TaskQueue
 	executor  *Executor
 	db        *store.DB
-	giteaCfg  *config.GiteaConfig
+	giteaCfg  atomic.Pointer[config.GiteaConfig]
 	agentsCfg *config.AgentsConfig
 
 	// v2 components
@@ -83,9 +84,9 @@ func NewDispatcher(
 		queue:     queue,
 		executor:  executor,
 		db:        db,
-		giteaCfg:  giteaCfg,
 		agentsCfg: agentsCfg,
 	}
+	d.giteaCfg.Store(giteaCfg)
 
 	// Wire up Gitea client factory for result writeback
 	var backends *config.AgentBackendsConfig
@@ -113,6 +114,14 @@ func (d *Dispatcher) SetModelMetaProvider(m agents.ModelMetaProvider) {
 	if d.executor != nil {
 		d.executor.SetModelMetaProvider(m)
 	}
+}
+
+// SetGiteaConfig updates Gitea settings used for admin clients / writeback (hot reload).
+func (d *Dispatcher) SetGiteaConfig(cfg *config.GiteaConfig) {
+	if cfg == nil {
+		return
+	}
+	d.giteaCfg.Store(cfg)
 }
 
 func resolveDefaultLoop(agentsCfg *config.AgentsConfig) config.AgentLoopConfig {
@@ -218,7 +227,8 @@ func (d *Dispatcher) getEffectivePolicy(repo string) *workflow.WorkflowPolicy {
 // when the stage transitions to a different role. This is controlled by the
 // stage_transition_unassign gate policy.
 func (d *Dispatcher) unassignPreviousAgentOnTransition(repo string, issueID int, prevAgentID int64, newAgentID int64) {
-	if d.wfPolicy == nil || d.giteaCfg == nil {
+	giteaCfg := d.giteaCfg.Load()
+	if d.wfPolicy == nil || giteaCfg == nil {
 		return
 	}
 
@@ -253,7 +263,7 @@ func (d *Dispatcher) unassignPreviousAgentOnTransition(repo string, issueID int,
 		return
 	}
 
-	giteaClient := gitea.NewClient(d.giteaCfg.URL, d.giteaCfg.AdminToken)
+	giteaClient := gitea.NewClient(giteaCfg.URL, giteaCfg.AdminToken)
 	if err := giteaClient.IssueUnassign(owner, repoName, issueID, prevAgent.GiteaUsername); err != nil {
 		log.Printf("[WARN] Failed to unassign agent %s from issue %s#%d: %v",
 			prevAgent.GiteaUsername, repo, issueID, err)
@@ -303,7 +313,8 @@ func (d *Dispatcher) Start() error {
 
 // HandleEvent processes a webhook event through the v2 pipeline.
 // This is the callback function passed to webhook.Handler.
-// Returns true if the event was successfully processed (or intentionally skipped).
+// Returns true for terminal outcomes (enqueued or intentionally skipped);
+// false for transient failures that should remain accepted for ReplayAccepted.
 func (d *Dispatcher) HandleEvent(evt *webhook.WebhookEvent) bool {
 	log.Printf("[INFO] Processing event: %s/%s repo=%s sender=%s",
 		evt.Event, evt.Action, evt.Repo.FullName, evt.Sender.Login)
@@ -614,14 +625,15 @@ func (d *Dispatcher) gatesForTransition(ctx *store.WorkflowContext, role string)
 
 // postGateComment posts a comment on the issue/PR using the agent's Gitea token.
 func (d *Dispatcher) postGateComment(agent *store.Agent, repo string, issueID int, body string) {
-	if d.giteaCfg == nil || agent.GiteaToken == "" || issueID == 0 {
+	giteaCfg := d.giteaCfg.Load()
+	if giteaCfg == nil || agent.GiteaToken == "" || issueID == 0 {
 		return
 	}
 	parts := strings.SplitN(repo, "/", 2)
 	if len(parts) != 2 {
 		return
 	}
-	client := gitea.NewClient(d.giteaCfg.URL, agent.GiteaToken)
+	client := gitea.NewClient(giteaCfg.URL, agent.GiteaToken)
 	commentBody := workflow.FormatAgentComment(body)
 	if err := client.IssueComment(parts[0], parts[1], issueID, commentBody); err != nil {
 		log.Printf("[WARN] Failed to post gate comment on %s#%d: %v", repo, issueID, err)
@@ -706,12 +718,20 @@ func (d *Dispatcher) buildDefaultContext(evt *webhook.WebhookEvent) string {
 
 // GetGiteaClient creates a Gitea client using agent's token for writeback.
 func (d *Dispatcher) GetGiteaClient(agentToken string) *gitea.Client {
-	return gitea.NewClient(d.giteaCfg.URL, agentToken)
+	cfg := d.giteaCfg.Load()
+	if cfg == nil {
+		return gitea.NewClient("", agentToken)
+	}
+	return gitea.NewClient(cfg.URL, agentToken)
 }
 
 // GetAdminGiteaClient creates a Gitea client using admin token.
 func (d *Dispatcher) GetAdminGiteaClient() *gitea.Client {
-	return gitea.NewClient(d.giteaCfg.URL, d.giteaCfg.AdminToken)
+	cfg := d.giteaCfg.Load()
+	if cfg == nil {
+		return gitea.NewClient("", "")
+	}
+	return gitea.NewClient(cfg.URL, cfg.AdminToken)
 }
 
 // prURLPattern matches PR URLs in task results (e.g. "PR created: http://...").
@@ -720,7 +740,7 @@ var prURLPattern = regexp.MustCompile(`PR created: (https?://\S+)`)
 // postL3Notification posts an L3 comment notification after task completion,
 // if the workflow policy has the corresponding notification enabled.
 func (d *Dispatcher) postL3Notification(task *store.Task) {
-	if d.wfPolicy == nil || d.giteaCfg == nil {
+	if d.wfPolicy == nil || d.giteaCfg.Load() == nil {
 		return
 	}
 

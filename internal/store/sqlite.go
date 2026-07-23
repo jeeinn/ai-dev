@@ -239,11 +239,15 @@ func (db *DB) migrate() error {
 		`ALTER TABLE agents ADD COLUMN max_input_tokens INTEGER DEFAULT 65536`,
 		`ALTER TABLE agents ADD COLUMN timeout TEXT DEFAULT '5m'`,
 		`ALTER TABLE task_usage ADD COLUMN cost REAL DEFAULT 0.0`,
-		`ALTER TABLE agents ADD COLUMN backend TEXT DEFAULT 'internal'`,       // OpenCode Path A
-		`ALTER TABLE agents ADD COLUMN backend_options TEXT DEFAULT '{}'`,     // OpenCode Path A
-		`ALTER TABLE agents ADD COLUMN tool_pack TEXT DEFAULT ''`,             // P1.4: ToolPack per agent
-		`ALTER TABLE agents ADD COLUMN mcp_servers TEXT DEFAULT '[]'`,        // P2.8: MCP servers per agent
-		`DROP TABLE IF EXISTS routes`, // v2: routes table removed (Assign model replaces Label trigger)
+		`ALTER TABLE agents ADD COLUMN backend TEXT DEFAULT 'internal'`,   // OpenCode Path A
+		`ALTER TABLE agents ADD COLUMN backend_options TEXT DEFAULT '{}'`, // OpenCode Path A
+		`ALTER TABLE agents ADD COLUMN tool_pack TEXT DEFAULT ''`,         // P1.4: ToolPack per agent
+		`ALTER TABLE agents ADD COLUMN mcp_servers TEXT DEFAULT '[]'`,     // P2.8: MCP servers per agent
+		`DROP TABLE IF EXISTS routes`,                                     // v2: routes table removed (Assign model replaces Label trigger)
+		// Webhook inbox: accept-before-200, replay accepted on startup
+		`ALTER TABLE processed_deliveries ADD COLUMN status TEXT NOT NULL DEFAULT 'processed'`,
+		`ALTER TABLE processed_deliveries ADD COLUMN event_type TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE processed_deliveries ADD COLUMN payload BLOB`,
 	}
 
 	for _, m := range additionalMigrations {

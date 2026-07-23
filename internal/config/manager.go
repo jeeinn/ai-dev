@@ -167,17 +167,19 @@ func (m *ConfigManager) MigrateLegacyConfigKeys() error {
 	return nil
 }
 
-// Get returns the active (merged) config. Safe for concurrent read.
+// Get returns a deep copy of the active (merged) config.
+// Callers may retain the result without racing config hot-updates.
 func (m *ConfigManager) Get() *Config {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.active
+	return copyConfig(m.active)
 }
 
 // Update sets a config entry: writes to DB and applies to active config in memory.
 func (m *ConfigManager) Update(key, value string) error {
-	// Validate: try applying to a temp copy first
+	m.mu.RLock()
 	testCfg := copyConfig(m.active)
+	m.mu.RUnlock()
 	if err := applyConfigEntry(testCfg, key, value); err != nil {
 		return fmt.Errorf("invalid value for %s: %w", key, err)
 	}
@@ -189,12 +191,14 @@ func (m *ConfigManager) Update(key, value string) error {
 		}
 	}
 
-	// Apply to active config
+	// Apply to a new snapshot so concurrent Get() holders keep a stable copy.
 	m.mu.Lock()
-	if err := applyConfigEntry(m.active, key, value); err != nil {
+	next := copyConfig(m.active)
+	if err := applyConfigEntry(next, key, value); err != nil {
 		m.mu.Unlock()
 		return fmt.Errorf("apply config: %w", err)
 	}
+	m.active = next
 	m.mu.Unlock()
 
 	// Invalidate model cache when providers change
@@ -214,13 +218,15 @@ func (m *ConfigManager) Delete(key string) error {
 		}
 	}
 
-	// Reset to file config value
+	// Reset to file config value on a new snapshot.
 	m.mu.Lock()
 	fileVal := getConfigEntry(m.base, key)
-	if err := applyConfigEntry(m.active, key, fileVal); err != nil {
+	next := copyConfig(m.active)
+	if err := applyConfigEntry(next, key, fileVal); err != nil {
 		m.mu.Unlock()
 		return fmt.Errorf("revert config: %w", err)
 	}
+	m.active = next
 	m.mu.Unlock()
 
 	// Invalidate model cache when providers change
@@ -306,9 +312,9 @@ func (m *ConfigManager) GetDisplayMap() (map[string]interface{}, error) {
 	}
 
 	result["_meta"] = map[string]interface{}{
-		"sources":  sources,
-		"models":   modelsMeta,
-		"backends": backendsMeta,
+		"sources":          sources,
+		"models":           modelsMeta,
+		"backends":         backendsMeta,
 		"backends_default": activeBackends.Default,
 		"workflow_presets": []map[string]interface{}{
 			{"name": "free", "label": "自由模式", "description": "最小限制，允许跳过分析直接开发"},
@@ -489,28 +495,28 @@ func (m *ConfigManager) getActiveMap() map[string]interface{} {
 	defer m.mu.RUnlock()
 	cfg := m.active
 	return map[string]interface{}{
-		"gitea.url":                       cfg.Gitea.URL,
-		"gitea.admin_token":               cfg.Gitea.AdminToken,
-		"gitea.webhook_secret":            cfg.Gitea.WebhookSecret,
-		"llm.defaults.provider":           cfg.LLM.Defaults.Provider,
-		"llm.defaults.model":              cfg.LLM.Defaults.Model,
-		"llm.providers":                   cfg.LLM.Providers,
-		"dispatcher.max_concurrent":       cfg.Dispatcher.MaxConcurrent,
-		"dispatcher.task_retry_count":     cfg.Dispatcher.TaskRetryCount,
-		"dispatcher.rate_limit_backoff":   cfg.Dispatcher.RateLimitBackoff,
-		"llm.rate_limit_retries":          cfg.LLM.RateLimitRetries,
-		"agents.defaults.provider":        cfg.Agents.Defaults.Provider,
-		"agents.defaults.model":           cfg.Agents.Defaults.Model,
-		"agents.defaults.max_output_tokens": cfg.Agents.Defaults.MaxOutputTokens,
-		"agents.defaults.max_input_tokens":  cfg.Agents.Defaults.MaxInputTokens,
-		"agents.defaults.temperature":     cfg.Agents.Defaults.Temperature,
-		"agents.defaults.timeout":         cfg.Agents.Defaults.Timeout,
-		"agents.loop.max_iterations":      cfg.Agents.Loop.MaxIterations,
-		"agents.loop.total_timeout":       cfg.Agents.Loop.TotalTimeout,
-		"agents.loop.iteration_interval":  cfg.Agents.Loop.IterationInterval,
-		"agents.loop.no_progress_limit":   cfg.Agents.Loop.NoProgressLimit,
-		"agents.loop.verify_commands":     cfg.Agents.Loop.VerifyCommands,
-		"debug.conversation_log.enabled":          cfg.Debug.ConversationLog.Enabled,
+		"gitea.url":                                cfg.Gitea.URL,
+		"gitea.admin_token":                        cfg.Gitea.AdminToken,
+		"gitea.webhook_secret":                     cfg.Gitea.WebhookSecret,
+		"llm.defaults.provider":                    cfg.LLM.Defaults.Provider,
+		"llm.defaults.model":                       cfg.LLM.Defaults.Model,
+		"llm.providers":                            cfg.LLM.Providers,
+		"dispatcher.max_concurrent":                cfg.Dispatcher.MaxConcurrent,
+		"dispatcher.task_retry_count":              cfg.Dispatcher.TaskRetryCount,
+		"dispatcher.rate_limit_backoff":            cfg.Dispatcher.RateLimitBackoff,
+		"llm.rate_limit_retries":                   cfg.LLM.RateLimitRetries,
+		"agents.defaults.provider":                 cfg.Agents.Defaults.Provider,
+		"agents.defaults.model":                    cfg.Agents.Defaults.Model,
+		"agents.defaults.max_output_tokens":        cfg.Agents.Defaults.MaxOutputTokens,
+		"agents.defaults.max_input_tokens":         cfg.Agents.Defaults.MaxInputTokens,
+		"agents.defaults.temperature":              cfg.Agents.Defaults.Temperature,
+		"agents.defaults.timeout":                  cfg.Agents.Defaults.Timeout,
+		"agents.loop.max_iterations":               cfg.Agents.Loop.MaxIterations,
+		"agents.loop.total_timeout":                cfg.Agents.Loop.TotalTimeout,
+		"agents.loop.iteration_interval":           cfg.Agents.Loop.IterationInterval,
+		"agents.loop.no_progress_limit":            cfg.Agents.Loop.NoProgressLimit,
+		"agents.loop.verify_commands":              cfg.Agents.Loop.VerifyCommands,
+		"debug.conversation_log.enabled":           cfg.Debug.ConversationLog.Enabled,
 		"debug.conversation_log.max_content_chars": cfg.Debug.ConversationLog.MaxContentChars,
 	}
 }
@@ -902,4 +908,3 @@ func isSemanticallyEmptyConfigValue(key, dbVal string) bool {
 	}
 	return false
 }
-

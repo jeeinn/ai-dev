@@ -169,6 +169,8 @@ func main() {
 	// Webhook handler - wired to dispatcher
 	webhookHandler := webhook.NewHandler(&activeCfg.Gitea, db.DB, d.HandleEvent)
 	mux.Handle("POST /webhook/gitea", webhookHandler)
+	// Recover deliveries accepted before crash (after HTTP 200, before processing finished).
+	webhookHandler.ReplayAccepted()
 
 	// Serve static files (Web UI)
 	webFS, err := fs.Sub(webDist, "web/dist")
@@ -208,7 +210,9 @@ func main() {
 		llmRegistry.Reload(&newCfg.LLM)
 		llmRegistry.SetRateLimitBackoff(newCfg.Dispatcher.RateLimitBackoff, newCfg.LLM.RateLimitRetries)
 		manager.ReloadGitea(&newCfg.Gitea)
+		d.SetGiteaConfig(&newCfg.Gitea)
 		d.SetWorkflowPolicy(workflow.BuildPolicy(newCfg.Workflow.Preset, newCfg.Workflow.Gates))
+		webhookHandler.SetGiteaConfig(&newCfg.Gitea)
 		log.Printf("[INFO] LLM registry, Gitea client, and workflow policy reloaded")
 	})
 	apiHandler.RegisterRoutes(mux)

@@ -347,6 +347,11 @@ func (r *AnalyzeRunner) runAnalyzeLoop(ctx context.Context, task *store.Task, ag
 	maxOutput := r.factory.resolveMaxOutputTokens(agent.MaxOutputTokens, agent.Provider, agent.Model)
 	temperature := r.factory.resolveTemperature(agent.Temperature, agent.Provider, agent.Model)
 
+	if !llm.SupportsTools(provider) {
+		log.Printf("[WARN] Task %d provider %q lacks tool support; falling back to single-shot analyze", task.ID, agent.Provider)
+		return r.runSingleShot(ctx, task, agent, provider)
+	}
+
 	// Load code context (best-effort)
 	codeCtx, err := agentpkg.LoadCodeContext(sb, maxInput)
 	if err != nil {

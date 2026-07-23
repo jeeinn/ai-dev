@@ -89,7 +89,6 @@ func TestGetDisplayMapPrefersDBAndFallsBackToFile(t *testing.T) {
 	assert.Equal(t, "file", sources["llm.providers"])
 }
 
-
 func TestGetDisplayMapTreatsEmptyDBValueAsUnset(t *testing.T) {
 	fileCfg := &Config{
 		Gitea: GiteaConfig{URL: "http://file-gitea:3000"},
@@ -182,7 +181,6 @@ func TestGetDisplayMapSemanticEmptyJSONFallsBack(t *testing.T) {
 	}
 }
 
-
 func TestGetDisplayMapDBProvidersMasked(t *testing.T) {
 	fileCfg := &Config{
 		LLM: LLMConfig{
@@ -224,14 +222,11 @@ func TestGetDisplayMapDBProvidersMasked(t *testing.T) {
 	assert.Equal(t, "db", sources["llm.providers"])
 }
 
-
-
-
 func TestIsSemanticallyEmptyConfigValue(t *testing.T) {
 	tests := []struct {
-		key   string
-		val   string
-		want  bool
+		key  string
+		val  string
+		want bool
 	}{
 		{"llm.providers", "{}", true},
 		{"llm.providers", "null", true},
@@ -455,6 +450,26 @@ func TestCopyConfigDeepCopiesModels(t *testing.T) {
 
 	// dst should be unchanged
 	assert.Equal(t, "Model 1", dst.LLM.Providers["test"].Models[0].Name, "dst models should not be affected by src changes")
+}
+
+func TestConfigManagerGetReturnsIsolatedCopy(t *testing.T) {
+	m := NewConfigManager(&Config{
+		Server: ServerConfig{Host: "127.0.0.1", Port: 8080},
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"openai": {Type: "openai_compatible", BaseURL: "http://x", APIKey: "k"},
+			},
+		},
+	})
+
+	snap := m.Get()
+	snap.Server.Port = 9999
+	snap.LLM.Providers["openai"] = ProviderConfig{Type: "anthropic", APIKey: "mutated"}
+
+	live := m.Get()
+	assert.Equal(t, 8080, live.Server.Port)
+	assert.Equal(t, "openai_compatible", live.LLM.Providers["openai"].Type)
+	assert.Equal(t, "k", live.LLM.Providers["openai"].APIKey)
 }
 
 func TestInvalidateModelCache(t *testing.T) {

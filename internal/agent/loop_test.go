@@ -199,3 +199,59 @@ func TestAgentLoopSendsToolsWhenModelSupports(t *testing.T) {
 		t.Fatal("expected Tools to be sent when SupportsTools=true")
 	}
 }
+
+type pseudoToolCallProvider struct {
+	content string
+}
+
+func (p *pseudoToolCallProvider) ChatCompletion(ctx context.Context, req *llm.ChatRequest) (*llm.ChatResponse, error) {
+	return &llm.ChatResponse{Content: p.content, FinishReason: "stop"}, nil
+}
+
+func TestAgentLoopRejectsPseudoToolCallContent(t *testing.T) {
+	provider := &pseudoToolCallProvider{content: `<|DSML|tool_calls>
+<|DSML|invoke name="read_file">
+<|DSML|parameter name="path" string="true">docs/RENAME-TO-MATEA.md</|DSML|parameter>
+</|DSML|invoke>`}
+	registry := NewToolRegistry()
+	loop := NewAgentLoopWithConfig(provider, registry, "flash", 1024, 8192, 0.3, config.AgentLoopConfig{
+		MaxIterations: 1,
+	})
+	loop.SetModelMeta(&config.ModelDefinition{SupportsTools: true})
+
+	_, err := loop.Run(context.Background(), []llm.Message{{Role: "user", Content: "go"}})
+	if err == nil {
+		t.Fatal("expected error for textual tool-call markup")
+	}
+	if !strings.Contains(err.Error(), "textual tool-call markup") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// When SupportsTools=false, tools are omitted from the request; the model may
+// still dump DSML/text tool markup into content. Detection must still fail closed.
+func TestAgentLoopRejectsPseudoToolCallWhenToolsOmitted(t *testing.T) {
+	provider := &pseudoToolCallProvider{content: `<|DSML|tool_calls>
+<|DSML|invoke name="read_file">
+<|DSML|parameter name="path" string="true">docs/RENAME-TO-MATEA.md</|DSML|parameter>
+</|DSML|invoke>`}
+	registry := NewToolRegistry()
+	registry.Register(&ToolDef{
+		Name:        "read_file",
+		Description: "read a file",
+		Parameters:  llm.Parameters{Type: "object", Properties: map[string]llm.Property{}},
+		Fn:          func(map[string]interface{}) (string, error) { return "ok", nil },
+	})
+	loop := NewAgentLoopWithConfig(provider, registry, "reasoner", 1024, 8192, 0.3, config.AgentLoopConfig{
+		MaxIterations: 1,
+	})
+	loop.SetModelMeta(&config.ModelDefinition{SupportsTools: false})
+
+	_, err := loop.Run(context.Background(), []llm.Message{{Role: "user", Content: "go"}})
+	if err == nil {
+		t.Fatal("expected error for textual tool-call markup when tools omitted")
+	}
+	if !strings.Contains(err.Error(), "textual tool-call markup") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

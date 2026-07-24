@@ -63,3 +63,25 @@ func TestFinalizeWriteChangesNoChangesReturnsComment(t *testing.T) {
 	assert.Equal(t, "nothing changed", result.Content)
 	assert.Equal(t, 0, result.PRID)
 }
+
+func TestFinalizeWriteChangesRejectsPseudoToolCallOnCleanTree(t *testing.T) {
+	s, git, audit := setupLocalGitRepo(t)
+
+	wwc := &WriteWorkspaceContext{
+		Sandbox:    s,
+		Git:        git,
+		Audit:      audit,
+		BranchName: "main",
+	}
+	task := &store.Task{ID: 9002, Repo: "owner/repo"}
+	agent := &store.Agent{Provider: "mock", Model: "m"}
+	factory := NewRunnerFactory(nil, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil, sandbox.DefaultConfig(), nil, "")
+
+	dsml := `<|DSML|tool_calls>
+<|DSML|invoke name="read_file">
+<|DSML|parameter name="path" string="true">docs/RENAME-TO-MATEA.md</|DSML|parameter>
+</|DSML|invoke>`
+	_, err := finalizeWriteChanges(context.Background(), wwc, task, agent, factory, nil, "dev", dsml)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unexecuted tool call")
+}

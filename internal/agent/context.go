@@ -165,7 +165,7 @@ You MUST implement changes using tools — do not stop at analysis-only response
 - Use read_file, list_files, rg (preferred), and search_code to explore the codebase
 - Run tests with run_command when applicable (e.g. go test, npm test)
 - The gateway may run configured verify_commands after you finish; ensure tests pass before ending
-- The gateway automatically commits, pushes, and opens a PR when git detects changes
+- The gateway automatically commits, pushes, and opens a PR when git detects changes — do NOT run "git commit" or "git push" yourself. Self-committing makes the working tree look clean to the gateway and silently breaks delivery (the push/PR step may be skipped), so the changes never reach the remote
 - Prioritize delivering working code changes within your iteration budget; avoid lengthy analysis-only final messages
 - If a change attempt fails, try a different approach — repeating the same failing edit wastes iterations`
 }

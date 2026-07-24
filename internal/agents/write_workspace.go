@@ -146,8 +146,15 @@ func prepareWriteWorkspace(ctx context.Context, task *store.Task, agent *store.A
 		}
 	}
 
+	// Preset git identity so the gateway's commit (during finalize) succeeds on
+	// the first try. Convention: name = Gitea username, email = {user}@matea.local.
+	setupAgentGitIdentity(git, agent.GiteaUsername)
+
 	branchName, isExistingBranch := resolveBranchPlan(task, sessionBranch, taskSubType, git)
 	wwc.BranchName = branchName
+	// Surface local-only session branches early (before coding), so operators
+	// see stranded work in logs even when the task later fails to push.
+	warnLocalOnlyBranch(git, branchName, task.ID)
 
 	if isExistingBranch {
 		if err := prepareExistingBranch(sb, git, audit, branchName); err != nil {
@@ -173,6 +180,33 @@ func prepareWriteWorkspace(ctx context.Context, task *store.Task, agent *store.A
 	return wwc, nil
 }
 
+// warnLocalOnlyBranch logs a warning when the working branch exists locally but
+// has no counterpart on the remote, so an operator can see unpushed work piling
+// up on local-only session branches (P2 observability). It never fails the task.
+func warnLocalOnlyBranch(git *sandbox.Git, branchName string, taskID int64) {
+	if branchName == "" {
+		return
+	}
+	if git.RemoteBranchExists("origin", branchName) {
+		return
+	}
+	log.Printf("[WARN] Task %d branch %s is local-only (not pushed to origin); work may be stranded on a local branch", taskID, branchName)
+}
+
+// setupAgentGitIdentity configures the git identity used for gateway commits.
+// name = Gitea username (fallback matea-agent), email = {name}@matea.local,
+// matching the TASKS.md convention for attributing agent commits to the agent.
+func setupAgentGitIdentity(git *sandbox.Git, giteaUsername string) {
+	name := giteaUsername
+	if name == "" {
+		name = "matea-agent"
+	}
+	email := fmt.Sprintf("%s@matea.local", name)
+	if res := git.ConfigUser(name, email); res.Error != nil {
+		log.Printf("[WARN] git identity preset failed (%s <%s>): %v", name, email, res.Error)
+	}
+}
+
 // finalizeWriteChanges checks for uncommitted changes, stages, commits, pushes,
 // and creates or updates the PR. Behavior is identical to the finalize phase
 // previously inlined in runWriteTask.
@@ -195,18 +229,42 @@ func finalizeWriteChanges(ctx context.Context, wwc *WriteWorkspaceContext, task 
 		if agentpkg.LooksLikePseudoToolCall(agentResult) {
 			return nil, fmt.Errorf("coding produced no workspace changes and summary looks like an unexecuted tool call; check model supports_tools and tool_call API compatibility")
 		}
-		// OpenCode (or a prior turn) may already have committed+pushed on the
-		// working branch. Still ensure a PR exists when we are on a non-base branch.
+		// OpenCode (or a prior turn) may already have committed on the working
+		// branch, but NEVER report success until the branch is pushed and a PR
+		// exists. If the agent committed locally and never pushed, the remote
+		// head is missing and CreatePR would 404 — silently degrading to a
+		// "success" comment. Push first, then open/update the PR. A push failure
+		// is fatal; a PR failure after a successful push is also fatal (the
+		// delivery is incomplete, not a success).
 		if wwc.BranchName != "" && wwc.RepoInfo != nil &&
 			wwc.BranchName != wwc.RepoInfo.DefaultBranch &&
 			factory != nil && factory.giteaFactory != nil {
-			if adminClient := factory.giteaFactory.GetAdminGiteaClient(); adminClient != nil {
-				res, err := finalizeWriteTaskPR(adminClient, wwc.Owner, wwc.Repo, wwc.BranchName, wwc.RepoInfo.DefaultBranch, task, taskSubType, agentResult)
-				if err == nil {
-					return res, nil
-				}
-				log.Printf("[WARN] Task %d PR finalize on clean tree failed: %v", task.ID, err)
+			adminClient := factory.giteaFactory.GetAdminGiteaClient()
+			if adminClient == nil {
+				return nil, fmt.Errorf("cannot finalize delivery for branch %s: admin gitea client unavailable", wwc.BranchName)
 			}
+			// Push the local branch before opening the PR so the remote head
+			// exists. This is a no-op when already in sync, and creates the
+			// remote branch when the agent committed locally but never pushed.
+			pushResult := git.Push("origin", wwc.BranchName)
+			audit.LogCommand("git", []string{"push", "origin", wwc.BranchName}, pushResult)
+			if pushResult.Error != nil {
+				errMsg := pushResult.Stderr
+				if errMsg == "" {
+					errMsg = pushResult.Error.Error()
+				}
+				return nil, fmt.Errorf("push %s before opening PR failed: %s", wwc.BranchName, errMsg)
+			}
+			if wwc.UseSession {
+				saveSessionBranch(factory, task, wwc.BranchName)
+			}
+			res, err := finalizeWriteTaskPR(adminClient, wwc.Owner, wwc.Repo, wwc.BranchName, wwc.RepoInfo.DefaultBranch, task, taskSubType, agentResult)
+			if err != nil {
+				// Push may have succeeded, but without a PR the delivery is
+				// incomplete — do NOT report success.
+				return nil, fmt.Errorf("changes pushed to %s but PR creation failed: %w", wwc.BranchName, err)
+			}
+			return res, nil
 		}
 		return &Result{
 			Content: agentResult,
@@ -249,6 +307,9 @@ func finalizeWriteChanges(ctx context.Context, wwc *WriteWorkspaceContext, task 
 	}
 
 	adminClient := factory.giteaFactory.GetAdminGiteaClient()
+	if adminClient == nil {
+		return nil, fmt.Errorf("changes pushed to %s but cannot open PR: admin gitea client unavailable", branchName)
+	}
 	return finalizeWriteTaskPR(adminClient, wwc.Owner, wwc.Repo, branchName, wwc.RepoInfo.DefaultBranch, task, taskSubType, agentResult)
 }
 

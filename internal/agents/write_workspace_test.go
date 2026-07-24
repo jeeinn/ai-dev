@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jeeinn/matea/internal/config"
+	"github.com/jeeinn/matea/internal/gitea"
 	"github.com/jeeinn/matea/internal/sandbox"
 	"github.com/jeeinn/matea/internal/store"
 
@@ -84,4 +85,34 @@ func TestFinalizeWriteChangesRejectsPseudoToolCallOnCleanTree(t *testing.T) {
 	_, err := finalizeWriteChanges(context.Background(), wwc, task, agent, factory, nil, "dev", dsml)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexecuted tool call")
+}
+
+// TestFinalizeWriteChangesCleanTreePushesBeforePRFailClosed is the P0 regression
+// test. When the tree is clean but the agent committed locally without pushing
+// (no remote branch), finalizeWriteChanges must push first and return an error
+// on push failure — never a silent "success" comment. The old code called
+// CreatePR directly, got a 404, logged a WARN, and returned a success comment,
+// so the issue looked done while the remote had nothing.
+func TestFinalizeWriteChangesCleanTreePushesBeforePRFailClosed(t *testing.T) {
+	s, git, audit := setupLocalGitRepo(t)
+
+	wwc := &WriteWorkspaceContext{
+		Sandbox:    s,
+		Git:        git,
+		Audit:      audit,
+		BranchName: "ai/dev/issue-9",
+		RepoInfo:   &gitea.RepoInfo{DefaultBranch: "main"},
+	}
+	task := &store.Task{ID: 9009, Repo: "owner/repo"}
+	agent := &store.Agent{Provider: "mock", Model: "m"}
+
+	// mockGiteaFactory returns a non-nil admin client, so the clean-tree branch
+	// enters the push-before-PR path. The local repo has no "origin" remote, so
+	// the push fails and finalizeWriteChanges must return an error.
+	factory := NewRunnerFactory(nil, &mockGiteaFactory{}, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), nil, nil, nil, sandbox.DefaultConfig(), nil, "")
+
+	_, err := finalizeWriteChanges(context.Background(), wwc, task, agent, factory, nil, "dev", "done")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "push")
+	assert.Contains(t, err.Error(), "before opening PR failed")
 }

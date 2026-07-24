@@ -8,7 +8,7 @@
         </div>
       </template>
 
-      <el-form :model="form" :rules="rules" ref="formRef" @submit.prevent="handleLogin">
+      <el-form :model="form" :rules="rules" ref="formRef" label-width="80px" label-position="right" @submit.prevent="handleLogin">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" />
         </el-form-item>

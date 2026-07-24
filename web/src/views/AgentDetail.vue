@@ -93,9 +93,9 @@
                 </div>
               </el-col>
             </el-form-item>
-            <el-form-item label="最大输出 Tokens（每次调用）">
+            <el-form-item label="最大输出 Tokens">
               <el-input-number v-model="form.max_output_tokens" :min="0" :max="128000" :step="512" />
-              <div class="form-tip">设为 0：按模型上限自动适配；无元数据时回退系统默认 8192</div>
+              <div class="form-tip">每次调用上限。设为 0：按模型上限自动适配；无元数据时回退系统默认 8192</div>
             </el-form-item>
             <el-form-item label="最大输入 Tokens">
               <el-input-number v-model="form.max_input_tokens" :min="0" :max="2000000" :step="1024" />
@@ -152,7 +152,7 @@ npm test'
               <el-button type="primary" link size="small" style="margin-top: 4px" @click="$refs.templateHelp.show()">查看模板变量说明</el-button>
             </el-form-item>
 
-            <el-form-item>
+            <el-form-item label=" ">
               <el-button type="primary" :loading="saving" @click="saveAgent">保存修改</el-button>
             </el-form-item>
           </el-form>
@@ -429,7 +429,8 @@ onMounted(async () => {
 .form-tip {
   font-size: 12px;
   color: #909399;
-  margin-top: 4px;
+  margin-top: 6px;
+  line-height: 1.5;
 }
 
 .text-muted {

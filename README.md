@@ -83,7 +83,13 @@ chmod +x matea-linux-amd64   # Linux / macOS
 
 ### 3. 配置 Gitea Webhook
 
-在 Gitea 仓库 **Settings → Webhooks** 添加：
+密钥：**自拟一串**，填入 Matea「Webhook 密钥」与 Gitea Webhook「密钥」（两边一致）。
+
+| 范围 | 配置入口 | 适用场景 |
+|------|----------|----------|
+| **全站（推荐）** | **站点管理 → Webhooks** | 任意仓库事件都推到 Matea |
+| 组织 | 组织设置 → Webhooks | 仅某组织下仓库 |
+| 仓库 | 仓库设置 → Webhooks | 单仓细粒度 |
 
 | 项 | 值 |
 |----|-----|
@@ -91,7 +97,8 @@ chmod +x matea-linux-amd64   # Linux / macOS
 | Secret | 与系统配置中的 Webhook 密钥一致 |
 | 事件 | Issues、Issue Comment、Pull Request、Pull Request Comment |
 
-> 远程 Gitea 无法访问你本机的 `localhost`，需使用公网 IP、内网穿透，或将 Matea 部署到 Gitea 同机。
+> 远程 Gitea 无法访问你本机的 `localhost`，需使用公网 IP、内网穿透，或将 Matea 部署到 Gitea 同机。  
+> 更细说明见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#配置-webhook)。
 
 ### 4. 验证工作流
 

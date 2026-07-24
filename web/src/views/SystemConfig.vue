@@ -36,7 +36,8 @@
             <el-form-item label="管理员 Token">
               <el-input v-model="form['gitea.admin_token']" type="password" show-password placeholder="Gitea 管理员 Token" />
               <div class="form-tip">
-                用于自动创建 Agent 账号，需包含 <code>write:admin</code> 权限
+                用于自动创建 Agent 账号，需包含 <code>write:admin</code> 权限。<br>
+                获取路径：登录管理员 → 头像 → 设置 → 应用 → 生成新令牌（勾选 admin / repository 相关写权限）
                 <el-tag v-if="sourceTag('gitea.admin_token')" size="small" :type="sourceTag('gitea.admin_token') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
                   {{ sourceTag('gitea.admin_token') }}
                 </el-tag>
@@ -45,7 +46,10 @@
             <el-form-item label="Webhook 密钥">
               <el-input v-model="form['gitea.webhook_secret']" type="password" show-password placeholder="Webhook 签名密钥" />
               <div class="form-tip">
-                与 Gitea Webhook 设置中的密钥一致
+                自拟一串密钥填到此处，并在 Gitea Webhook 的「密钥」里填<strong>相同值</strong>（两边一致即可，不是从 Gitea 导出的）。<br>
+                全站（推荐）：站点管理 → Webhooks → 添加 Webhook（Gitea），目标 URL
+                <code>http://&lt;matea-host&gt;:8080/webhook/gitea</code>，勾选 Issues / Issue 评论 / Pull Request / PR 评论。<br>
+                也可只配组织级（组织设置 → Webhooks）或单个仓库（仓库设置 → Webhooks）。
                 <el-tag v-if="sourceTag('gitea.webhook_secret')" size="small" :type="sourceTag('gitea.webhook_secret') === '数据库' ? 'success' : 'info'" style="margin-left: 8px">
                   {{ sourceTag('gitea.webhook_secret') }}
                 </el-tag>

@@ -433,6 +433,12 @@ onMounted(async () => {
   line-height: 1.5;
 }
 
+/* el-form-item__content 为 flex；提示单独占一行，避免贴在输入控件右侧 */
+.el-form-item__content > .form-tip {
+  flex-basis: 100%;
+  width: 100%;
+}
+
 .text-muted {
   font-size: 12px;
   color: #c0c4cc;

@@ -358,44 +358,64 @@ gateway.example.com {
 ### 创建管理员 Token
 
 1. 登录 Gitea 管理员账号
-2. 进入 **个人设置 → 应用 → 管理访问令牌**
-3. 创建 Token，权限选择：**全部**（需要 admin 权限来创建 Agent 账号）
-4. 将 Token 填入 `config.yaml` 的 `gitea.admin_token`
+2. 点击头像 → **设置 → 应用 → 生成新令牌**（或「管理访问令牌」）
+3. 创建 Token，勾选 **admin** 与 **repository** 相关写权限（至少 `write:admin`，用于创建 Agent 账号）
+4. 将 Token 填入 Matea「系统配置 → 管理员 Token」或 `config.yaml` 的 `gitea.admin_token`
 
 ### 配置 Webhook
 
-#### 仓库级 Webhook（推荐，细粒度控制）
+Matea 接收地址固定为：`http://<matea-host>:8080/webhook/gitea`（经反向代理时用对外 HTTPS URL）。  
+**Webhook 密钥**：自拟任意字符串，同时填入 Matea「系统配置 → Webhook 密钥」与 Gitea Webhook 的「密钥」字段（两边一致即可）。
+
+#### 全站 System Webhook（推荐：覆盖实例上所有仓库）
+
+若希望任意仓库的 Assign / 评论等事件都能推到 Matea（Agent 为系统用户场景）：
+
+1. 使用**站点管理员**登录 Gitea
+2. 进入 **站点管理 → Webhooks → 添加 Webhook → Gitea**
+3. 配置：
+   - **目标 URL**: `https://gateway.example.com/webhook/gitea`
+   - **密钥**: 与 Matea 中的 `webhook_secret` 一致
+   - **触发事件**: 勾选 `Issues`、`Issue Comment`、`Pull Request`、`Pull Request Comment`（按需可加 Push）
+   - **Active**: 启用
+4. 保存并测试投递
+
+**说明**：
+- System Webhook 会接收**整个 Gitea 实例**上符合条件的事件，不限于某一个仓库
+- 不要与「默认 Webhook」（仅在**新建**仓库时拷贝一份到仓库）混淆；全站投递应选 **System Webhook**
+- Agent 能被调用仍取决于业务规则（如 Assign 给 Agent、评论 @Agent）；Webhook 只负责把事件送到 Matea
+
+#### 组织级 Webhook（按组织批量）
+
+若只想覆盖某一组织下的仓库：
+
+1. 进入 **组织设置 → Webhooks → 添加 Webhook → Gitea**
+2. 配置：
+   - **目标 URL**: `https://gateway.example.com/webhook/gitea`
+   - **密钥**: 与 `config.yaml` / 系统配置中的 `webhook_secret` 一致
+   - **触发事件**: 勾选 Issues / Issue Comment / Pull Request / PR Comment
+   - **Active**: 启用
+3. 保存并测试
+
+**组织级 Webhook 特点**：
+- 自动应用到组织下所有现有仓库和未来新建的仓库
+- 适合按团队隔离，比全站更可控
+
+#### 仓库级 Webhook（单仓细粒度）
 
 在需要 AI Agent 的仓库中：
 
 1. 进入 **仓库设置 → Webhooks → 添加 Webhook → Gitea**
 2. 配置：
    - **目标 URL**: `https://gateway.example.com/webhook/gitea`
-   - **密钥**: 与 `config.yaml` 中的 `webhook_secret` 一致
-   - **触发事件**: 勾选 `Push Events`、`Pull Requests`、`Issue Events`、`Issue Comment Events`
+   - **密钥**: 与 Matea 中的 `webhook_secret` 一致
+   - **触发事件**: 勾选 Issues / Issue Comment / Pull Request / PR Comment
 3. 保存并测试
-
-#### 组织级 Webhook（批量配置）
-
-若需要为组织下所有仓库统一启用 Agent，可配置组织级 Webhook：
-
-1. 进入 **组织设置 → Webhooks → 添加 Webhook → Gitea**
-2. 配置：
-   - **目标 URL**: `https://gateway.example.com/webhook/gitea`
-   - **密钥**: 与 `config.yaml` 中的 `webhook_secret` 一致
-   - **触发事件**: 勾选 `Push Events`、`Pull Requests`、`Issue Events`、`Issue Comment Events`
-   - **Active**: 启用
-3. 保存并测试
-
-**组织级 Webhook 特点**：
-- 自动应用到组织下所有现有仓库和未来新建的仓库
-- 每个仓库仍可在仓库级覆盖或禁用组织级配置（通过 `Disable` 选项）
-- 适合大规模部署，减少逐个仓库配置的工作量
 
 **注意事项**：
-- 组织级 Webhook 需要组织管理员权限
-- 建议在生产环境使用组织级配置前，先在测试组织验证
-- 若某个仓库不需要 AI Agent，可在该仓库的 Webhook 设置中禁用组织级继承
+- 全站 / 组织 / 仓库可并存；同一事件勿重复配置多条指向 Matea 的 hook，以免重复投递
+- 组织级需要组织管理员权限；全站需要站点管理员权限
+- 生产环境建议先在测试组织或单仓验证，再改用全站 System Webhook
 
 ### 使用 Agent
 

@@ -188,6 +188,10 @@ func (a *AgentLoop) Run(ctx context.Context, messages []llm.Message) (string, er
 		}
 
 		if len(resp.ToolCalls) == 0 {
+			if LooksLikePseudoToolCall(resp.Content) {
+				a.persistIteration(i+1, messages[msgStart:], resp)
+				return "", fmt.Errorf("model returned textual tool-call markup instead of structured tool_calls; use a model with supports_tools=true and a provider that emits OpenAI-compatible tool_calls")
+			}
 			a.persistIteration(i+1, messages[msgStart:], resp)
 			return resp.Content, nil
 		}

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	agentpkg "github.com/jeeinn/matea/internal/agent"
 	"github.com/jeeinn/matea/internal/gitea"
 	"github.com/jeeinn/matea/internal/llm"
 	"github.com/jeeinn/matea/internal/sandbox"
@@ -189,6 +190,11 @@ func finalizeWriteChanges(ctx context.Context, wwc *WriteWorkspaceContext, task 
 
 	// Check if there are changes to commit
 	if !git.HasChanges() {
+		// Fail closed when the coder dumped unexecuted tool markup and left the
+		// tree clean — posting that as a success comment hides the real failure.
+		if agentpkg.LooksLikePseudoToolCall(agentResult) {
+			return nil, fmt.Errorf("coding produced no workspace changes and summary looks like an unexecuted tool call; check model supports_tools and tool_call API compatibility")
+		}
 		// OpenCode (or a prior turn) may already have committed+pushed on the
 		// working branch. Still ensure a PR exists when we are on a non-base branch.
 		if wwc.BranchName != "" && wwc.RepoInfo != nil &&

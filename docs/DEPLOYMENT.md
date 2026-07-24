@@ -46,8 +46,8 @@
 git checkout master && git pull
 
 # 2. 打 annotated tag 并推送
-git tag -a v0.11.1 -m "v0.11.1"
-git push origin v0.11.1
+git tag -a v0.11.2 -m "v0.11.2"
+git push origin v0.11.2
 
 # 3. 在 GitHub Releases 打开 Draft，核对说明与附件后 Publish
 ```

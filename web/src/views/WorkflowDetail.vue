@@ -294,7 +294,7 @@ const resetWorkflow = async () => {
   if (!selectedContext.value) return
   try {
     await ElMessageBox.confirm(
-      `将 Issue #${selectedContext.value.issue_id} 的工作流重置为空闲状态，所有会话将被归档。确认重置？`,
+      `将 Issue #${selectedContext.value.issue_id} 的工作流重置为空闲状态：取消进行中的任务、归档会话，并允许重新触发。确认重置？`,
       '重置工作流',
       { type: 'warning', confirmButtonText: '重置', cancelButtonText: '取消' }
     )

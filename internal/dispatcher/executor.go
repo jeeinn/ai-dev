@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jeeinn/matea/internal/agents"
@@ -50,6 +51,17 @@ type Executor struct {
 	// rootCtx is cancelled on Shutdown so in-flight agent loops abort promptly.
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
+
+	// Per-task cancel registry for WebUI reset / abort.
+	runMu   sync.Mutex
+	running map[int64]*runningTask // taskID → cancel handle
+}
+
+type runningTask struct {
+	repo      string
+	issueID   int
+	cancel    context.CancelFunc
+	external  bool // true when cancelled via CancelTask / CancelByIssue (skip finalize)
 }
 
 // NewExecutor creates a new Executor.
@@ -70,6 +82,7 @@ func NewExecutor(maxConcurrent, retryCount int, llmRegistry *llm.Registry, db *s
 		mcpCfg:        mcpCfg,
 		rootCtx:       rootCtx,
 		rootCancel:    rootCancel,
+		running:       make(map[int64]*runningTask),
 	}
 }
 
@@ -78,6 +91,65 @@ func (e *Executor) Shutdown() {
 	if e.rootCancel != nil {
 		e.rootCancel()
 	}
+}
+
+// CancelTask cancels a single in-flight task context (if running).
+// Returns true if a running cancel handle was found and invoked.
+func (e *Executor) CancelTask(taskID int64) bool {
+	e.runMu.Lock()
+	defer e.runMu.Unlock()
+	rt, ok := e.running[taskID]
+	if !ok || rt == nil {
+		return false
+	}
+	rt.external = true
+	if rt.cancel != nil {
+		rt.cancel()
+	}
+	return true
+}
+
+// CancelByIssue cancels all in-flight tasks for repo#issueID.
+// Returns the number of running tasks cancelled.
+func (e *Executor) CancelByIssue(repo string, issueID int) int {
+	e.runMu.Lock()
+	defer e.runMu.Unlock()
+	n := 0
+	for _, rt := range e.running {
+		if rt == nil || rt.repo != repo || rt.issueID != issueID {
+			continue
+		}
+		rt.external = true
+		if rt.cancel != nil {
+			rt.cancel()
+		}
+		n++
+	}
+	return n
+}
+
+func (e *Executor) registerRunning(task *store.Task, cancel context.CancelFunc) {
+	e.runMu.Lock()
+	defer e.runMu.Unlock()
+	e.running[task.ID] = &runningTask{
+		repo:    task.Repo,
+		issueID: task.IssueID,
+		cancel:  cancel,
+	}
+}
+
+// unregisterRunning removes the cancel handle and reports whether the task was
+// cancelled externally (WebUI reset). Safe to call multiple times.
+func (e *Executor) unregisterRunning(taskID int64) (external bool) {
+	e.runMu.Lock()
+	defer e.runMu.Unlock()
+	rt, ok := e.running[taskID]
+	if !ok {
+		return false
+	}
+	external = rt.external
+	delete(e.running, taskID)
+	return external
 }
 
 // SetOnComplete sets the callback for successful task completion.
@@ -132,6 +204,7 @@ func (e *Executor) executeSafely(task *store.Task) {
 }
 
 func (e *Executor) handleTaskPanic(task *store.Task, recovered any) {
+	e.unregisterRunning(task.ID)
 	log.Printf("[ERROR] Task %d panicked: %v\n%s", task.ID, recovered, debug.Stack())
 
 	err := fmt.Errorf("task panicked: %v", recovered)
@@ -152,6 +225,14 @@ func (e *Executor) handleTaskPanic(task *store.Task, recovered any) {
 func (e *Executor) execute(task *store.Task) {
 	log.Printf("[INFO] Executing task: id=%d agent=%d type=%s", task.ID, task.AgentID, task.TaskType)
 
+	// Skip tasks already terminal (e.g. reset while still queued).
+	if fresh, err := e.db.GetTask(task.ID); err == nil {
+		if fresh.Status != store.StatusPending && fresh.Status != store.StatusRunning {
+			log.Printf("[INFO] Task %d skipped (status=%s)", task.ID, fresh.Status)
+			return
+		}
+	}
+
 	// Mark as running
 	now := time.Now()
 	task.Status = "running"
@@ -166,12 +247,14 @@ func (e *Executor) execute(task *store.Task) {
 	}
 
 	timeout := e.resolveTaskTimeout(task.TaskType, agent)
-	// Shared across task retries; cancelled on Executor.Shutdown (Ctrl+C / SIGTERM).
+	// Shared across task retries; cancelled on Executor.Shutdown (Ctrl+C / SIGTERM)
+	// or per-task CancelTask / CancelByIssue (WebUI reset).
 	parent := e.rootCtx
 	if parent == nil {
 		parent = context.Background()
 	}
 	ctx, cancel := context.WithTimeout(parent, timeout)
+	e.registerRunning(task, cancel)
 	defer cancel()
 
 	for attempt := 0; attempt <= e.retryCount; attempt++ {
@@ -203,6 +286,10 @@ func (e *Executor) execute(task *store.Task) {
 		}
 	}
 
+	if e.unregisterRunning(task.ID) {
+		log.Printf("[INFO] Task %d aborted by reset; skipping finalize", task.ID)
+		return
+	}
 	e.finalizeTaskResult(task, err)
 }
 

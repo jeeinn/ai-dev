@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/jeeinn/matea/internal/store"
 )
 
 // --- Task endpoints ---
@@ -94,7 +96,13 @@ func (h *Handler) resetTask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid id")
 		return
 	}
-	task, err := h.db.ResetTask(id, "manually reset from task list")
+
+	var task *store.Task
+	if h.issueCtrl != nil {
+		task, err = h.issueCtrl.CancelAndResetTask(id, "manually reset from task list")
+	} else {
+		task, err = h.db.ResetTask(id, "manually reset from task list")
+	}
 	if err != nil {
 		msg := err.Error()
 		if strings.Contains(msg, "only pending/running") {

@@ -255,6 +255,44 @@ func (d *Dispatcher) releaseIssueLock(repo string, issueID int) {
 	d.inFlight.Delete(lockKey)
 }
 
+// ResetIssue cancels in-flight work for the issue, fails pending/running/partial
+// tasks, archives sessions, resets workflow context to idle, and releases the
+// in-flight lock so a new @mention can be accepted immediately.
+func (d *Dispatcher) ResetIssue(repo string, issueID int) (tasksReset int, err error) {
+	cancelled := 0
+	if d.executor != nil {
+		cancelled = d.executor.CancelByIssue(repo, issueID)
+	}
+
+	n, err := d.db.ResetTasksByIssue(repo, issueID, "workflow reset from web UI")
+	if err != nil {
+		return 0, err
+	}
+
+	d.resetIssue(repo, issueID)
+	log.Printf("[INFO] ResetIssue %s#%d: cancelled_running=%d tasks_reset=%d", repo, issueID, cancelled, n)
+	return n, nil
+}
+
+// CancelAndResetTask cancels a running task (if any), marks it failed in DB,
+// and releases the issue in-flight lock.
+func (d *Dispatcher) CancelAndResetTask(taskID int64, reason string) (*store.Task, error) {
+	task, err := d.db.GetTask(taskID)
+	if err != nil {
+		return nil, err
+	}
+	if d.executor != nil {
+		d.executor.CancelTask(taskID)
+	}
+	updated, err := d.db.ResetTask(taskID, reason)
+	if err != nil {
+		return nil, err
+	}
+	d.releaseIssueLock(task.Repo, task.IssueID)
+	log.Printf("[INFO] CancelAndResetTask %d on %s#%d", taskID, task.Repo, task.IssueID)
+	return updated, nil
+}
+
 // GetGiteaClient creates a Gitea client using agent's token for writeback.
 func (d *Dispatcher) GetGiteaClient(agentToken string) *gitea.Client {
 	cfg := d.giteaCfg.Load()

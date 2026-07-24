@@ -21,6 +21,14 @@ type Handler struct {
 	cfg            *config.Config
 	cfgManager     *config.ConfigManager
 	onConfigChange func(cfg *config.Config)
+	issueCtrl      IssueController
+}
+
+// IssueController cancels in-flight work and resets issue/task state.
+// Implemented by dispatcher.Dispatcher; optional for unit tests.
+type IssueController interface {
+	ResetIssue(repo string, issueID int) (tasksReset int, err error)
+	CancelAndResetTask(taskID int64, reason string) (*store.Task, error)
 }
 
 // NewHandler creates a new API handler.
@@ -35,6 +43,11 @@ func NewHandler(db *store.DB, manager *agents.Manager, cfg *config.Config, jwtMa
 		cfgManager:     cfgManager,
 		onConfigChange: onConfigChange,
 	}
+}
+
+// SetIssueController wires dispatcher cancel/reset into task/session APIs.
+func (h *Handler) SetIssueController(c IssueController) {
+	h.issueCtrl = c
 }
 
 // RegisterRoutes registers all API routes on the given mux.

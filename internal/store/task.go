@@ -323,6 +323,22 @@ func (db *DB) ResetTask(id int64, reason string) (*Task, error) {
 	return db.GetTask(id)
 }
 
+// ResetTasksByIssue marks all pending/running/partial tasks for a repo+issue as failed.
+// Returns the number of rows updated.
+func (db *DB) ResetTasksByIssue(repo string, issueID int, reason string) (int, error) {
+	if reason == "" {
+		reason = "manually reset"
+	}
+	result, err := db.Exec(`UPDATE tasks SET status='failed', error=?, finished_at=CURRENT_TIMESTAMP
+		WHERE repo=? AND issue_id=? AND status IN ('pending','running','partial')`,
+		reason, repo, issueID)
+	if err != nil {
+		return 0, fmt.Errorf("reset tasks by issue: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	return int(n), nil
+}
+
 // FailOrphanedRunningTasks marks all running tasks as failed (e.g. after process crash/restart).
 func (db *DB) FailOrphanedRunningTasks(reason string) (int, error) {
 	if reason == "" {

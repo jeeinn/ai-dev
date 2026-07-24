@@ -59,7 +59,22 @@ func (h *Handler) resetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Archive all sessions for this issue
+	if h.issueCtrl != nil {
+		tasksReset, err := h.issueCtrl.ResetIssue(repo, issueID)
+		if err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+		writeJSON(w, 200, map[string]interface{}{
+			"status":      "reset",
+			"repo":        repo,
+			"issue_id":    issueID,
+			"tasks_reset": tasksReset,
+		})
+		return
+	}
+
+	// Fallback when dispatcher is not wired (unit tests): DB-only reset.
 	sessions, err := h.db.ListSessionsByIssue(repo, issueID)
 	if err != nil {
 		writeError(w, 500, err.Error())
@@ -72,7 +87,8 @@ func (h *Handler) resetSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 2. Reset workflow context to idle
+	tasksReset, _ := h.db.ResetTasksByIssue(repo, issueID, "workflow reset from web UI")
+
 	ctx, err := h.db.GetWorkflowContext(repo, issueID)
 	if err == nil {
 		ctx.Stage = "idle"
@@ -88,6 +104,7 @@ func (h *Handler) resetSession(w http.ResponseWriter, r *http.Request) {
 		"repo":              repo,
 		"issue_id":          issueID,
 		"sessions_archived": archived,
+		"tasks_reset":       tasksReset,
 	})
 }
 

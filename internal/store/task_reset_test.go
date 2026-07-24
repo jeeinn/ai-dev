@@ -44,6 +44,36 @@ func TestResetTask(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestResetTasksByIssue(t *testing.T) {
+	db := newTestDB(t)
+
+	agent := &Agent{
+		Name: "t", GiteaUsername: "t-user", GiteaToken: "tok",
+		Provider: "deepseek", Model: "m", MaxOutputTokens: 1024, MaxInputTokens: 2048,
+		Temperature: 0.3, Timeout: "5m", Role: RoleCoder, Status: "active",
+	}
+	require.NoError(t, db.CreateAgent(agent))
+
+	t1 := &Task{Event: "issues", Repo: "owner/repo", IssueID: 7, AgentID: agent.ID, TaskType: "solve_comment", Status: "running"}
+	t2 := &Task{Event: "issues", Repo: "owner/repo", IssueID: 7, AgentID: agent.ID, TaskType: "solve_comment", Status: "pending"}
+	t3 := &Task{Event: "issues", Repo: "owner/repo", IssueID: 8, AgentID: agent.ID, TaskType: "solve_comment", Status: "running"}
+	require.NoError(t, db.CreateTask(t1))
+	require.NoError(t, db.CreateTask(t2))
+	require.NoError(t, db.CreateTask(t3))
+
+	n, err := db.ResetTasksByIssue("owner/repo", 7, "workflow reset")
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+
+	got1, err := db.GetTask(t1.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "failed", got1.Status)
+
+	got3, err := db.GetTask(t3.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "running", got3.Status)
+}
+
 func TestFailOrphanedRunningTasks(t *testing.T) {
 	db := newTestDB(t)
 	agent := &Agent{

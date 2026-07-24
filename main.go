@@ -223,6 +223,7 @@ func main() {
 		webhookHandler.SetGiteaConfig(&newCfg.Gitea)
 		log.Printf("[INFO] LLM registry, Gitea client, and workflow policy reloaded")
 	})
+	apiHandler.SetIssueController(d)
 	apiHandler.RegisterRoutes(mux)
 
 	// Auth API

@@ -1,6 +1,7 @@
 package dispatcher
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -270,5 +271,39 @@ func TestFormatPartialFailureComment(t *testing.T) {
 	}
 	if !strings.Contains(body, "Type: solve_issue") {
 		t.Fatalf("missing task type: %s", body)
+	}
+}
+
+func TestExecutorCancelByIssue(t *testing.T) {
+	e := NewExecutor(1, 0, nil, nil, config.DefaultAgentDefaults(), config.DefaultAgentLoopConfig(), sandbox.SandboxConfig{}, config.MCPConfig{})
+	defer e.Shutdown()
+
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel1()
+	defer cancel2()
+
+	e.registerRunning(&store.Task{ID: 1, Repo: "o/r", IssueID: 4}, cancel1)
+	e.registerRunning(&store.Task{ID: 2, Repo: "o/r", IssueID: 5}, cancel2)
+
+	if n := e.CancelByIssue("o/r", 4); n != 1 {
+		t.Fatalf("CancelByIssue count=%d, want 1", n)
+	}
+	select {
+	case <-ctx1.Done():
+	default:
+		t.Fatal("expected task 1 context cancelled")
+	}
+	select {
+	case <-ctx2.Done():
+		t.Fatal("task 2 should still be running")
+	default:
+	}
+
+	if !e.unregisterRunning(1) {
+		t.Fatal("task 1 should be marked external")
+	}
+	if e.unregisterRunning(2) {
+		t.Fatal("task 2 should not be external")
 	}
 }

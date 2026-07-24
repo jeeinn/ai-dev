@@ -92,6 +92,14 @@
                   </el-select>
                 </div>
               </el-col>
+              <el-alert
+                v-if="form.role === 'coder' && selectedModelMeta && !selectedModelMeta.supports_tools"
+                title="开发角色需要工具调用"
+                type="warning"
+                :closable="false"
+                show-icon
+                style="margin-top: 8px; width: 100%"
+              />
             </el-form-item>
             <el-form-item label="最大输出 Tokens">
               <el-input-number v-model="form.max_output_tokens" :min="0" :max="128000" :step="512" />
@@ -265,6 +273,11 @@ const normalizeModels = (list) => {
     })
     .filter(Boolean)
 }
+
+const selectedModelMeta = computed(() => {
+  if (!form.value.model || !currentModels.value.length) return null
+  return currentModels.value.find((m) => m.id === form.value.model) || null
+})
 
 const formatContextWindow = (n) => {
   if (n >= 1000) return (n / 1000).toFixed(0) + 'K'

@@ -178,6 +178,14 @@
               </el-button>
             </div>
           </el-col>
+          <el-alert
+            v-if="form.role === 'coder' && selectedModelMeta && !selectedModelMeta.supports_tools"
+            title="开发角色需要工具调用"
+            type="warning"
+            :closable="false"
+            show-icon
+            style="margin-top: 8px; width: 100%"
+          />
         </el-form-item>
 
         <!-- Prompt -->

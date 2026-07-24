@@ -66,7 +66,7 @@ chmod +x matea-linux-amd64
 # 等价：./matea-linux-amd64 -config config.yaml
 ```
 
-首次启动若本地没有 `config.yaml`，会自动写入最小 bootstrap（端口 `8080`、数据目录 `./data/...`、随机 `jwt_secret`），并打印 Web 访问地址与默认管理员提示。
+首次启动若本地没有 `config.yaml`，会自动写入最小 bootstrap（端口 `8080`、数据目录 `./data/...`、随机 `jwt_secret`、日志落盘 `./data/matea.log`），并打印 Web 访问地址与默认管理员提示。
 
 然后：
 

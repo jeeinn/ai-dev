@@ -77,6 +77,16 @@ func (g *Git) Commit(message string) *Result {
 	return g.sandbox.Execute("git", "commit", "-m", message)
 }
 
+// ConfigUser sets the git identity (user.name / user.email) used for commits
+// the gateway makes on the agent's behalf. Setting it up front avoids the
+// first commit failing on a missing identity.
+func (g *Git) ConfigUser(name, email string) *Result {
+	if r := g.sandbox.Execute("git", "config", "user.name", name); r.Error != nil {
+		return r
+	}
+	return g.sandbox.Execute("git", "config", "user.email", email)
+}
+
 // LocalBranchExists reports whether a local branch exists.
 func (g *Git) LocalBranchExists(branch string) bool {
 	result := g.sandbox.Execute("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch)

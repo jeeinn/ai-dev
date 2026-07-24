@@ -122,6 +122,43 @@ func TestExecuteToolUnknown(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown tool")
 }
 
+// TestExecuteToolUnknownShowsAvailableAndAlias verifies the P1 fix: common
+// shell aliases (ls/cat/pwd) auto-rewrite to canonical tools, and genuinely
+// unknown names list available tools.
+func TestExecuteToolUnknownShowsAvailableAndAlias(t *testing.T) {
+	cfg := sandbox.SandboxConfig{
+		Mode:           sandbox.ModeFixed,
+		BaseDir:        t.TempDir(),
+		CommandTimeout: 10 * time.Second,
+		MaxOutput:      1024,
+		MaxFileSize:    1024,
+	}
+	sb := sandbox.New(cfg, 1002)
+	sb.Setup()
+	defer sb.Cleanup()
+
+	registry := DefaultTools(sb)
+
+	// Shell alias: "ls" auto-rewrites to list_files and succeeds.
+	lsCall := llm.ToolCall{Function: llm.FuncCall{Name: "ls", Arguments: "{}"}}
+	result, err := registry.ExecuteTool(lsCall)
+	require.NoError(t, err)
+	assert.NotEmpty(t, result)
+
+	// cat without path cannot rewrite; error should hint read_file.
+	catCall := llm.ToolCall{Function: llm.FuncCall{Name: "cat", Arguments: "{}"}}
+	_, err = registry.ExecuteTool(catCall)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "read_file")
+
+	// Genuinely unknown tool: should list available tools.
+	badCall := llm.ToolCall{Function: llm.FuncCall{Name: "definitely_not_a_tool", Arguments: "{}"}}
+	_, err = registry.ExecuteTool(badCall)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "available tools:")
+	assert.Contains(t, err.Error(), "read_file")
+}
+
 func TestDefaultTools(t *testing.T) {
 	cfg := sandbox.SandboxConfig{
 		Mode:           sandbox.ModeFixed,

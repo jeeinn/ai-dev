@@ -70,7 +70,21 @@ func (r *ToolRegistry) ToLLMTools() []llm.Tool {
 func (r *ToolRegistry) ExecuteTool(call llm.ToolCall) (string, error) {
 	tool, ok := r.tools[call.Function.Name]
 	if !ok {
-		return "", fmt.Errorf("unknown tool: %s", call.Function.Name)
+		// Common shell command names are sometimes emitted as tool names.
+		// Rewrite to the canonical tool when possible; otherwise return a hint.
+		if rewritten, rewrittenOK := rewriteShellAliasCall(call); rewrittenOK {
+			if t, exists := r.tools[rewritten.Function.Name]; exists {
+				call = rewritten
+				tool = t
+				ok = true
+			}
+		}
+	}
+	if !ok {
+		if hint, hintOK := shellAliasHint(call.Function.Name); hintOK {
+			return "", fmt.Errorf("unknown tool: %s; %s", call.Function.Name, hint)
+		}
+		return "", fmt.Errorf("unknown tool: %s; available tools: %s", call.Function.Name, r.availableToolNames())
 	}
 
 	// Parse arguments
@@ -494,9 +508,102 @@ func AssembleToolRegistry(toolNames []string, sb *sandbox.Sandbox) (*ToolRegistr
 		registry.Register(builder(sb))
 	}
 	if len(unknown) > 0 {
-		return nil, fmt.Errorf("unknown tool(s): %s", strings.Join(unknown, ", "))
+		return nil, fmt.Errorf("unknown tool(s): %s; available tool builders: %s", strings.Join(unknown, ", "), strings.Join(availableBuilderNames(), ", "))
 	}
 	return registry, nil
+}
+
+// availableToolNames returns the registered tool names, sorted for stable
+// output (used in "unknown tool" error messages).
+func (r *ToolRegistry) availableToolNames() string {
+	names := make([]string, 0, len(r.tools))
+	for n := range r.tools {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
+}
+
+// availableBuilderNames returns the names of all known tool builders.
+func availableBuilderNames() []string {
+	names := make([]string, 0, len(toolBuilders))
+	for n := range toolBuilders {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// rewriteShellAliasCall maps common shell-style tool names to canonical tools.
+// Returns the rewritten call and true when a safe rewrite is available.
+func rewriteShellAliasCall(call llm.ToolCall) (llm.ToolCall, bool) {
+	var params map[string]interface{}
+	if call.Function.Arguments != "" {
+		_ = json.Unmarshal([]byte(call.Function.Arguments), &params)
+	}
+
+	switch call.Function.Name {
+	case "ls", "dir":
+		path := "."
+		if p, _ := params["path"].(string); strings.TrimSpace(p) != "" {
+			path = p
+		}
+		args, _ := json.Marshal(map[string]string{"path": path})
+		return llm.ToolCall{
+			ID:   call.ID,
+			Type: call.Type,
+			Function: llm.FuncCall{
+				Name:      "list_files",
+				Arguments: string(args),
+			},
+		}, true
+	case "pwd":
+		return llm.ToolCall{
+			ID:   call.ID,
+			Type: call.Type,
+			Function: llm.FuncCall{
+				Name:      "run_command",
+				Arguments: `{"command":"pwd"}`,
+			},
+		}, true
+	case "cat", "type":
+		path, _ := params["path"].(string)
+		if path == "" {
+			path, _ = params["file"].(string)
+		}
+		if strings.TrimSpace(path) == "" {
+			return call, false
+		}
+		args, _ := json.Marshal(map[string]string{"path": path})
+		return llm.ToolCall{
+			ID:   call.ID,
+			Type: call.Type,
+			Function: llm.FuncCall{
+				Name:      "read_file",
+				Arguments: string(args),
+			},
+		}, true
+	default:
+		return call, false
+	}
+}
+
+// shellAliasHint maps common shell command names (often emitted as tool calls
+// by the model) to guidance when an automatic rewrite is not possible.
+func shellAliasHint(name string) (string, bool) {
+	switch name {
+	case "ls", "dir":
+		return `use "list_files" (or "run_command" with ls)`, true
+	case "cat", "type":
+		return `use "read_file" with {"path":"..."}; shell cat must go through "run_command"`, true
+	case "pwd":
+		return `the workspace root is the current directory; shell pwd must go through "run_command"`, true
+	case "cd":
+		return `all paths are relative to the workspace root; use "run_command" only if you must change directory`, true
+	case "grep", "find":
+		return `use "search_code" or "rg" instead of shell grep/find`, true
+	}
+	return "", false
 }
 
 // DefaultTools creates the default set of tools for code editing.

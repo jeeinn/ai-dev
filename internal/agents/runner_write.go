@@ -122,6 +122,7 @@ func runWriteTask(ctx context.Context, task *store.Task, agentCfg *store.Agent,
 		basePrompt = agentpkg.BuildBugfixPrompt(taskCtx, codeCtx)
 	}
 	systemPrompt := agentpkg.MergeAgentSystemPrompt(basePrompt, agentCfg.SystemPrompt)
+	systemPrompt += fmt.Sprintf("\n\n## Workspace\n\nYour working directory is `%s`. All file paths are relative to this directory; do not guess or use absolute paths like /workspace.\n", sb.WorkDir)
 
 	codingReq := CodingRequest{
 		WorkDir:        sb.WorkDir,
@@ -186,7 +187,7 @@ func finalizeWriteTaskPR(adminClient *gitea.Client, owner, repo, branchName, bas
 	if existingPR != nil {
 		log.Printf("[INFO] Task %d updated existing branch: %s (PR #%d)", task.ID, branchName, existingPR.Number)
 		return &Result{
-			Content: fmt.Sprintf("Updated PR branch `%s` with new changes.\n\n%s", branchName, agentResult),
+			Content: fmt.Sprintf("🔄 Updated PR branch `%s` with new changes.\n\n%s", branchName, agentResult),
 			Action:  "comment",
 			PRID:    existingPR.Number,
 		}, nil
@@ -218,7 +219,7 @@ func finalizeWriteTaskPR(adminClient *gitea.Client, owner, repo, branchName, bas
 
 	log.Printf("[INFO] Task %d PR created: %s (PR #%d)", task.ID, pr.HTMLURL, pr.Number)
 	return &Result{
-		Content: fmt.Sprintf("PR created: %s\n\n%s", pr.HTMLURL, agentResult),
+		Content: fmt.Sprintf("✅ PR created: %s\n\n%s", pr.HTMLURL, agentResult),
 		Action:  "pr",
 		PRID:    pr.Number,
 	}, nil

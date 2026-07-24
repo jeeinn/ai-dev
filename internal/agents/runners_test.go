@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,8 +120,8 @@ func TestAnalyzeRunnerRun(t *testing.T) {
 		t.Fatalf("Run failed: %v", err)
 	}
 
-	if result.Content != "Analysis result" {
-		t.Errorf("Expected content='Analysis result', got %s", result.Content)
+	if !strings.Contains(result.Content, "Analysis result") {
+		t.Errorf("Expected content to contain 'Analysis result', got %s", result.Content)
 	}
 	if result.Action != "comment" {
 		t.Errorf("Expected action=comment, got %s", result.Action)
@@ -399,7 +400,7 @@ func TestAnalyzeRunnerLoopPath(t *testing.T) {
 	result, err := runner.Run(context.Background(), task, agent)
 	require.NoError(t, err)
 	assert.Equal(t, "comment", result.Action)
-	assert.Equal(t, "Analysis complete: README.md found.", result.Content)
+	assert.Contains(t, result.Content, "Analysis complete: README.md found.")
 	assert.Equal(t, 2, provider.callIndex) // two LLM calls
 }
 

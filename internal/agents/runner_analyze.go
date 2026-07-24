@@ -4,12 +4,22 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	agentpkg "github.com/jeeinn/matea/internal/agent"
 	"github.com/jeeinn/matea/internal/llm"
 	"github.com/jeeinn/matea/internal/sandbox"
 	"github.com/jeeinn/matea/internal/store"
 )
+
+// appendAnalysisLandingNote adds a soft-gate reminder to analyze results so the
+// user is prompted to land suggested code changes via a coder task (P2-2).
+func appendAnalysisLandingNote(content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	return content + "\n\n💡 **落地提示**：本任务为只读分析。若上述建议涉及代码改动，请由 coder Agent 执行对应任务——分析结论不会自动落地。"
+}
 
 // --- AnalyzeRunner ---
 
@@ -46,8 +56,14 @@ func (r *AnalyzeRunner) Run(ctx context.Context, task *store.Task, agent *store.
 
 // runSingleShot is the legacy single-shot LLM analysis (no workspace).
 func (r *AnalyzeRunner) runSingleShot(ctx context.Context, task *store.Task, agent *store.Agent, provider llm.Provider) (*Result, error) {
+	systemPrompt := agent.SystemPrompt
+	if systemPrompt != "" {
+		systemPrompt += "\n\n"
+	}
+	systemPrompt += "## Workspace\n\nNo local repository workspace is available for this analysis (clone unavailable or provider lacks tools). Do not invent paths like `/workspace`; base conclusions on the issue text only.\n"
+
 	messages := []llm.Message{
-		{Role: "system", Content: agent.SystemPrompt},
+		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: task.Context},
 	}
 
@@ -71,7 +87,7 @@ func (r *AnalyzeRunner) runSingleShot(ctx context.Context, task *store.Task, age
 	r.factory.recordTaskUsage(task.ID, agent.Provider, agent.Model, resp.Usage)
 
 	return &Result{
-		Content: resp.Content,
+		Content: appendAnalysisLandingNote(resp.Content),
 		Action:  "comment",
 	}, nil
 }
@@ -102,6 +118,7 @@ func (r *AnalyzeRunner) runAnalyzeLoop(ctx context.Context, task *store.Task, ag
 	}
 	basePrompt := agentpkg.BuildAnalyzePrompt(taskCtx, codeCtx)
 	systemPrompt := agentpkg.MergeAgentSystemPrompt(basePrompt, agent.SystemPrompt)
+	systemPrompt += fmt.Sprintf("\n\n## Workspace\n\nYour working directory is `%s`. All file paths are relative to this directory; do not guess or use absolute paths like /workspace.\n", sb.WorkDir)
 
 	// Assemble analyze-readonly tool pack
 	packID := r.factory.resolveToolPack(task.TaskType)
@@ -172,7 +189,7 @@ func (r *AnalyzeRunner) runAnalyzeLoop(ctx context.Context, task *store.Task, ag
 	log.Printf("[INFO] Task %d analyze loop completed", task.ID)
 
 	return &Result{
-		Content: result,
+		Content: appendAnalysisLandingNote(result),
 		Action:  "comment",
 	}, nil
 }

@@ -57,7 +57,7 @@ chmod +x matea-linux-amd64   # Linux / macOS
 # Windows: matea-windows-amd64.exe
 ```
 
-首次启动若本地没有 `config.yaml`，会**自动写入最小 bootstrap**（监听 `8080`、数据目录 `./data/...`、随机 `auth.jwt_secret`），并打印 Web 访问地址。
+首次启动若本地没有 `config.yaml`，会**自动写入最小 bootstrap**（监听 `8080`、数据目录 `./data/...`、随机 `auth.jwt_secret`、日志落盘 `./data/matea.log`），并打印 Web 访问地址。
 
 然后：
 

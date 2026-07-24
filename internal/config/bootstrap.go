@@ -38,6 +38,7 @@ workspace:
 
 logging:
   level: "info"
+  path: "./data"
 
 auth:
   jwt_secret: %q

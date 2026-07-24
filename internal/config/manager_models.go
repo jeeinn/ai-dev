@@ -117,11 +117,14 @@ func (m *ConfigManager) InvalidateAllModelCache() {
 // Returns nil if the model is not found.
 // Discovery errors are ignored here: GetProviderModels already returns fallback
 // models (builtin/custom) alongside the error, and callers still need metadata.
+// Sparse definitions (API discovery / custom ID-only) are enriched from the
+// builtin catalog by model ID so cross-vendor gateways keep supports_tools.
 func (m *ConfigManager) GetModelMeta(providerName, modelID string) *ModelDefinition {
 	models, _, _ := m.GetProviderModels(providerName)
 	for i := range models {
 		if models[i].ID == modelID {
-			return &models[i]
+			meta := EnrichModelMetaFromBuiltin(models[i])
+			return &meta
 		}
 	}
 	return nil
@@ -158,7 +161,8 @@ func (m *ConfigManager) discoverModels(providerName string, pc ProviderConfig) (
 		return nil, "", fmt.Errorf("list models: %w", err)
 	}
 
-	// Merge with builtin catalog to enrich metadata
+	// Merge with provider builtin first, then any catalog entry with the same ID
+	// (e.g. SenseNova /models returning deepseek-v4-flash).
 	builtin := BuiltinModelCatalog[providerName]
 	builtinMap := make(map[string]ModelDefinition, len(builtin))
 	for _, bm := range builtin {
@@ -169,10 +173,16 @@ func (m *ConfigManager) discoverModels(providerName string, pc ProviderConfig) (
 	for _, id := range ids {
 		if bm, ok := builtinMap[id]; ok {
 			result = append(result, bm)
+		} else if bm := LookupBuiltinModelByID(id); bm != nil {
+			result = append(result, *bm)
 		} else {
+			// OpenAI-compatible /models only returns IDs. Treat tool support as
+			// unknown-but-optimistic (true) so coder gates / UI do not confuse
+			// "missing metadata" with an explicit supports_tools=false.
 			result = append(result, ModelDefinition{
-				ID:   id,
-				Name: id,
+				ID:            id,
+				Name:          id,
+				SupportsTools: true,
 			})
 		}
 	}

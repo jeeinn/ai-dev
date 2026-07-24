@@ -616,6 +616,96 @@ func TestGetModelMeta(t *testing.T) {
 	assert.Nil(t, meta)
 }
 
+// SenseNova E2E hosts DeepSeek model IDs; 0.11.2 tool gate must not treat
+// API-discovered sparse entries as supports_tools=false.
+func TestGetModelMetaEnrichesDiscoveredDeepSeekOnSenseNova(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"sensenova": {
+					BaseURL: "https://token.sensenova.cn/v1",
+					APIKey:  "sk-test",
+					Models:  []ModelDefinition{}, // empty → discovery
+				},
+			},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+
+	prev := modelDiscoveryFn
+	SetModelDiscoveryFunc(func(name, baseURL, apiKey, providerType string) ([]string, error) {
+		return []string{"deepseek-v4-flash", "nova-6.7"}, nil
+	})
+	t.Cleanup(func() { SetModelDiscoveryFunc(prev) })
+
+	meta := m.GetModelMeta("sensenova", "deepseek-v4-flash")
+	require.NotNil(t, meta)
+	assert.True(t, meta.SupportsTools)
+	assert.Equal(t, 1000000, meta.ContextWindow)
+	assert.Equal(t, "DeepSeek V4 Flash", meta.Name)
+}
+
+func TestGetModelMetaEnrichesSparseCustomModel(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"sensenova": {
+					BaseURL: "https://token.sensenova.cn/v1",
+					APIKey:  "sk-test",
+					// Web UI custom mode often stores ID-only without supports_tools.
+					Models: []ModelDefinition{{ID: "deepseek-v4-flash", Name: "deepseek-v4-flash"}},
+				},
+			},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+
+	meta := m.GetModelMeta("sensenova", "deepseek-v4-flash")
+	require.NotNil(t, meta)
+	assert.True(t, meta.SupportsTools)
+	assert.Equal(t, 1000000, meta.ContextWindow)
+}
+
+func TestSenseNovaBuiltinIncludesDeepSeekFlash(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"sensenova": {BaseURL: "https://token.sensenova.cn/v1", APIKey: "sk-test"},
+			},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+
+	meta := m.GetModelMeta("sensenova", "deepseek-v4-flash")
+	require.NotNil(t, meta)
+	assert.True(t, meta.SupportsTools)
+}
+
+func TestDiscoverUnknownModelOptimisticTools(t *testing.T) {
+	fileCfg := &Config{
+		LLM: LLMConfig{
+			Providers: map[string]ProviderConfig{
+				"my-gw": {
+					BaseURL: "https://gw.example/v1",
+					APIKey:  "sk-test",
+					Models:  []ModelDefinition{},
+				},
+			},
+		},
+	}
+	m := NewConfigManager(fileCfg)
+	prev := modelDiscoveryFn
+	SetModelDiscoveryFunc(func(name, baseURL, apiKey, providerType string) ([]string, error) {
+		return []string{"totally-unknown-model"}, nil
+	})
+	t.Cleanup(func() { SetModelDiscoveryFunc(prev) })
+
+	meta := m.GetModelMeta("my-gw", "totally-unknown-model")
+	require.NotNil(t, meta)
+	assert.True(t, meta.SupportsTools, "unknown API-discovered IDs must not default to tools=false")
+	assert.False(t, ModelToolsDenied(meta))
+}
+
 func TestParseProvidersFromInterface(t *testing.T) {
 	// Test with map[string]ProviderConfig
 	providers := map[string]ProviderConfig{

@@ -137,6 +137,36 @@ func TestInternalCodingBackendRunModelNoTools(t *testing.T) {
 	assert.Contains(t, err.Error(), "supports_tools=false")
 }
 
+// Sparse API-discovery meta (ID only, supports_tools zero-value false) must not
+// block coder runs — same policy as meta=nil.
+func TestInternalCodingBackendRunSparseUnknownAllows(t *testing.T) {
+	mock := &mockLLMProvider{content: "done"}
+	factory := newInternalTestFactory(t, "custom-gw", mock)
+	factory.SetModelMetaProvider(&stubModelMeta{
+		defs: map[string]*config.ModelDefinition{
+			"custom-gw/vendor-mystery-v1": {
+				ID:            "vendor-mystery-v1",
+				Name:          "vendor-mystery-v1",
+				SupportsTools: false, // zero-value shaped; not in builtin
+			},
+		},
+	})
+	b := NewInternalCodingBackend(factory)
+
+	sb := newMinimalSandbox(t)
+	result, err := b.Run(context.Background(), CodingRequest{
+		WorkDir:      sb.WorkDir,
+		Sandbox:      sb,
+		Task:         &store.Task{ID: 2, Repo: "owner/repo"},
+		Agent:        &store.Agent{Provider: "custom-gw", Model: "vendor-mystery-v1"},
+		Prompt:       "implement it",
+		SystemPrompt: "You are a coder.",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.Success)
+}
+
 // newMinimalSandbox builds a throwaway sandbox with a tiny initial commit so
 // that LoadCodeContext / DefaultTools have a valid working tree to reference.
 // The sandbox is cleaned up automatically via t.Cleanup.

@@ -79,6 +79,10 @@ func TestInternalCodingBackendRunNoProvider(t *testing.T) {
 // a registered mock provider returns a non-empty content with no tool calls,
 // AgentLoop.Run terminates after one iteration, and Run returns a CodingResult
 // carrying the summary and the provider instance for reuse by finalize.
+//
+// No ModelMetaProvider is attached (meta=nil): the model-level supports_tools
+// gate must not reject unregistered models; only an explicit SupportsTools=false
+// meta blocks coder runs (see TestInternalCodingBackendRunModelNoTools).
 func TestInternalCodingBackendRunSuccess(t *testing.T) {
 	mock := &mockLLMProvider{
 		content: "Implemented the requested change.",
@@ -105,6 +109,32 @@ func TestInternalCodingBackendRunSuccess(t *testing.T) {
 	assert.Equal(t, "Implemented the requested change.", result.Summary)
 	assert.Empty(t, result.RemoteSessionID, "internal backend must not set a remote session id")
 	assert.NotNil(t, result.Provider, "Provider must be returned for reuse by finalize")
+}
+
+func TestInternalCodingBackendRunModelNoTools(t *testing.T) {
+	mock := &mockLLMProvider{content: "should not run"}
+	factory := newInternalTestFactory(t, "deepseek", mock)
+	factory.SetModelMetaProvider(&stubModelMeta{
+		defs: map[string]*config.ModelDefinition{
+			"deepseek/deepseek-reasoner": {
+				ID:            "deepseek-reasoner",
+				SupportsTools: false,
+			},
+		},
+	})
+	b := NewInternalCodingBackend(factory)
+
+	sb := newMinimalSandbox(t)
+	_, err := b.Run(context.Background(), CodingRequest{
+		WorkDir:      sb.WorkDir,
+		Sandbox:      sb,
+		Task:         &store.Task{ID: 1, Repo: "owner/repo"},
+		Agent:        &store.Agent{Provider: "deepseek", Model: "deepseek-reasoner"},
+		Prompt:       "fix it",
+		SystemPrompt: "You are a coder.",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "supports_tools=false")
 }
 
 // newMinimalSandbox builds a throwaway sandbox with a tiny initial commit so

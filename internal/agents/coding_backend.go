@@ -119,6 +119,9 @@ func (b *InternalCodingBackend) Run(ctx context.Context, req CodingRequest) (*Co
 	if !llm.SupportsTools(provider) {
 		return nil, fmt.Errorf("provider %q does not support tool calls (Anthropic adapter has no tools yet); use an openai_compatible provider for coder tasks", agentCfg.Provider)
 	}
+	if meta := factory.getModelMeta(agentCfg.Provider, agentCfg.Model); meta != nil && !meta.SupportsTools {
+		return nil, fmt.Errorf("model %q/%q does not support tool calls (supports_tools=false); use a tool-capable model for coder tasks", agentCfg.Provider, agentCfg.Model)
+	}
 
 	maxInput := factory.resolveMaxInputTokens(agentCfg.MaxInputTokens, agentCfg.Provider, agentCfg.Model)
 	maxOutput := factory.resolveMaxOutputTokens(agentCfg.MaxOutputTokens, agentCfg.Provider, agentCfg.Model)

@@ -635,7 +635,8 @@ onMounted(() => {
 .form-tip {
   font-size: 12px;
   color: #909399;
-  margin-top: 4px;
+  margin-top: 6px;
+  line-height: 1.5;
 }
 
 .text-muted {

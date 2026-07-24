@@ -51,7 +51,7 @@
                 </el-tag>
               </div>
             </el-form-item>
-            <el-form-item>
+            <el-form-item label=" ">
               <el-button :loading="testingGitea" @click="testGitea">测试 Gitea 连接</el-button>
               <span v-if="giteaTestMessage" :class="['test-result', giteaTestOk ? 'ok' : 'error']">{{ giteaTestMessage }}</span>
             </el-form-item>
@@ -145,7 +145,7 @@
                 </el-tag>
               </div>
             </el-form-item>
-            <el-form-item>
+            <el-form-item label=" ">
               <el-button :loading="testingLLM" @click="testLLM">测试 LLM 连接</el-button>
               <span v-if="llmTestMessage" :class="['test-result', llmTestOk ? 'ok' : 'error']">{{ llmTestMessage }}</span>
             </el-form-item>
@@ -1160,7 +1160,8 @@ onMounted(() => {
 .form-tip {
   font-size: 12px;
   color: #909399;
-  margin-top: 4px;
+  margin-top: 6px;
+  line-height: 1.5;
 }
 
 .prompt-preview {

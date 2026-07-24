@@ -8,7 +8,7 @@
         </div>
       </template>
 
-      <el-form :model="form" :rules="rules" ref="formRef" @submit.prevent="handleSubmit">
+      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px" label-position="right" @submit.prevent="handleSubmit">
         <el-form-item label="当前密码" prop="oldPassword">
           <el-input v-model="form.oldPassword" type="password" show-password autocomplete="current-password" />
         </el-form-item>

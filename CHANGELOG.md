@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **SenseNova + DeepSeek 模型门禁误杀**：`sensenova` 内置目录补齐 `deepseek-v4-flash` / `deepseek-v4-pro`；API 发现或仅存 ID 的稀疏元数据按 model ID 从内置目录补全 `supports_tools`（E2E 常用 `sensenova`/`deepseek-v4-flash` 不再被 0.11.2 coder 门禁误拒）
+- **自发现未知模型误杀**：`/models` 仅返回 ID、且不在 builtin 时，不再把零值 `supports_tools=false` 当成「明确不支持」；门禁仅拦截已知 false（builtin 或用户填全的自定义元数据），与 `meta=nil` 不误杀策略一致；发现结果对未知 ID 乐观标记 `supports_tools=true`
+
 ## [0.11.2] - 2026-07-24
 
 Coder 任务失败闭环补丁：拒绝「伪工具调用当成功」、拦截不支持 tools 的模型，并在 Web 选型时提醒。  

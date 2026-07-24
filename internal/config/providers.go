@@ -390,5 +390,121 @@ var BuiltinModelCatalog = map[string][]ModelDefinition{
 			InputPrice:    0.002,
 			OutputPrice:   0.006,
 		},
+		// SenseNova OpenAI-compatible gateway also hosts DeepSeek model IDs
+		// (E2E / scripts/TESTING.md: sensenova + deepseek-v4-flash).
+		{
+			ID:            "deepseek-v4-pro",
+			Name:          "DeepSeek V4 Pro",
+			ContextWindow: 1000000,
+			MaxOutput:     32768,
+			SupportsTools: true,
+			IsReasoning:   false,
+			Description:   "经 SenseNova 网关的 DeepSeek V4 Pro",
+			InputPrice:    0.015,
+			OutputPrice:   0.025,
+		},
+		{
+			ID:            "deepseek-v4-flash",
+			Name:          "DeepSeek V4 Flash",
+			ContextWindow: 1000000,
+			MaxOutput:     32768,
+			SupportsTools: true,
+			IsReasoning:   false,
+			Description:   "经 SenseNova 网关的 DeepSeek V4 Flash（E2E 默认）",
+			InputPrice:    0.008,
+			OutputPrice:   0.012,
+			DefaultParams: ModelParams{Temperature: floatPtr(0.5)},
+		},
 	},
+}
+
+// LookupBuiltinModelByID finds model metadata by ID across all builtin catalogs.
+// Used when a gateway (e.g. SenseNova) serves another vendor's model IDs.
+func LookupBuiltinModelByID(modelID string) *ModelDefinition {
+	// Prefer well-known vendor catalogs first so map iteration order does not matter.
+	preferred := []string{"deepseek", "openai", "claude", "qwen", "sensenova"}
+	seen := make(map[string]struct{}, len(preferred))
+	for _, name := range preferred {
+		seen[name] = struct{}{}
+		for i := range BuiltinModelCatalog[name] {
+			if BuiltinModelCatalog[name][i].ID == modelID {
+				cp := BuiltinModelCatalog[name][i]
+				return &cp
+			}
+		}
+	}
+	for name, models := range BuiltinModelCatalog {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		for i := range models {
+			if models[i].ID == modelID {
+				cp := models[i]
+				return &cp
+			}
+		}
+	}
+	return nil
+}
+
+// EnrichModelMetaFromBuiltin fills sparse fields (API discovery / custom ID-only
+// entries) from the builtin catalog. SupportsTools is upgraded from a known
+// builtin true; explicit builtin false (e.g. deepseek-reasoner) stays false.
+func EnrichModelMetaFromBuiltin(def ModelDefinition) ModelDefinition {
+	bm := LookupBuiltinModelByID(def.ID)
+	if bm == nil {
+		return def
+	}
+	if def.Name == "" || def.Name == def.ID {
+		def.Name = bm.Name
+	}
+	if def.ContextWindow == 0 {
+		def.ContextWindow = bm.ContextWindow
+	}
+	if def.MaxOutput == 0 {
+		def.MaxOutput = bm.MaxOutput
+	}
+	if !def.SupportsTools {
+		def.SupportsTools = bm.SupportsTools
+	}
+	if !def.IsReasoning {
+		def.IsReasoning = bm.IsReasoning
+	}
+	if def.Description == "" {
+		def.Description = bm.Description
+	}
+	if def.InputPrice == 0 {
+		def.InputPrice = bm.InputPrice
+	}
+	if def.OutputPrice == 0 {
+		def.OutputPrice = bm.OutputPrice
+	}
+	if def.DefaultParams.Temperature == nil && def.DefaultParams.TopP == nil &&
+		def.DefaultParams.FrequencyPenalty == nil && def.DefaultParams.PresencePenalty == nil {
+		def.DefaultParams = bm.DefaultParams
+	}
+	return def
+}
+
+// IsSparseModelMeta reports ID-only / discovery-shaped metadata with no real
+// capability fields filled in (Name empty or equal to ID counts as sparse).
+func IsSparseModelMeta(m ModelDefinition) bool {
+	return m.ContextWindow == 0 && m.MaxOutput == 0 &&
+		(m.Name == "" || m.Name == m.ID) &&
+		m.Description == "" &&
+		m.InputPrice == 0 && m.OutputPrice == 0
+}
+
+// ModelToolsDenied reports whether coder tasks should be blocked for meta.
+// Policy matches "meta=nil 不误杀": unknown/sparse definitions are allowed;
+// only a known SupportsTools=false (builtin catalog, or intentionally filled
+// custom meta with tools off) denies.
+func ModelToolsDenied(meta *ModelDefinition) bool {
+	if meta == nil || meta.SupportsTools {
+		return false
+	}
+	if bm := LookupBuiltinModelByID(meta.ID); bm != nil {
+		return !bm.SupportsTools
+	}
+	return !IsSparseModelMeta(*meta)
 }

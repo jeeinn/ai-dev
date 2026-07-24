@@ -247,20 +247,20 @@
           <el-collapse-item v-if="form.role === 'coder'" title="Agent Loop 配置" name="loop">
             <el-form-item label="最大迭代轮数">
               <el-input-number v-model="form.loop_config.max_iterations" :min="1" :max="100" :step="1" />
-              <span class="form-tip" style="margin-left: 12px">默认 20</span>
+              <div class="form-tip">默认 20</div>
             </el-form-item>
             <el-form-item label="Loop 总超时">
               <el-input v-model="form.loop_config.total_timeout" placeholder="30m" style="width: 200px" />
             </el-form-item>
             <el-form-item label="轮次间隔">
               <el-input-number v-model="form.loop_config.iteration_interval" :min="0" :max="300" :step="1" />
-              <span class="form-tip" style="margin-left: 12px">秒；每轮 Loop 之间的等待时间，0 表示不等待</span>
+              <div class="form-tip">秒；每轮 Loop 之间的等待时间，0 表示不等待</div>
             </el-form-item>
 
             <el-divider content-position="left">Harness 验证门禁</el-divider>
             <el-form-item label="无进展退出上限">
               <el-input-number v-model="form.loop_config.no_progress_limit" :min="0" :max="100" />
-              <span class="form-tip" style="margin-left: 12px">0 = 关闭检测（继承系统默认）</span>
+              <div class="form-tip">0 = 关闭检测（继承系统默认）</div>
             </el-form-item>
             <el-form-item label="覆盖系统校验命令">
               <el-switch v-model="form.loop_config.verify_commands_override" />
@@ -637,6 +637,12 @@ onMounted(() => {
   color: #909399;
   margin-top: 6px;
   line-height: 1.5;
+}
+
+/* el-form-item__content 为 flex；提示单独占一行，避免贴在输入控件右侧 */
+.el-form-item__content > .form-tip {
+  flex-basis: 100%;
+  width: 100%;
 }
 
 .text-muted {

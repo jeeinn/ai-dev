@@ -116,6 +116,8 @@ export function useAgentDefaults() {
     const lc = { ...loopDefaults.value }
     // New agents should inherit verify_commands from system config, not override with []
     delete lc.verify_commands
+    lc.verify_commands_override = false
+    lc.verify_commands_text = ''
     return {
       name: '',
       gitea_username: '',

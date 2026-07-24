@@ -320,15 +320,20 @@ const loadAgent = async () => {
   try {
     const data = await api.get(`/agents/${agentId.value}`)
     agent.value = data
-    const loopConfig = { ...loopDefaults.value, ...defaultLoopConfig, ...(data.loop_config || {}) }
-    if (loopConfig.verify_commands !== null && loopConfig.verify_commands !== undefined) {
+    // Override must be derived from the agent's stored loop_config only.
+    // Merging system defaults first would inject verify_commands and force the switch on.
+    const agentLoop = data.loop_config || {}
+    const hasVerifyOverride = agentLoop.verify_commands !== null && agentLoop.verify_commands !== undefined
+    const loopConfig = { ...loopDefaults.value, ...defaultLoopConfig, ...agentLoop }
+    if (hasVerifyOverride) {
       loopConfig.verify_commands_override = true
-      loopConfig.verify_commands_text = Array.isArray(loopConfig.verify_commands)
-        ? loopConfig.verify_commands.join('\n')
+      loopConfig.verify_commands_text = Array.isArray(agentLoop.verify_commands)
+        ? agentLoop.verify_commands.join('\n')
         : ''
     } else {
       loopConfig.verify_commands_override = false
       loopConfig.verify_commands_text = ''
+      delete loopConfig.verify_commands
     }
     form.value = {
       ...defaultForm,

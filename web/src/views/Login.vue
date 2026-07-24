@@ -18,7 +18,7 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" :loading="loading" @click="handleLogin" style="width: 100%">
+          <el-button type="primary" native-type="submit" :loading="loading" style="width: 100%">
             登录
           </el-button>
         </el-form-item>
@@ -58,6 +58,7 @@ const rules = {
 }
 
 const handleLogin = async () => {
+  if (loading.value) return
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 

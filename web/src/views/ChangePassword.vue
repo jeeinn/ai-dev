@@ -19,7 +19,7 @@
           <el-input v-model="form.confirmPassword" type="password" show-password autocomplete="new-password" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="loading" @click="handleSubmit" style="width: 100%">
+          <el-button type="primary" native-type="submit" :loading="loading" style="width: 100%">
             确认修改
           </el-button>
         </el-form-item>
@@ -66,6 +66,7 @@ const rules = {
 }
 
 const handleSubmit = async () => {
+  if (loading.value) return
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
